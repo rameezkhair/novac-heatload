@@ -83,4 +83,27 @@ describe('app', () => {
     await act(async () => byText('button', 'Save in browser').click());
     expect(JSON.parse(localStorage.getItem('novac-heatload-projects')!)[0].name).toBe('Villa A');
   });
+
+  it('saves back to the same file, and Save as picks a new one', async () => {
+    const written: Record<string, string> = {}, picked: string[] = [];
+    const handle = (name: string) => ({ name, getFile: async () => new File([written[name] ?? ''], name),
+      createWritable: async () => ({ write: async (d: string) => { written[name] = d; }, close: async () => {} }) });
+    const names = ['a.novac.json', 'b.novac.json'];
+    (window as any).showSaveFilePicker = async () => { const n = names[picked.length]; picked.push(n); return handle(n); };
+    try {
+      const save = async (as = false) => {
+        await act(async () => byText('button', 'Projects ▾').click());
+        await act(async () => byText('button', as ? 'Save as…' : 'Save').click());
+      };
+      await act(async () => setValue($('#p-name'), 'Villa A'));
+      await save(); await save();
+      expect(picked).toEqual(['a.novac.json']);
+      expect(JSON.parse(written['a.novac.json']).project.name).toBe('Villa A');
+      await act(async () => setValue($('#p-name'), 'Villa B'));
+      await save(true);
+      expect(picked).toEqual(['a.novac.json', 'b.novac.json']);
+      expect(JSON.parse(written['b.novac.json']).project.name).toBe('Villa B');
+      expect(JSON.parse(written['a.novac.json']).project.name).toBe('Villa A');
+    } finally { delete (window as any).showSaveFilePicker; }
+  });
 });
