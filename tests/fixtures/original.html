@@ -1,0 +1,1869 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>NOVAC Simplified Thermal Load Calculator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: engineering worksheet. Header, numbered input sections, psychrometric chart, room workspace (list | editor | result), load schedule, report view. */
+:root{
+  --bg:#F5F5F3; --surface:#FFFFFF; --field:#FFFFFF; --fg:#1F2937; --muted:#5B6472;
+  --line:#DCDEE2; --line-strong:#BCC0C7; --band:#1F2937; --band-fg:#FFFFFF;
+  --accent:#B08A2E; --accent-soft:rgba(176,138,46,.10); --bar:#374151; --bar-2:#A3A9B3; --lat:#2E6DA4; --sel:#EEF0F3; --warn:#9A3412;
+  --ok:#2F6B3B; --ok-bg:#E7F1E9; --req:#7A4E00; --req-bg:#FBF1DC; --bad:#B42318; --bad-bg:#FBE7E5;
+  --font:Arial,"Helvetica Neue",Helvetica,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111418; --surface:#181C21; --field:#1F242B; --fg:#E6E8EB; --muted:#9AA3AF;
+  --line:#2C323A; --line-strong:#3E454F; --band:#2A313A; --band-fg:#FFFFFF;
+  --accent:#C9A24A; --accent-soft:rgba(201,162,74,.12); --bar:#C9CED6; --bar-2:#5F6773; --lat:#6FA8DC; --sel:#232931; --warn:#F2A57E;
+  --ok:#8FD19E; --ok-bg:#1C2F22; --req:#F0C66B; --req-bg:#33290F; --bad:#F59B8F; --bad-bg:#3A1C19; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#111418; --surface:#181C21; --field:#1F242B; --fg:#E6E8EB; --muted:#9AA3AF;
+  --line:#2C323A; --line-strong:#3E454F; --band:#2A313A; --band-fg:#FFFFFF;
+  --accent:#C9A24A; --accent-soft:rgba(201,162,74,.12); --bar:#C9CED6; --bar-2:#5F6773; --lat:#6FA8DC; --sel:#232931; --warn:#F2A57E;
+  --ok:#8FD19E; --ok-bg:#1C2F22; --req:#F0C66B; --req-bg:#33290F; --bad:#F59B8F; --bad-bg:#3A1C19; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.5}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{background:var(--surface);border-bottom:1px solid var(--accent)}
+header.top .wrap{padding-block:22px 18px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
+h1{margin:0;font-size:24px;letter-spacing:-.01em;text-wrap:balance}
+h1 span{font-weight:normal;color:var(--muted)}
+.tag{margin:4px 0 0;color:var(--muted);font-size:13px;max-width:110ch}
+.tag .sep{color:var(--line-strong);margin:0 6px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;cursor:pointer}
+.btn{border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);padding:8px 14px;border-radius:3px;font-size:13px}
+.btn:hover{border-color:var(--fg)}
+.btn.primary{background:var(--band);border-color:var(--band);color:var(--band-fg)}
+.btn.danger[data-armed="1"]{border-color:#B42318;color:#B42318}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.notice{margin-top:18px;padding:10px 14px;border:1px solid var(--line);background:var(--accent-soft);font-size:13px}
+main{padding-block:8px 64px}
+section{margin-top:34px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;border-bottom:1px solid var(--accent);padding-bottom:8px;margin-bottom:18px}
+h2{margin:0;font-size:17px;text-wrap:balance}
+h2 .n{color:var(--accent);margin-right:8px}
+.sec-head p{margin:0;color:var(--muted);font-size:13px}
+.groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px}
+fieldset{border:1px solid var(--line);background:var(--surface);margin:0;padding:14px 16px 16px;min-width:0}
+legend{padding:0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:bold}
+.fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fgrid.one{grid-template-columns:minmax(0,1fr)}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld.wide{grid-column:1/-1}
+.flrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 8px;min-height:18px}
+.fl{font-size:12px;color:var(--muted)}
+.in-u{display:flex;align-items:stretch;border:1px solid var(--line-strong);border-radius:3px;background:var(--field);min-width:0}
+.in-u:focus-within{border-color:var(--fg)}
+.in-u input,.in-u select{border:0;background:transparent;color:var(--fg);font:inherit;padding:7px 9px;width:100%;min-width:0;font-variant-numeric:tabular-nums}
+.in-u select{font-size:13px;text-overflow:ellipsis}
+.in-u input:focus,.in-u select:focus{outline:none}
+.u{padding:7px 9px 7px 0;color:var(--muted);font-size:12px;white-space:nowrap;align-self:center}
+.pick .in-u+.in-u{border-top-left-radius:0;border-top-right-radius:0;margin-top:-5px}
+.pick .src-sel{border-bottom-left-radius:0;border-bottom-right-radius:0;background:var(--sel)}
+.pick.is-custom .src-sel{background:var(--accent-soft)}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.pair .in-u{border-radius:0}
+.pair .in-u+.in-u{border-left:0}
+.cmark{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:bold;line-height:1.5;white-space:nowrap;cursor:help}
+.cmark:empty{display:none}
+.cmark.ok{color:var(--ok);background:var(--ok-bg)}
+.cmark.bad{color:var(--bad);background:var(--bad-bg)}
+.cmark.warn{color:var(--req);background:var(--req-bg)}
+.hint{font-size:12px;color:var(--muted);margin:10px 0 0}
+.warn{color:var(--warn)}
+.check{display:flex;gap:10px;align-items:flex-start;grid-column:1/-1;font-size:13px;padding-top:4px}
+.check input{margin-top:3px;accent-color:var(--fg)}
+.codebar{display:grid;grid-template-columns:minmax(0,560px);gap:12px 18px;margin-bottom:18px;padding:14px 16px;border:1px solid var(--line);background:var(--surface)}
+.codebar p{margin:0;grid-column:1/-1;font-size:12px;color:var(--muted)}
+.derived{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:14px;padding:10px 14px;border:1px dashed var(--line-strong);font-size:13px;font-variant-numeric:tabular-nums}
+details{margin-top:18px;border:1px solid var(--line);background:var(--surface)}
+details>summary{cursor:pointer;padding:12px 16px;font-weight:bold;font-size:13px}
+details>.body{padding:0 16px 16px}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{background:var(--band);color:var(--band-fg);font-weight:bold;font-size:12px;border-bottom:0}
+tfoot td{font-weight:bold;border-top:2px solid var(--fg);border-bottom:0}
+td input{width:84px;border:1px solid var(--line-strong);border-radius:3px;background:var(--field);color:var(--fg);font:inherit;padding:5px 7px;text-align:right;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.lib-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;margin-top:6px}
+.lib-grid h4{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lib td{white-space:normal}
+.refs{font-size:12.5px;line-height:1.6;color:var(--muted);max-width:90ch}
+.refs a{color:var(--fg)}
+
+/* text-led tables: left-aligned text, right-aligned numbers, headers match their columns */
+table.tl{table-layout:fixed;min-width:720px}
+.chk2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:18px;align-items:start}
+.chk2 .checks{margin:0}.chk2 h3{align-items:center}
+.chk-sum{margin:0;padding:8px 16px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+table.tl.cmp{min-width:0}table.tl.cmp th,table.tl.cmp td{padding:8px 10px;font-size:12.5px}
+table.tl.cmp td.n{white-space:normal}
+
+.oa-box{margin-top:12px;border:1px solid var(--line);border-left:3px solid var(--accent,#B08A2E);padding:10px 12px;background:var(--surface)}
+.oa-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.oa-v{font-size:15px;margin:6px 0 4px}.oa-v b{font-size:22px}
+.oa-box .kv{grid-template-columns:auto minmax(0,1fr);margin-top:8px;padding-top:8px;font-size:12.5px}
+.bar-row.tot-row{border-top:1px solid var(--line);padding-top:6px;margin-top:4px}
+table.ptbl td,table.ptbl th{white-space:normal}table.ptbl input,table.ptbl select{width:100%;box-sizing:border-box}table.ptbl .ucell{display:flex;gap:4px;align-items:center}table.ptbl .ucell.cust input{border-color:var(--accent);background:var(--accent-soft)}table.ptbl .usrc{display:block;font-size:10.5px;color:var(--muted);margin-top:2px}
+table.ptbl tr.addrow td,table.ptbl tr.dis td{text-align:left}.undo-grp{display:inline-flex;gap:0}.undo-grp .btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}.undo-grp .btn:last-child{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px}.btn:disabled{opacity:.45;cursor:default}
+table.ptbl td.muted{text-align:left;font-size:12px}table.ptbl td.sub{padding-left:22px;color:var(--muted)}table.ptbl tr.addrow td{padding:6px 10px}table.ptbl tr.addrow .btn{margin-right:6px}table.ptbl td .btn.sm{padding:0 6px;margin-left:4px}table.ptbl tr.dis td{color:var(--muted);font-size:12px}
+table.exp td.wcb{width:64px;text-align:right}
+tr.wcalc td{background:var(--bg);padding:10px 12px}
+.wcgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px}
+.wcf{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted)}
+.wcf input{width:100%;box-sizing:border-box}
+.wcres{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:var(--fg)}
+input.bad-in{outline:2px solid var(--bad,#B42318)}
+table.tl tr.sel td{background:var(--ok-bg,#E7F1E9)}
+.btn.sm{padding:3px 10px;font-size:11.5px}
+table.tl.cmp .pill{white-space:normal;display:inline-block;line-height:1.3;max-width:100%}
+@media (max-width:1100px){.chk2{grid-template-columns:1fr}}
+table.tl th,table.tl td{text-align:left;white-space:normal;vertical-align:middle;padding:10px 14px}
+table.tl th.n,table.tl td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.tl td.why{color:var(--muted);font-size:12.5px}
+table.tl .pill{white-space:nowrap;font-size:11.5px;padding:3px 10px}
+.remark{margin-top:14px;padding:12px 16px;border:1px solid var(--bad);background:var(--bad-bg);color:var(--fg);font-size:13px}
+.remark.warn{border-color:var(--req);background:var(--req-bg)}
+.vent-why{margin-top:10px;font-size:12.5px}
+.vent-why details{margin:0;border:0;background:none}
+.vent-why details>summary{padding:0;cursor:pointer;font-weight:bold;font-size:12.5px;color:var(--fg)}
+.vent-why p{margin:6px 0 0;color:var(--muted);line-height:1.5}
+.remark.info{border-color:var(--line-strong);background:var(--sel);font-size:12.5px;line-height:1.5}
+.remark b{display:block;margin-bottom:4px}
+.remark ul{margin:0;padding-left:18px}
+.day-chart{padding:10px 12px 4px;overflow-x:auto}
+.day-chart svg{display:block;width:100%;min-width:560px;height:auto}
+.day-tbl th,.day-tbl td{padding:6px 7px;font-size:12px}
+.day-tbl td:first-child,.day-tbl th:first-child{position:sticky;left:0;background:var(--surface);min-width:120px}
+.day-tbl thead th:first-child{background:var(--band)}
+/* abbreviations */
+.abbr{margin-top:22px}
+.abbr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 22px;margin:0;font-size:13px}
+.abbr-grid div{display:grid;grid-template-columns:64px minmax(0,1fr);gap:8px;min-width:0;padding:3px 0;border-bottom:1px dotted var(--line)}
+.abbr-grid dt{font-weight:bold}
+.abbr-grid dd{margin:0;color:var(--muted)}
+/* psychrometric chart */
+.psy-wrap{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}
+.states tr.grp td{background:var(--bg);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.psy-card{margin:0}.psy-card .psy-box{border:0;border-bottom:1px solid var(--line)}.psy-card .psy-box svg{min-width:0}
+.psy-box{border:1px solid var(--line);background:var(--surface);padding:10px;overflow-x:auto}
+.psy-box svg{display:block;width:100%;min-width:560px;height:auto}
+.psy-note{font-size:12px;color:var(--muted);margin:10px 0 0}
+.states td,.states th{padding:6px 8px;font-size:12.5px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+/* rooms workspace */
+.workspace{display:grid;grid-template-columns:230px minmax(0,1fr) 330px;gap:18px;align-items:start}
+.rlist{display:flex;flex-direction:column;border:1px solid var(--line);background:var(--surface)}
+.ritem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--fg);padding:10px 12px}
+.ritem:hover{background:var(--sel)}
+.ritem[aria-current="true"]{background:var(--sel);box-shadow:inset 3px 0 0 var(--fg)}
+.ritem .nm{font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ritem .tr{font-variant-numeric:tabular-nums;font-weight:bold}
+.ritem .ty{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.ritem .ty b{font-weight:bold}
+.ritem .ty .x{color:var(--bad)}
+.rlist .add{border:0;background:transparent;color:var(--fg);padding:12px;text-align:left;font-weight:bold}
+.rlist .add:hover{background:var(--sel)}
+.editor{border:1px solid var(--line);background:var(--surface);padding:16px;min-width:0}
+.editor h3,.result h3{margin:0 0 12px;font-size:15px}
+.ed-sec{margin-top:20px}
+.ed-sec h4{margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fgrid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px}
+.exp td{padding:5px 8px}
+.exp td input{width:100%;min-width:64px}
+.exp th{padding:7px 8px}
+.ed-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.result{border:1px solid var(--line);background:var(--surface);padding:16px;position:sticky;top:12px;min-width:0}
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.big{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+.big-num{font-size:40px;font-weight:bold;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.big-unit{font-size:16px;color:var(--muted)}
+.sub{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;text-align:right;font-weight:bold}
+.bars{margin-top:16px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:7px}
+.bar-row{display:grid;grid-template-columns:118px minmax(0,1fr) 64px;gap:8px;align-items:center;font-size:12px;font-variant-numeric:tabular-nums}
+.bar-row .v{text-align:right}
+.track{height:8px;background:var(--sel);border-radius:1px;overflow:hidden}
+.fill{display:block;height:100%;background:var(--bar)}
+.fill.lat{background:var(--lat)}
+.bar-row.lat span:first-child,.bar-row.lat .v{color:var(--lat)}
+.bar-row.off{opacity:.5}
+.legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:10px;height:8px;margin-right:5px;vertical-align:middle}
+.empty{border:1px dashed var(--line-strong);padding:28px;text-align:center;color:var(--muted)}
+
+/* totals and checks */
+.totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);background:var(--surface);margin-bottom:18px}
+.tot{padding:14px 16px;border-right:1px solid var(--line);min-width:0}
+.tot:last-child{border-right:0}
+.tot .k{font-size:12px;color:var(--muted)}
+.tot .v{font-size:26px;font-weight:bold;font-variant-numeric:tabular-nums;margin-top:2px}
+.tot .v small{font-size:13px;color:var(--muted);font-weight:normal;margin-left:4px}
+.tot .s{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tot.key .v{border-bottom:2px solid var(--accent);display:inline-block}
+.checks{border:1px solid var(--line);background:var(--surface);margin-bottom:18px}
+.checks h3{margin:0;padding:12px 16px;font-size:13px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+.chk{display:grid;grid-template-columns:104px 130px minmax(0,1fr);gap:12px;align-items:start;padding:10px 16px;border-bottom:1px solid var(--line);font-size:13px}
+.chk:last-child{border-bottom:0}
+.chk .cl{color:var(--muted)}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:bold;letter-spacing:.03em;text-align:center}
+.pill.ok{color:var(--ok);background:var(--ok-bg)}
+.pill.req{color:var(--req);background:var(--req-bg)}
+.pill.warn{color:var(--req);background:var(--req-bg)}
+.pill.bad{color:var(--bad);background:var(--bad-bg)}
+.pill.na{color:var(--muted);background:var(--sel)}
+.basis{margin-top:18px}
+.basis td{white-space:normal}
+.method{font-size:13px;line-height:1.6;max-width:80ch}
+.method code{font-family:Consolas,"Courier New",monospace;font-size:12.5px;background:var(--sel);padding:1px 5px}
+.method li{margin-bottom:4px}
+#copy-out{width:100%;height:140px;margin-top:10px;font-family:Consolas,monospace;font-size:12px;background:var(--field);color:var(--fg);border:1px solid var(--line-strong)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--band);color:var(--band-fg);padding:10px 16px;border-radius:3px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+.toast.show{opacity:1}
+
+/* report view: a light paper page in both themes, matching the downloaded file */
+.rbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:22px 0 14px}
+.rbar .muted{font-size:12px;flex-basis:100%}
+.paper{background:#FFFFFF;color:#1F2937;border:1px solid var(--line);max-width:8.5in;margin:0 auto;overflow-x:auto}
+.rpt{font-family:Arial,Helvetica,sans-serif;color:#1F2937;background:#FFFFFF;font-size:10.5pt;line-height:1.45;padding:.6in .55in}
+.rpt h1{font-size:20pt;margin:0 0 2pt;letter-spacing:-.01em}
+.rpt .rsub{color:#5B6472;margin:0 0 14pt}
+.rpt h2{font-size:13pt;margin:24pt 0 8pt;padding-bottom:4pt;border-bottom:1px solid #B08A2E}
+.rpt h3{font-size:11pt;margin:16pt 0 6pt}
+.rpt table{width:100%;border-collapse:collapse;margin:6pt 0 10pt;font-size:9pt}
+.rpt th{background:#1F2937;color:#FFFFFF;text-align:left;padding:4pt 6pt;font-weight:bold;white-space:normal}
+.rpt td{padding:4pt 6pt;border-bottom:1px solid #E1E3E7;vertical-align:top;text-align:left;white-space:normal;color:#1F2937}
+.rpt .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rpt tfoot td{font-weight:bold;border-top:1.5px solid #1F2937;border-bottom:0}
+.rpt .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid #DCDEE2;margin:10pt 0}
+.rpt .kpi{padding:8pt 10pt;border-right:1px solid #DCDEE2}
+.rpt .kpi:last-child{border-right:0}
+.rpt .kpi .k{font-size:8.5pt;color:#5B6472}
+.rpt .kpi .v{font-size:15pt;font-weight:bold}
+.rpt .kpi .s{font-size:8.5pt;color:#5B6472}
+.rpt .ck{display:inline-block;min-width:14pt;font-weight:bold;text-align:center;border-radius:8pt;padding:0 4pt}
+.rpt .ck.ok{color:#2F6B3B;background:#E7F1E9}
+.rpt .ck.bad{color:#B42318;background:#FBE7E5}
+.rpt .ck.warn{color:#7A4E00;background:#FBF1DC}
+.rpt .ck.na{color:#5B6472;background:#EEF0F3}
+.rpt .room{border-top:1px solid #DCDEE2;margin-top:14pt}
+.rpt .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14pt}
+.rpt .small{font-size:8.5pt;color:#5B6472}
+.rpt .chart{border:1px solid #DCDEE2;padding:6pt;margin:8pt 0}
+.rpt .chart svg{width:100%;height:auto;display:block}
+.rpt .sign{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20pt;margin-top:30pt}
+.rpt .sign div{border-top:1px solid #1F2937;padding-top:4pt;font-size:9pt;color:#5B6472}
+.rpt ul{padding-left:16pt}
+@media (max-width:1100px){
+  .workspace{grid-template-columns:210px minmax(0,1fr)}
+  .result{grid-column:1/-1;position:static}
+  .psy-wrap{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .workspace{grid-template-columns:minmax(0,1fr)}
+  .totals{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tot:nth-child(2){border-right:0}
+  .tot:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .fgrid3,.fgrid{grid-template-columns:minmax(0,1fr)}
+  .lib-grid{grid-template-columns:minmax(0,1fr)}
+  .chk{grid-template-columns:96px minmax(0,1fr)}
+  .chk .tx{grid-column:1/-1}
+  .rpt{padding:18px 16px}
+  .rpt .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rpt .two{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+#loc-note.authg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border:1px solid var(--line,#E5E7EB);margin-top:8px}
+.au{display:block;padding:8px 12px;border-left:1px solid var(--line,#E5E7EB);font-size:12.5px;line-height:1.4}
+.au:first-child{border-left:0}
+.au b{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#6B7280);margin-bottom:2px}
+@media (max-width:900px){#loc-note.authg{grid-template-columns:1fr 1fr}.au{border-left:0;border-top:1px solid var(--line,#E5E7EB)}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div>
+      <h1>NOVAC <span>Simplified Thermal Load Calculator</span></h1>
+      <p class="tag">Developed on ASHRAE's CLTD/CLF method, in compliance with DBC, Al Sa'fat, Estidama and ASHRAE standards</p>
+    </div>
+    <div class="actions">
+      <span class="undo-grp"><button class="btn" id="btn-undo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>↶ Undo</button><button class="btn" id="btn-redo" type="button" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" aria-label="Redo" disabled>↷ Redo</button></span>
+      <button class="btn" id="btn-example" type="button">Load example</button>
+      <button class="btn danger" id="btn-new" type="button">New project</button>
+      <button class="btn" id="btn-copy" type="button">Copy schedule for Excel</button>
+      <button class="btn primary" id="btn-report" type="button">Generate report</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="calc">
+  <details class="abbr" id="abbr-box">
+    <summary>Abbreviations and symbols</summary>
+    <div class="body"><dl class="abbr-grid" id="abbr-list"></dl></div>
+  </details>
+  <div class="notice" id="example-note" hidden>Example data loaded: a small Dubai office. Replace the rooms and envelope values with your project's figures, or start a new project.</div>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">1</span>Project &amp; design conditions</h2><p id="loc-note"></p></div>
+    <div class="groups">
+      <fieldset>
+        <legend>Project</legend>
+        <div class="fgrid one">
+          <label class="fld" for="p-name"><span class="fl">Project name</span><span class="in-u"><input id="p-name" data-p="name" type="text" placeholder="e.g. G+1 office, Al Quoz"></span></label>
+          <label class="fld" for="p-location"><span class="fl">Emirate / design-condition basis</span><span class="in-u"><select id="p-location" data-p="location"></select></span></label>
+          <label class="fld" for="p-subloc"><span class="fl">Sub-location (sets daily range)</span><span class="in-u"><select id="p-subloc" data-p="subloc"></select></span></label>
+        </div>
+        <p class="hint" id="subloc-note"></p>
+      </fieldset>
+      <fieldset><legend>Outdoor · envelope &amp; infiltration</legend><div class="fgrid" id="g-out"></div></fieldset>
+      <fieldset><legend>Outdoor · fresh air</legend><div class="fgrid" id="g-vent"></div><p class="hint" id="vent-hint"></p><div class="remark info" id="vent-remark"></div></fieldset>
+      <fieldset><legend>Indoor design &amp; comfort</legend><div class="fgrid" id="g-in"></div></fieldset>
+    </div>
+    <div class="remark" id="out-remark" role="alert" hidden></div>
+    <div class="chk2">
+      <div class="checks"><h3><span>Outdoor design basis checks</span><span id="outdoor-cnt"></span></h3><p class="chk-sum" id="outdoor-sum"></p><div class="tbl-wrap" style="border:0"><table id="outdoor-checks"></table></div></div>
+      <div class="checks"><h3><span>Indoor design basis checks</span><span id="indoor-cnt"></span></h3><p class="chk-sum" id="indoor-sum"></p><div class="tbl-wrap" style="border:0"><table id="indoor-checks"></table></div></div>
+    </div>
+    <div class="derived" id="derived"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">2</span>Psychrometric chart</h2><p id="psy-sub"></p></div>
+    <div class="psy-wrap">
+      <div class="psy-box" id="psy-chart"></div>
+      <div>
+        <div class="tbl-wrap"><table class="states" id="psy-states"></table></div>
+        <p class="psy-note" id="psy-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">3</span>Envelope &amp; system</h2><p>Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance.</p></div>
+    <div class="codebar">
+      <label class="fld" for="p-codeset"><span class="fl">Envelope code · fills all values and sets the compliance basis</span><span class="in-u"><select id="p-codeset"></select></span></label>
+      <p id="cbasis-note"></p>
+    </div>
+    <div class="groups">
+      <fieldset><legend>Opaque envelope</legend><div class="fgrid one" id="g-env"></div></fieldset>
+      <fieldset><legend>Glazing &amp; skylights</legend><div class="fgrid one" id="g-glz"></div><p class="hint" id="wwr-note"></p></fieldset>
+      <fieldset><legend>Adjacent spaces &amp; shading</legend><div class="fgrid" id="g-adj"></div><p class="hint">Partition and exposed floor / ceiling U-values are project-specific. Typical starting values are filled in.</p></fieldset>
+      <fieldset><legend>System &amp; margins</legend><div class="fgrid" id="g-sys"></div>
+        <p class="hint">DBC H.4.6.3 caps safety factors at 10% sensible and 5% latent. Where diversity is not known, use ASHRAE Fundamentals Ch. 18 coefficients (DBC H.4.6.3).</p></fieldset>
+      <fieldset><legend>Fresh air distribution</legend><div class="fgrid one" id="g-ez"></div>
+        <p class="hint">ASHRAE 62.1-2022 Table 6-4. Zone outdoor air = (Rp × people + Ra × area) / Ez.</p></fieldset>
+      <fieldset><legend>Energy recovery · DBC H.4.8.2</legend><div class="fgrid" id="g-erv"></div>
+        <p class="hint">Required above 1,000 L/s of treated outdoor air: recover at least 50% of exhaust air at 70% or higher sensible effectiveness. Applied to the FAHU load.</p></fieldset>
+    </div>
+    <details>
+      <summary>Orientation factors: wall/roof CLTD and solar gain through glass</summary>
+      <div class="body">
+        <p class="hint" style="margin-top:0">Base CLTD for a medium-weight wall (ASHRAE group D) and insulated roof. The correction for your design conditions is applied automatically. Solar values are peak gain per m² of glass per unit SHGC, including a storage factor, for about 25°N in July.</p>
+        <div class="tbl-wrap" style="margin-top:10px">
+          <table><thead><tr><th>Surface</th><th>Base CLTD (K)</th><th>Corrected (K)</th><th>Solar on glass (W/m²)</th></tr></thead><tbody id="factor-body"></tbody></table>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">4</span>Rooms</h2><p>Each load item has a source list. Changing a value by hand switches it to Custom.</p></div>
+    <div class="workspace">
+      <nav class="rlist" id="rlist" aria-label="Rooms"></nav>
+      <div class="editor" id="editor"></div>
+      <aside class="result" id="result" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2><span class="n">5</span>Load schedule &amp; compliance</h2><p id="sched-note"></p></div>
+    <div class="totals" id="totals"></div>
+    <div class="checks" id="checks"></div>
+    <div class="tbl-wrap"><table id="sched"></table></div>
+    <textarea id="copy-out" readonly hidden aria-label="Text to copy"></textarea>
+    <div class="tbl-wrap basis"><table id="basis"></table></div>
+    <details>
+      <summary>Method and formulas</summary>
+      <div class="body method" id="method"></div>
+    </details>
+    <details>
+      <summary>Standards library: every selectable value and its source</summary>
+      <div class="body">
+        <div class="lib-grid" id="lib"></div>
+        <p class="refs" id="refs"></p>
+      </div>
+    </details>
+  </section>
+</main>
+
+<section class="wrap" id="report-view" hidden aria-label="Calculation report">
+  <div class="rbar">
+    <button class="btn" type="button" id="btn-back">Back to calculator</button>
+    <button class="btn primary" type="button" id="btn-dl-html" hidden>Download report (.html)</button>
+    <button class="btn" type="button" id="btn-dl-csv" hidden>Download schedule (.csv)</button>
+    <button class="btn" type="button" id="btn-copy-report">Copy report</button>
+    <span class="muted" id="report-help">Open the downloaded report in any browser and print it to PDF on US Letter. Copy report pastes the formatted report into Word or Outlook.</span>
+  </div>
+  <div class="paper"><div class="rpt" id="report-paper"></div></div>
+  <div style="height:48px"></div>
+</section>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const ORIENTS=['N','NE','E','SE','S','SW','W','NW'];
+const LOC={
+  dubai:{label:'Dubai',toDB:46,toWB:29,dr:13.8,elev:5,vDB:34,vWB:32,ref:'DBC Table H.1',vref:'DBC H.4.6.4',note:"Dubai: DBC Table H.1, 46 °C DB / 29 °C WB, 13.8 K daily range, 25° N, climate zone 0B; outdoor air system DBC H.4.6.4, 34 °C DB / 32 °C WB."},
+  abudhabi:{label:'Abu Dhabi (coastal)',toDB:46.1,toWB:29.4,dr:13,elev:27,vDB:35.3,vWB:30.6,ref:'DoE Cooling Load Manual Tables 1–2',note:'Abu Dhabi: DoE Cooling Load Manual, Tables 1 and 2.'},
+  alain:{label:'Al Ain (inland)',toDB:48.8,toWB:28.3,dr:15,elev:265,vDB:35.8,vWB:28.8,ref:'DoE Cooling Load Manual Tables 1–2',note:'Al Ain: DoE Cooling Load Manual, Tables 1 and 2.'},
+  sharjah:{label:'Sharjah',toDB:46,toWB:29,dr:13.8,elev:5,vDB:34,vWB:32,ref:'DBC Table H.1 (regional practice)',vref:'DBC H.4.6.4 (regional practice)'},
+  ajman:{label:'Ajman',toDB:46,toWB:29,dr:13.8,elev:5,vDB:34,vWB:32,ref:'DBC Table H.1 (regional practice)',vref:'DBC H.4.6.4 (regional practice)'},
+  uaq:{label:'Umm Al Quwain',toDB:46,toWB:29,dr:13.8,elev:5,vDB:34,vWB:32,ref:'DBC Table H.1 (regional practice)',vref:'DBC H.4.6.4 (regional practice)'},
+  rak:{label:'Ras Al Khaimah',toDB:46,toWB:29,dr:13.8,elev:5,vDB:34,vWB:32,ref:'DBC Table H.1 (regional practice)',vref:'DBC H.4.6.4 (regional practice)'},
+  fujairah:{label:'Fujairah',toDB:46,toWB:29,dr:13.8,elev:5,vDB:34,vWB:32,ref:'DBC Table H.1 (regional practice)',vref:'DBC H.4.6.4 (regional practice)'},
+  custom:{label:'Custom',ref:'Custom values',note:'Custom conditions. Record your data source.'}
+};
+
+/* Sub-locations: elevation sets site pressure for all psychrometrics; daily range sets the CLTD mean-temperature correction.
+   Design DB/WB stay at the emirate's code values. July ranges = mean daily max − mean daily min (Climates to Travel). */
+const CTT='July mean max − min (Climates to Travel)';
+/* zone proxies for places without published ranges */
+const ZC={gulf:'Gulf coast proxy: Dubai '+CTT+' 41.5 − 31.2 °C',adc:'Abu Dhabi '+CTT+' 42.5 − 29.7 °C',inland:'Inland desert proxy: Al Ain '+CTT+' 44.9 − 30.2 °C',east:'East coast proxy: Fujairah '+CTT+' 37.6 − 31.6 °C',mid:'Midpoint of coastal and inland ranges'};
+const S=(id,label,elev,dr,src,est)=>({id,label,elev,dr,src,est:!!est});
+const SUBLOC={
+  dubai:[
+    S('dbc','Dubai, DBC Table H.1 reference',5,13.8,'DBC Table H.1'),
+    S('coast','Dubai coastal (Deira, Bur Dubai, Jumeirah, Marina, Palm)',5,10.3,'Dubai '+CTT+': 41.5 − 31.2 °C'),
+    S('mid','Dubai mid-city (Al Quoz, Al Barsha, Business Bay, Mirdif)',15,12.5,ZC.mid+'; elevation approximate',true),
+    S('inland','Dubai inland desert (Al Qudra, Dubai South, Lisaili, Al Faqa)',50,14.7,ZC.inland+'; elevation approximate',true),
+    S('hatta','Hatta (mountain enclave)',330,14.7,'Elevation 330 m (Hatta); range: '+ZC.inland,true)],
+  abudhabi:[
+    S('city','Abu Dhabi City and islands (coastal)',27,12.8,'DoE CLM Table 1 elevation; '+ZC.adc),
+    S('mainland','Abu Dhabi mainland (Khalifa City, MBZ City, KIZAD)',15,13.8,ZC.mid+'; elevation approximate',true),
+    S('west','Al Dhafra coast (Ruwais, Mirfa, Sila)',5,12.8,'Range: '+ZC.adc+'; elevation approximate',true),
+    S('mzayed','Al Dhafra inland (Madinat Zayed, Ghayathi)',120,14.7,ZC.inland+'; elevation approximate. DoE CLM §2.2 requires local adjustment',true),
+    S('liwa','Liwa Oasis',150,14.7,ZC.inland+'; elevation approximate. DoE CLM §2.2 requires local adjustment',true),
+    S('sweihan','Sweihan / Al Khatim (inland)',100,14.7,ZC.inland+'; elevation approximate',true)],
+  alain:[
+    S('city','Al Ain City',265,14.7,'DoE CLM Table 1 elevation; Al Ain '+CTT+': 44.9 − 30.2 °C'),
+    S('hafeet','Jebel Hafeet upper slopes',1000,10,'Peak 1,108 m (UAE mountains list); range estimated for a summit site',true)],
+  sharjah:[
+    S('coast','Sharjah City (coastal)',5,10.3,ZC.gulf),
+    S('inland','Sharjah inland (Al Dhaid, Mleiha, Al Madam)',100,14.7,ZC.inland+'; elevation approximate',true),
+    S('east','Sharjah east coast (Khor Fakkan, Kalba, Dibba Al Hisn)',10,6.0,ZC.east,true)],
+  ajman:[
+    S('coast','Ajman City (coastal)',5,10.3,ZC.gulf),
+    S('manama','Ajman Al Manama (inland enclave)',150,14.7,ZC.inland+'; elevation approximate',true),
+    S('masfout','Ajman Masfout (mountain enclave)',400,14.7,ZC.inland+'; elevation approximate',true)],
+  uaq:[
+    S('coast','Umm Al Quwain City (coastal)',5,10.3,ZC.gulf),
+    S('falaj','Umm Al Quwain inland (Falaj Al Mualla)',40,14.7,ZC.inland+'; elevation approximate',true)],
+  rak:[
+    S('coast','Ras Al Khaimah coastal (city, Al Hamra, Al Marjan)',10,13.6,'Ras Al Khaimah '+CTT+': 43.3 − 29.7 °C'),
+    S('inland','RAK inland plain (Digdaga, Al Ghail)',40,14.7,ZC.inland+'; elevation approximate',true),
+    S('jais','Jebel Jais (upper developments)',1500,6,'Summit above 1,900 m; summer highs about 30 °C, lows mid-20s (Middle East Traveller); elevation of developments approximate',true)],
+  fujairah:[
+    S('coast','Fujairah City (coastal)',10,6.0,'Fujairah '+CTT+': 37.6 − 31.6 °C'),
+    S('dibba','Dibba Al-Fujairah',10,6.0,'Dibba '+CTT+': 37.6 − 31.6 °C'),
+    S('masafi','Masafi (mountain pass)',400,14.7,ZC.inland+'; elevation approximate',true)],
+  custom:[]
+};
+/* authority basis per emirate: who approves, which codes govern design. UAE Fire and Life Safety Code applies in every emirate */
+const FLSC='UAE Fire and Life Safety Code (Civil Defence)';
+const AUTH={
+  dubai:{auth:'Dubai Municipality (DM); free zones: DDA, Trakhees, DSO, DIFC',code:'Dubai Building Code 2021 (DBC)',green:"Al Sa'fat (DM)",util:'DEWA',design:'DBC Table H.1 and H.4.6.4'},
+  abudhabi:{auth:'Department of Municipalities and Transport (DMT); Abu Dhabi City / Al Dhafra Municipality',code:'Abu Dhabi International Building Codes (ADIBC)',green:'Estidama Pearl Rating System (DMT)',util:'TAQA Distribution (ADDC)',design:'DoE Cooling Load Manual Tables 1–2'},
+  alain:{auth:'Department of Municipalities and Transport (DMT); Al Ain City Municipality',code:'Abu Dhabi International Building Codes (ADIBC)',green:'Estidama Pearl Rating System (DMT)',util:'TAQA Distribution (AADC)',design:'DoE Cooling Load Manual Tables 1–2'},
+  sharjah:{auth:'Sharjah Municipality; Sharjah Planning and Survey Department',code:'Sharjah Municipality building regulations',green:'SEWA thermal insulation and efficiency requirements; ASHRAE 90.1 envelope',util:'SEWA',design:'DBC / ASHRAE values (no emirate design-day table)'},
+  ajman:{auth:'Ajman Municipality and Planning Department (AMPD)',code:'AMPD building regulations',green:'MOEI UAE Green Building Codes; ASHRAE 90.1 envelope',util:'Etihad Water and Electricity (EtihadWE)',design:'DBC / ASHRAE values (no emirate design-day table)'},
+  uaq:{auth:'Umm Al Quwain Municipality',code:'UAQ Municipality building regulations',green:'MOEI UAE Green Building Codes; ASHRAE 90.1 envelope',util:'Etihad Water and Electricity (EtihadWE)',design:'DBC / ASHRAE values (no emirate design-day table)'},
+  rak:{auth:'Ras Al Khaimah Municipality; RAKEZ in its free zone',code:'RAK Building Regulations and Construction Specifications',green:'Barjeel Green Building Regulations (RAK Municipality)',util:'Etihad Water and Electricity (EtihadWE)',design:'DBC / ASHRAE values (no emirate design-day table)'},
+  fujairah:{auth:'Fujairah Municipality',code:'Fujairah Municipality building regulations',green:'MOEI UAE Green Building Codes; ASHRAE 90.1 envelope',util:'Etihad Water and Electricity (EtihadWE)',design:'DBC / ASHRAE values (no emirate design-day table)'}
+};
+const authLine=k=>{const a=AUTH[k];return a?`Authority: ${a.auth}. Building code: ${a.code}. Green code: ${a.green}. Utility: ${a.util}. Design conditions: ${a.design}. ${FLSC}.`:'Custom conditions. Record your data source and the approving authority.'};
+/* codes applied automatically when the emirate changes: envelope code set, compliance basis, indoor basis */
+const AUTO={
+  dubai:{codeset:'safat-s-40',indoor:'dbc',why:"Dubai: Al Sa'fat envelope, DBC indoor basis"},
+  abudhabi:{codeset:'estidama',indoor:'ashrae',why:'Abu Dhabi: Estidama envelope, ASHRAE indoor basis (DoE CLM)'},
+  alain:{codeset:'estidama-aa',indoor:'ashrae',why:'Al Ain: Estidama envelope, ASHRAE indoor basis (DoE CLM)'},
+  sharjah:{codeset:'shj',indoor:'ashrae',why:'Sharjah: ASHRAE 90.1 envelope, ASHRAE indoor basis'},
+  ajman:{codeset:'ajm',indoor:'ashrae',why:'Ajman: ASHRAE 90.1 envelope, ASHRAE indoor basis'},
+  uaq:{codeset:'uaq',indoor:'ashrae',why:'Umm Al Quwain: ASHRAE 90.1 envelope, ASHRAE indoor basis'},
+  rak:{codeset:'barjeel',indoor:'ashrae',why:'Ras Al Khaimah: Barjeel envelope, ASHRAE indoor basis'},
+  fujairah:{codeset:'fuj',indoor:'ashrae',why:'Fujairah: ASHRAE 90.1 envelope, ASHRAE indoor basis'}
+};
+function renderCodeRef(p){
+  const v=(k,id)=>{const ids=Array.isArray(id)?id:[id];return ids.map(i=>{const o=LIB[k].find(o=>o.id===i);return o?(Math.abs(Math.round(o.v*100)-o.v*100)<1e-6?o.v.toFixed(2):String(o.v)):'–'}).filter((x,i,a)=>a.indexOf(x)===i).join(' / ')};
+  const base=c=>CODESETS.find(x=>x[0]===c);
+  const tb=$('#code-ref');if(!tb)return;tb.className='tl cmp';
+  tb.innerHTML=`<colgroup><col style="width:16%"><col style="width:15%"><col style="width:17%"><col style="width:7%"><col style="width:7%"><col style="width:10%"><col style="width:12%"><col style="width:7%"><col style="width:9%"></colgroup><thead><tr><th>Emirate</th><th>Authority</th><th>Code</th><th class="n">Wall</th><th class="n">Roof</th><th class="n">Glazing U</th><th class="n">SHGC</th><th class="n">Skylight</th><th></th></tr></thead><tbody>`+
+    CODEREF.map(([em,au,code,cs,ids])=>{const on=base(cs)[3]===p.cbasis;return `<tr${on?' class="sel"':''}><td>${esc(em)}</td><td>${esc(au)}</td><td>${esc(code)}</td><td class="n">${v('uWall',ids.uWall)}</td><td class="n">${v('uRoof',ids.uRoof)}</td><td class="n">${v('uGlass',ids.uGlass)}</td><td class="n">${v('shgc',ids.shgc)}</td><td class="n">${v('uSky',ids.uSky)}</td><td>${on?'<span class="pill ok">✓ Basis</span>':`<button class="btn sm" type="button" data-act="apply-code" data-cs="${cs}">Apply</button>`}</td></tr>`}).join('')+`</tbody>`;
+}
+function applyAuto(p){
+  const a=AUTO[p.location];if(!a)return null;
+  const cs=CODESETS.find(c=>c[0]===a.codeset);Object.assign(p.src,cs[2]);p.cbasis=cs[3];p.codeset=cs[0];p.src.indoor=a.indoor;resolveProject(p);return a.why;
+}
+/* Al Sa'fat glazing limits depend on the glazing ratio: keep the Al Sa'fat picks on the matching band */
+function autoBand(p,T){
+  if(p.autoBand===false||!T.wallG)return false;
+  const w=T.wwr,before=JSON.stringify(p.src);
+  if((p.src.uGlass||'').startsWith('safat'))p.src.uGlass=w<=40?'safat-40':'safat-60';
+  if((p.src.shgc||'').startsWith('safat')&&p.src.shgc!=='safat-shop')p.src.shgc=w<=40?'safat-40':w<60?'safat-60':'safat-100';
+  if((p.src.shgcSky||'').startsWith('safat')&&T.roof>0)p.src.shgcSky=T.skyPct>10?'safat-11':'safat-10';
+  return JSON.stringify(p.src)!==before;
+}
+const refElevOf=p=>{const s=(SUBLOC[p.location]||[])[0];return s?s.elev:num(p.elev)};
+function subOf(p){return (SUBLOC[p.location]||[]).find(s=>s.id===p.subloc)}
+
+/* ---------- standards library ---------- */
+const mk=a=>a.map(([id,label,v,src])=>({id,label,v,src}));
+const SAFAT="Al Sa'fat";
+const A901='ASHRAE 90.1-2022 Table 5.5-0';
+const LIB={
+  uWall:mk([['safat-s',SAFAT+' Bronze/Silver',0.57,SAFAT+' 501.01'],['safat-g',SAFAT+' Golden/Platinum',0.42,SAFAT+' 501.01'],['estidama','Estidama Pearl (Abu Dhabi)',0.32,'Estidama PBRS'],['barjeel','Barjeel (Ras Al Khaimah)',0.48,'Barjeel'],['a901-steel','ASHRAE 90.1-2022 CZ0, steel-framed',0.705,A901],['a901-metal','ASHRAE 90.1-2022 CZ0, metal building',0.533,A901]]),
+  uRoof:mk([['safat',SAFAT+', all levels',0.30,SAFAT+' 501.01'],['estidama','Estidama Pearl',0.14,'Estidama PBRS'],['barjeel','Barjeel (RAK)',0.30,'Barjeel'],['a901-deck','ASHRAE 90.1-2022 CZ0, insulation above deck',0.22,A901],['a901-metal','ASHRAE 90.1-2022 CZ0, metal building',0.233,A901],['a901-attic','ASHRAE 90.1-2022 CZ0, attic and other',0.153,A901]]),
+  uGlass:mk([['safat-40',SAFAT+', glazing ≤40% of wall',2.1,SAFAT+' 501.01 B'],['safat-60',SAFAT+', glazing >40% or shopfront',1.9,SAFAT+' 501.01 B'],['estidama','Estidama Pearl',2.2,'Estidama PBRS'],['barjeel','Barjeel (RAK)',2.2,'Barjeel'],['a901-fixed','ASHRAE 90.1-2022 CZ0, fixed',2.84,A901],['a901-oper','ASHRAE 90.1-2022 CZ0, operable',3.52,A901]]),
+  shgc:mk([['safat-40',SAFAT+', glazing ≤40% (SC 0.40)',0.35,SAFAT+' 501.01 B'],['safat-60',SAFAT+', glazing 40–60% (SC 0.32)',0.28,SAFAT+' 501.01 B'],['safat-100',SAFAT+', glazing ≥60% (SC 0.25)',0.22,SAFAT+' 501.01 B'],['safat-shop',SAFAT+', shopfront above ground (SC 0.76)',0.66,SAFAT+' 501.01 B'],['estidama','Estidama Pearl',0.30,'Estidama PBRS'],['barjeel','Barjeel (RAK)',0.30,'Barjeel'],['a901-fixed','ASHRAE 90.1-2022 CZ0, fixed',0.22,A901],['a901-oper','ASHRAE 90.1-2022 CZ0, operable',0.20,A901]]),
+  uSky:mk([['safat',SAFAT+', roof glazing',1.9,SAFAT+' 501.01 B'],['estidama','Estidama Pearl',2.2,'Estidama PBRS'],['barjeel','Barjeel (RAK)',1.8,'Barjeel'],['a901','ASHRAE 90.1-2022 CZ0, skylight',3.97,A901]]),
+  shgcSky:mk([['safat-10',SAFAT+', roof glazing ≤10% of roof (SC 0.32)',0.28,SAFAT+' 501.01 B'],['safat-11',SAFAT+', roof glazing >10% of roof (SC 0.25)',0.22,SAFAT+' 501.01 B'],['a901','ASHRAE 90.1-2022 CZ0, skylight',0.30,A901]]),
+  ez:mk([['ceil-cool','Ceiling supply of cool air',1.0,'ASHRAE 62.1-2022 Table 6-4'],['floor-cool-a','Floor supply of cool air, throw ≥0.25 m/s at 1.4 m, return ≤5.5 m',1.05,'ASHRAE 62.1-2022 Table 6-4'],['floor-cool-b','Floor supply of cool air (displacement), return ≤5.5 m',1.2,'ASHRAE 62.1-2022 Table 6-4'],['floor-cool-c','Floor supply of cool air (displacement), return >5.5 m',1.5,'ASHRAE 62.1-2022 Table 6-4'],['makeup-far','Makeup supply more than half the space length from exhaust/return',0.8,'ASHRAE 62.1-2022 Table 6-4'],['makeup-near','Makeup supply less than half the space length from exhaust/return',0.5,'ASHRAE 62.1-2022 Table 6-4']])
+};
+const PMETA={uWall:['External wall U-value','W/m²K',0.01],uRoof:['Roof U-value','W/m²K',0.01],uGlass:['Glazing U-value','W/m²K',0.01],shgc:['Glazing SHGC','',0.01],uSky:['Skylight U-value','W/m²K',0.01],shgcSky:['Skylight SHGC','',0.01],ez:['Zone air distribution effectiveness, Ez','',0.05]};
+const ENVK=['uWall','uRoof','uGlass','shgc','uSky','shgcSky'];
+const PPICKS=[...ENVK,'ez'];
+const INDOOR=[
+  {id:'dbc',label:'DBC H.2 · 24 °C/50%',db:24,rh:50,src:'DBC H.4.6.3, Table H.2'},
+  {id:'safat',label:"Al Sa'fat · 24 °C/50%",db:24,rh:50,src:SAFAT+' 501.03 / 402.01'},
+  {id:'ashrae',label:'ASHRAE 55 · 24 °C/50%',db:24,rh:50,src:'ASHRAE 55 (PMV ±0.5), ASHRAE 62.1 §5.12'}
+];
+/* ASHRAE 55 PMV / PPD, ISO 7730 algorithm (verified against ISO 7730 reference cases) */
+function pmvOf(ta,tr,vel,rh,met,clo){
+  const pa=rh*10*Math.exp(16.6536-4030.183/(ta+235)),icl=0.155*clo,m=met*58.15,mw=m;
+  const fcl=icl<=0.078?1+1.29*icl:1.05+0.645*icl,hcf=12.1*Math.sqrt(Math.max(0,vel)),taa=ta+273,tra=tr+273;
+  const tcla=taa+(35.5-ta)/(3.5*icl+0.1),p1=icl*fcl,p2=p1*3.96,p3=p1*100,p4=p1*taa,p5=308.7-0.028*mw+p2*Math.pow(tra/100,4);
+  let xn=tcla/100,xf=tcla/50,n=0,hc=hcf;
+  while(Math.abs(xn-xf)>0.00015&&n<150){xf=(xf+xn)/2;hc=Math.max(hcf,2.38*Math.pow(Math.abs(100*xf-taa),0.25));xn=(p5+p4*hc-p2*Math.pow(xf,4))/(100+p3*hc);n++}
+  const tcl=100*xn-273;
+  const hl=3.05e-3*(5733-6.99*mw-pa)+(mw>58.15?0.42*(mw-58.15):0)+1.7e-5*m*(5867-pa)+0.0014*m*(34-ta)+3.96*fcl*(Math.pow(xn,4)-Math.pow(tra/100,4))+fcl*hc*(tcl-ta);
+  const pmv=(0.303*Math.exp(-0.036*m)+0.028)*(mw-hl);
+  return {pmv,ppd:100-95*Math.exp(-0.03353*Math.pow(pmv,4)-0.2179*pmv*pmv)};
+}
+/* indoor comfort and moisture checks against DBC, Al Sa'fat and ASHRAE */
+/* indoor air quality: every room meets ASHRAE 62.1 Table 6-1 outdoor air (occupancy per DBC Table B.2) */
+function oaRow(p,e){
+  let q=0,short=0;const rs=(typeof state!=='undefined'&&state.rooms)||[];
+  rs.forEach(r=>{const c=calc(p,r,e),m=c.qty||1;q+=c.oaQ*m;const rc=roomChecks(r,c);if(rc.oa&&rc.oa[0]!=='ok')short++});
+  return ['DBC H.4.10.2 / ASHRAE 62.1, 62.2, 170','Outdoor air: 62.1 Table 6-1 (Rp, Ra, Ez), 62.2 for dwellings, 170 for healthcare; occupancy per DBC Table B.2',`${fmt(q,0)} L/s, ${rs.length} room type${rs.length===1?'':'s'}`,short?['bad',`${short} room type${short>1?'s':''} below minimum`]:['ok','Complies']];
+}
+function indoorChecks(p,e){
+  const ti=num(p.tiDB),rh=num(p.tiRH),dp=dpOf(e.Wi,e.P),W=e.Wi*1000;
+  const c=pmvOf(ti,ti,0.2,rh,1.1,0.61);
+  const ok=(b,good,badTxt,warn)=>b?['ok',good]:[warn?'warn':'bad',badTxt];
+  return {
+    pmv:c.pmv,ppd:c.ppd,dp,W,
+    rows:[
+      ['DBC H.4.6.3 Table H.2','Indoor design condition: 24 ±1.5 °C DB, 50 ±5% RH',`${ti} °C / ${rh}% RH`,ok(Math.abs(ti-24)<=1.5&&Math.abs(rh-50)<=5,'Complies','Does not comply')],
+      ['DBC H.4.7 Table H.3 / '+SAFAT+' 402.01','Indoor operating range (95% of year): 22.5–25.5 °C, 30–60% RH',`${ti} °C / ${rh}% RH`,ok(ti>=22.5&&ti<=25.5&&rh>=30&&rh<=60,'Complies','Does not comply')],
+      [SAFAT+' 501.03','Indoor design condition for heat load calculation: 24 °C DB, 50 ±5% RH',`${ti} °C / ${rh}% RH`,ok(ti===24&&Math.abs(rh-50)<=5,'Complies','Deviation, verify',true)],
+      ['ASHRAE 55-2023','Thermal comfort: PMV −0.5 to +0.5 (1.1 met, 0.61 clo, 0.2 m/s air velocity, within DBC H.4.7 0.2–0.3 m/s)',`PMV ${c.pmv>=0?'+':''}${fmt(c.pmv,2)}, PPD ${fmt(c.ppd,0)}%`,Math.abs(c.pmv)<=0.5?['ok','Complies']:Math.abs(c.pmv)<=0.7?['warn',c.pmv<0?'Slightly cool, verify':'Slightly warm, verify']:['bad','Does not comply']],
+      ['ASHRAE 55-2023','Indoor humidity ratio ≤ 12 g/kg',`${fmt(W,2)} g/kg`,ok(W<=12,'Complies','Does not comply')],
+      ['ASHRAE 62.1-2022 §5.12','Space dew point ≤ 15 °C (mould control)',`${fmt(dp,1)} °C`,ok(dp<=15,'Complies','Does not comply')],
+      oaRow(p,e)
+    ]};
+}
+/* envelope code sets for every UAE jurisdiction: [id, label, option ids, compliance basis, group] */
+const SAF40={uWall:'safat-s',uRoof:'safat',uGlass:'safat-40',shgc:'safat-40',uSky:'safat',shgcSky:'safat-10'};
+const A901S={uWall:'a901-steel',uRoof:'a901-deck',uGlass:'a901-fixed',shgc:'a901-fixed',uSky:'a901',shgcSky:'a901'};
+const CODESETS=[
+  ['safat-s-40',SAFAT+' Bronze/Silver, glazing ≤40%',SAF40,'safat-s','Dubai · Dubai Municipality'],
+  ['safat-s-60',SAFAT+' Bronze/Silver, glazing 40–60%',{uWall:'safat-s',uRoof:'safat',uGlass:'safat-60',shgc:'safat-60',uSky:'safat',shgcSky:'safat-10'},'safat-s','Dubai · Dubai Municipality'],
+  ['safat-s-100',SAFAT+' Bronze/Silver, glazing ≥60%',{uWall:'safat-s',uRoof:'safat',uGlass:'safat-60',shgc:'safat-100',uSky:'safat',shgcSky:'safat-10'},'safat-s','Dubai · Dubai Municipality'],
+  ['safat-g-40',SAFAT+' Golden/Platinum, glazing ≤40%',{uWall:'safat-g',uRoof:'safat',uGlass:'safat-40',shgc:'safat-40',uSky:'safat',shgcSky:'safat-10'},'safat-g','Dubai · Dubai Municipality'],
+  ['safat-g-60',SAFAT+' Golden/Platinum, glazing 40–60%',{uWall:'safat-g',uRoof:'safat',uGlass:'safat-60',shgc:'safat-60',uSky:'safat',shgcSky:'safat-10'},'safat-g','Dubai · Dubai Municipality'],
+  ['fz-trakhees','Trakhees (PCFC) free zones: '+SAFAT+' envelope, glazing ≤40%',SAF40,'safat-s','Dubai · free zones'],
+  ['fz-dda','DDA free zones: '+SAFAT+' envelope, glazing ≤40%',SAF40,'safat-s','Dubai · free zones'],
+  ['fz-dso','Dubai South / DSO / DIFC: '+SAFAT+' envelope, glazing ≤40%',SAF40,'safat-s','Dubai · free zones'],
+  ['estidama','Estidama Pearl (DMT), Abu Dhabi and Al Dhafra',{uWall:'estidama',uRoof:'estidama',uGlass:'estidama',shgc:'estidama',uSky:'estidama'},'estidama','Abu Dhabi · DMT'],
+  ['estidama-aa','Estidama Pearl (DMT), Al Ain',{uWall:'estidama',uRoof:'estidama',uGlass:'estidama',shgc:'estidama',uSky:'estidama'},'estidama','Abu Dhabi · DMT'],
+  ['barjeel','Barjeel Green Building Regulations (RAK Municipality)',{uWall:'barjeel',uRoof:'barjeel',uGlass:'barjeel',shgc:'barjeel',uSky:'barjeel'},'barjeel','Ras Al Khaimah · RAK Municipality'],
+  ['shj','Sharjah (Sharjah Municipality, SEWA): ASHRAE 90.1-2022 CZ0 envelope',A901S,'a901','Northern emirates'],
+  ['ajm','Ajman (AMPD): ASHRAE 90.1-2022 CZ0 envelope',A901S,'a901','Northern emirates'],
+  ['uaq','Umm Al Quwain (UAQ Municipality): ASHRAE 90.1-2022 CZ0 envelope',A901S,'a901','Northern emirates'],
+  ['fuj','Fujairah (Fujairah Municipality): ASHRAE 90.1-2022 CZ0 envelope',A901S,'a901','Northern emirates'],
+  ['moei','MOEI UAE Green Building Codes (federal projects): ASHRAE 90.1-2022 CZ0 envelope',A901S,'a901','Federal'],
+  ['a901','ASHRAE 90.1-2022 CZ0: steel-framed wall, roof above deck, fixed glazing',A901S,'a901','ASHRAE 90.1-2022, climate zone 0'],
+  ['a901-mb','ASHRAE 90.1-2022 CZ0: metal building wall and roof (warehouse, industrial)',{uWall:'a901-metal',uRoof:'a901-metal',uGlass:'a901-fixed',shgc:'a901-fixed',uSky:'a901',shgcSky:'a901'},'a901','ASHRAE 90.1-2022, climate zone 0'],
+  ['a901-op','ASHRAE 90.1-2022 CZ0: steel-framed wall, attic roof, operable glazing',{uWall:'a901-steel',uRoof:'a901-attic',uGlass:'a901-oper',shgc:'a901-oper',uSky:'a901',shgcSky:'a901'},'a901','ASHRAE 90.1-2022, climate zone 0']
+];
+/* reference table of UAE envelope codes shown in section 3 */
+const CODEREF=[
+  ['Dubai','DM; Trakhees, DDA, DSO, DIFC',SAFAT+' Bronze/Silver','safat-s-40',{uWall:'safat-s',uRoof:'safat',uGlass:['safat-40','safat-60'],shgc:['safat-40','safat-60','safat-100'],uSky:'safat'}],
+  ['Dubai','DM',SAFAT+' Golden/Platinum','safat-g-40',{uWall:'safat-g',uRoof:'safat',uGlass:['safat-40','safat-60'],shgc:['safat-40','safat-60','safat-100'],uSky:'safat'}],
+  ['Abu Dhabi, Al Ain','DMT','Estidama Pearl','estidama',{uWall:'estidama',uRoof:'estidama',uGlass:'estidama',shgc:'estidama',uSky:'estidama'}],
+  ['Ras Al Khaimah','RAK Municipality','Barjeel','barjeel',{uWall:'barjeel',uRoof:'barjeel',uGlass:'barjeel',shgc:'barjeel',uSky:'barjeel'}],
+  ['Sharjah, Ajman, UAQ, Fujairah; federal','Municipality; MOEI','ASHRAE 90.1-2022 CZ0','a901',{uWall:'a901-steel',uRoof:'a901-deck',uGlass:'a901-fixed',shgc:'a901-fixed',uSky:'a901'}]
+];
+const CBASIS=[
+  {id:'safat-s',label:SAFAT+' Bronze/Silver (501.01)'},{id:'safat-g',label:SAFAT+' Golden/Platinum (501.01)'},
+  {id:'estidama',label:'Estidama Pearl (Abu Dhabi, Al Ain)'},{id:'barjeel',label:'Barjeel (Ras Al Khaimah)'},{id:'a901',label:'ASHRAE 90.1-2022 climate zone 0 (Sharjah, Ajman, UAQ, Fujairah, MOEI)'}
+];
+/* maximum permitted values for the compliance basis; glazing limits follow the project glazing ratio */
+function limitsFor(b,wwr,skyPct){
+  if(b==='safat-s'||b==='safat-g'){const band=wwr<=40?0:wwr<60?1:2;
+    return {name:CBASIS.find(c=>c.id===b).label,uWall:b==='safat-g'?0.42:0.57,uRoof:0.30,uGlass:band?1.9:2.1,shgc:[0.35,0.28,0.22][band],uSky:1.9,shgcSky:skyPct>10?0.22:0.28,
+      band:['glazing ≤40%','glazing 40–60%','glazing ≥60%'][band]}}
+  if(b==='estidama')return {name:'Estidama Pearl',uWall:0.32,uRoof:0.14,uGlass:2.2,shgc:0.30,uSky:2.2,shgcSky:null};
+  if(b==='barjeel')return {name:'Barjeel (RAK)',uWall:0.48,uRoof:0.30,uGlass:2.2,shgc:0.30,uSky:1.8,shgcSky:null};
+  return {name:'ASHRAE 90.1-2022 CZ0',uWall:0.705,uRoof:0.22,uGlass:2.84,shgc:0.22,uSky:3.97,shgcSky:0.30};
+}
+/* ASHRAE Fundamentals Ch.18 Table 1, adjusted heat gain W per person */
+const ACT=[
+  {id:'theater',label:'Seated at rest (theatre)',s:65,l:30},
+  {id:'vlight',label:'Seated, very light work (office, hotel, apartment)',s:70,l:45},
+  {id:'office',label:'Moderately active office work',s:75,l:55},
+  {id:'retail',label:'Standing, light work; walking (retail)',s:75,l:55},
+  {id:'bank',label:'Walking, standing (bank, pharmacy)',s:75,l:70},
+  {id:'restaurant',label:'Sedentary work (restaurant)',s:80,l:80},
+  {id:'bench',label:'Light bench work (workshop)',s:80,l:140},
+  {id:'dance',label:'Moderate dancing',s:90,l:160},
+  {id:'walk',label:'Walking 4.8 km/h; light machine work',s:110,l:185},
+  {id:'heavy',label:'Heavy work',s:170,l:255},
+  {id:'athletics',label:'Athletics (gymnasium)',s:210,l:315}
+];
+const ACT_BY=Object.fromEntries(ACT.map(a=>[a.id,a]));
+/* ASHRAE 62.1-2022 Table 6-1: Rp L/s·person, Ra L/s·m², default occupant density per 100 m² */
+const V=(cat,id,label,rp,ra,dens)=>({cat,id,label,rp,ra,dens});
+const VENT=[
+  V('Office buildings','office','Office space',2.5,0.3,5),V('Office buildings','reception','Reception areas',2.5,0.3,30),V('Office buildings','mainlobby','Main entry lobbies',2.5,0.3,10),V('Office buildings','teldata','Telephone / data entry',2.5,0.3,60),V('Office buildings','breakroom-o','Breakrooms (office)',2.5,0.6,50),V('Office buildings','storage-dry','Occupiable storage, dry materials',2.5,0.3,2),
+  V('General','conference','Conference / meeting',2.5,0.3,50),V('General','breakroom','Break rooms',2.5,0.3,25),V('General','corridor','Corridors',0,0.3,0),
+  V('Educational','classroom58','Classrooms (ages 5 to 8)',5,0.6,25),V('Educational','classroom9','Classrooms (age 9 plus)',5,0.6,35),V('Educational','lecture','Lecture classroom',3.8,0.3,65),V('Educational','computerlab','Computer lab',5,0.6,25),V('Educational','science','Science laboratories',5,0.9,25),V('Educational','art','Art classroom',5,0.9,20),V('Educational','daycare','Daycare (through age 4)',5,0.9,25),V('Educational','media','Media center',5,0.6,25),V('Educational','multiuse','Multiuse assembly',3.8,0.3,100),
+  V('Food and beverage','dining','Restaurant dining rooms',3.8,0.9,70),V('Food and beverage','cafeteria','Cafeteria / fast-food dining',3.8,0.9,100),V('Food and beverage','bar','Bars, cocktail lounges',3.8,0.9,100),V('Food and beverage','kitchen','Kitchen (cooking)',3.8,0.6,20),
+  V('Hotels and dormitories','hotelbed','Bedroom / living room',2.5,0.3,10),V('Hotels and dormitories','barracks','Barracks sleeping areas',2.5,0.3,20),V('Hotels and dormitories','hotellobby','Lobbies / prefunction',3.8,0.3,30),V('Hotels and dormitories','multipurpose','Multipurpose assembly',2.5,0.3,120),V('Hotels and dormitories','laundry','Laundry rooms, central',2.5,0.6,10),
+  V('Public assembly','auditorium','Auditorium seating area',2.5,0.3,150),V('Public assembly','libraries','Libraries',2.5,0.6,10),V('Public assembly','publobby','Lobbies',2.5,0.3,150),V('Public assembly','museums','Museums / galleries',3.8,0.3,40),V('Public assembly','worship','Places of religious worship',2.5,0.3,120),V('Public assembly','courtroom','Courtrooms',2.5,0.3,70),
+  V('Retail','sales','Sales',3.8,0.6,15),V('Retail','mall','Mall common areas',3.8,0.3,40),V('Retail','supermarket','Supermarket',3.8,0.3,8),V('Retail','barber','Barbershop',3.8,0.3,25),V('Retail','beauty','Beauty and nail salons',10,0.6,25),
+  V('Sports and entertainment','aerobics','Health club / aerobics room',10,0.3,40),V('Sports and entertainment','healthweight','Health club / weight rooms',10,0.3,10),V('Sports and entertainment','arena','Gym, sports arena (play area)',10,0.9,7),V('Sports and entertainment','spectator','Spectator areas',3.8,0.3,150),V('Sports and entertainment','disco','Disco / dance floors',10,0.3,100),V('Sports and entertainment','stage','Stages, studios',5,0.3,70),
+  V('Miscellaneous','bank','Banks or bank lobbies',3.8,0.3,15),V('Miscellaneous','computer','Computer (not printing)',2.5,0.3,4),V('Miscellaneous','pharmacy','Pharmacy (prep. area)',2.5,0.9,10),V('Miscellaneous','manufacturing','Manufacturing, no hazardous materials',5,0.9,7),V('Miscellaneous','shipping','Shipping / receiving',5,0.6,2),V('Miscellaneous','sorting','Sorting, packing, light assembly',3.8,0.6,7),V('Miscellaneous','transport','Transportation waiting',3.8,0.3,100),V('Miscellaneous','warehouse','Warehouses',5,0.3,0)
+];
+const VENT_BY=Object.fromEntries(VENT.map(v=>[v.id,v]));
+const VENT_ALIAS={health:'healthweight'};
+/* Room types. dbc = DBC Table B.2 occupant load factor [m²/person, use]; a901 = ASHRAE 90.1-2022 space-by-space LPD, W/m² */
+const TYPES={
+  office:{label:'Office, open plan',vent:'office',act:'office',dens:10,light:9,equip:15,a901:6.0,dbc:[4.6,'Office, open, high concentration']},
+  privoffice:{label:'Office, enclosed',vent:'office',act:'office',dens:10,light:9,equip:15,a901:7.9,dbc:[9.3,'Office, enclosed, low concentration']},
+  meeting:{label:'Meeting / conference',vent:'conference',act:'office',dens:2,light:10,equip:5,a901:9.5,dbc:[1.4,'Conference, meeting rooms']},
+  lobby:{label:'Reception / seated waiting',vent:'reception',act:'office',dens:10,light:10,equip:5,dbc:[1.4,'Seated waiting areas']},
+  waiting:{label:'Standing waiting area',vent:'transport',act:'bank',dens:2,light:10,equip:2,dbc:[0.65,'Waiting areas, standing']},
+  retail:{label:'Retail shop / showroom',vent:'sales',act:'retail',dens:6.7,light:15,equip:5,dbc:[5.6,'Retail shops']},
+  deptstore:{label:'Department store',vent:'sales',act:'retail',dens:5,light:15,equip:5,dbc:[3.7,'Department stores, multi-level retail']},
+  mall:{label:'Mall common area',vent:'mall',act:'bank',dens:4,light:12,equip:3,dbc:[2.8,'Mall under 14,000 m² GLA']},
+  restaurant:{label:'Restaurant dining',vent:'dining',act:'restaurant',dens:3,light:10,equip:10,dbc:[1.4,'Restaurants, dining areas']},
+  foodcourt:{label:'Food court / cafeteria seating',vent:'cafeteria',act:'restaurant',dens:2,light:10,equip:10,dbc:[1.4,'Food courts, seating areas']},
+  kitchen:{label:'Commercial kitchen',vent:'kitchen',act:'walk',dens:10,light:12,equip:40,dbc:[9.3,'Kitchens (not private residential)']},
+  classroom:{label:'Classroom',vent:'classroom9',act:'office',dens:2.86,light:10,equip:10,a901:7.8,dbc:[1.9,'Classrooms']},
+  lab:{label:'Laboratory, vocational / science',vent:'science',act:'bench',dens:6,light:12,equip:20,dbc:[4.6,'Laboratories, vocational']},
+  library:{label:'Library reading area',vent:'libraries',act:'vlight',dens:5,light:10,equip:5,dbc:[4.6,'Library, reading areas']},
+  assembly:{label:'Ballroom / multipurpose hall',vent:'multipurpose',act:'restaurant',dens:1.5,light:12,equip:5,dbc:[0.65,'Concentrated assembly: ballrooms, multipurpose halls']},
+  exhibition:{label:'Exhibition hall / gallery',vent:'museums',act:'retail',dens:4,light:12,equip:10,dbc:[1.4,'Exhibition halls']},
+  prayer:{label:'Prayer room / mosque',vent:'worship',act:'theater',dens:1.2,light:8,equip:0,dbc:[0.9,'Mosques, prayer areas']},
+  gym:{label:'Gym with equipment',vent:'healthweight',act:'athletics',dens:10,light:10,equip:15,dbc:[4.6,'Exercise room with equipment']},
+  aerobics:{label:'Exercise room, no equipment',vent:'aerobics',act:'athletics',dens:4,light:10,equip:5,dbc:[1.4,'Exercise room without equipment']},
+  living:{label:'Living / majlis (residential)',vent:'hotelbed',act:'vlight',dens:5,light:6,equip:8},
+  bedroom:{label:'Bedroom (residential / hotel)',vent:'hotelbed',act:'theater',dens:8,light:5,equip:5},
+  dorm:{label:'Shared sleeping accommodation',vent:'barracks',act:'theater',dens:6,light:5,equip:3,dbc:[5.0,'Accommodation, shared sleeping spaces']},
+  labour:{label:'Labour accommodation sleeping',vent:'barracks',act:'theater',dens:4,light:5,equip:3,dbc:[3.7,'Labour accommodation, sleeping spaces']},
+  corridor:{label:'Corridor',vent:'corridor',act:'retail',dens:0,light:5,equip:0,a901:4.7},
+  factory:{label:'Factory / light assembly',vent:'manufacturing',act:'walk',dens:15,light:10,equip:20,dbc:[9.3,'Factories']},
+  warehouse:{label:'Warehouse / storage',vent:'warehouse',act:'bench',dens:100,light:6,equip:3,a901:3.6,dbc:[27.9,'Warehouse']},
+  dwelling:{label:'Apartment / villa, whole dwelling unit',vent:'hotelbed',oaDef:'a622',act:'vlight',dens:20,light:5,equip:5},
+  patient:{label:'Patient room (healthcare, DHA)',vent:'hotelbed',oaDef:'a170-patient',act:'theater',dens:10,light:8,equip:10},
+  exam:{label:'Examination / treatment room (healthcare)',vent:'office',oaDef:'a170-exam',act:'office',dens:5,light:12,equip:15},
+  icu:{label:'Critical / intensive care (healthcare)',vent:'hotelbed',oaDef:'a170-icu',act:'office',dens:8,light:12,equip:25},
+  theatre:{label:'Operating room (healthcare)',vent:'office',oaDef:'a170-or',act:'walk',dens:5,light:25,equip:60},
+  hwait:{label:'Waiting room (healthcare, emergency / radiology)',vent:'reception',oaDef:'a170-wait',act:'theater',dens:2,light:9,equip:3}
+};
+/* ASHRAE 170-2021 Table 7-1 (via DBC H.4.10.2 and DHA): minimum outdoor and total air changes per hour */
+const A170=[['patient','Patient room',2,4],['exam','Examination room',2,4],['treat','Treatment room',2,6],['icu','Critical and intensive care',2,6],['or','Operating room',4,20],['wait','Emergency / radiology waiting',2,12]];
+const ROOMPICKS=['people','light','equip','oa','ach'];
+const fmtM2=d=>d>=10?d.toFixed(0):String(+d.toFixed(2));
+let CURP=null;
+const ezNow=()=>num(CURP&&CURP.ez)||1;
+/* ASHRAE 90.1-2019 Table 9.5.1 Building Area Method lighting power allowances, W/ft² */
+const LPD_BAM=[['auto','Automotive facility',0.75],['convention','Convention center',0.64],['court','Courthouse',0.79],['dining-bar','Dining: bar lounge / leisure',0.80],['dining-caf','Dining: cafeteria / fast food',0.76],['dining-fam','Dining: family',0.71],['dorm','Dormitory',0.53],['exercise','Exercise center',0.72],['hotel','Hotel / motel',0.56],['mfg','Manufacturing facility',0.82],['office','Office',0.64],['parking','Parking garage',0.18],['retail','Retail',0.84],['school','School / university',0.72],['warehouse','Warehouse',0.45]];
+const ROOMOPTS={
+  people:(r,t)=>{const A=num(r.area),o=[];
+    if(t.dbc)o.push({id:'dbc',label:`DBC Table B.2, ${t.dbc[1]}: ${t.dbc[0]} m²/person`,v:Math.ceil(A/t.dbc[0])});
+    const vr=VENT_BY[t.vent];if(vr&&vr.dens>0)o.push({id:'a621',label:`ASHRAE 62.1-2022 default, ${fmtM2(100/vr.dens)} m²/person`,v:Math.ceil(A*vr.dens/100)});
+    o.push({id:'typ',label:t.dens>0?`Typical layout, ${fmtM2(t.dens)} m²/person`:'Typical: unoccupied',v:t.dens>0?Math.ceil(A/t.dens):0});return o},
+  light:(r,t)=>{const o=[{id:'typ',cat:'DBC H.4.6.7.2',label:'Project-specific lighting design',v:t.light}];
+    if(t.a901)o.push({id:'a901',cat:'ASHRAE 90.1-2022 Table 9.6.1 · Space-by-Space Method (DBC H.4.6.7.2)',label:t.label,v:t.a901});
+    LPD_BAM.forEach(([id,l,w])=>o.push({id:'bam-'+id,cat:'ASHRAE 90.1-2019 Table 9.5.1 · Building Area Method (DBC H.4.6.7.2)',label:`${l} (${w} W/ft²)`,v:Math.round(w*10.764*10)/10}));
+    o.push({id:'est-g',cat:'Estidama PBRS baseline',label:'General',v:8.7},{id:'est-r',cat:'Estidama PBRS baseline',label:'Residential',v:6.8});return o},
+  equip:(r,t)=>[{id:'typ',cat:'DBC H.4.6.7.3',label:'Project-specific equipment load',v:t.equip},{id:'cibse',cat:'CIBSE TM37 (cited in DoE Cooling Load Manual)',label:'Office allowance',v:15},{id:'est-g',cat:'Estidama PBRS baseline',label:'General',v:8.1},{id:'est-r',cat:'Estidama PBRS baseline',label:'Residential',v:2.7}],
+  oa:(r)=>{const n=num(r.people),A=num(r.area),H=num(r.height)||3,ez=ezNow();
+    const o=VENT.map(v=>({id:v.id,cat:'DBC H.4.10.2 · ASHRAE 62.1-2022 Table 6-1 · '+v.cat,label:`${v.label} (${v.rp} L/s·p + ${v.ra} L/s·m², ÷ Ez ${ez})`,v:Math.round((v.rp*n+v.ra*A)/ez*10)/10}));
+    o.push({id:'a622',cat:'DBC H.4.10.2 · ASHRAE 62.2-2019 · dwelling units',label:'Whole-dwelling ventilation (0.15 L/s·m² + 3.5 L/s per occupant)',v:Math.round((0.15*A+3.5*n)*10)/10});
+    A170.forEach(([id,l,oa,tot])=>o.push({id:'a170-'+id,cat:'DBC H.4.10.2 · ASHRAE 170-2021 Table 7-1 · healthcare (DHA)',label:`${l} (${oa} ACH outdoor, ${tot} ACH total)`,v:Math.round(oa*A*H/3.6*10)/10}));
+    return o},
+  ach:(r)=>{const o=[
+      {id:'tight',cat:'ASHRAE Fundamentals · construction class',label:'New building, tight construction',v:0.35},
+      {id:'medium',cat:'ASHRAE Fundamentals · construction class',label:'Average construction (newer, or older well-sealed)',v:0.5},
+      {id:'loose',cat:'ASHRAE Fundamentals · construction class',label:'Old building, loose construction',v:0.7},
+      {id:'win1',cat:'ASHRAE Fundamentals · exposure (old buildings)',label:'Windows or doors on one side',v:1.0},
+      {id:'win2',cat:'ASHRAE Fundamentals · exposure (old buildings)',label:'Windows or doors on two sides',v:1.5},
+      {id:'win3',cat:'ASHRAE Fundamentals · exposure (old buildings)',label:'Windows or doors on three sides, or entrance hall',v:2.0}];
+    if(r){const env=ORIENTS.reduce((a,k)=>a+Math.max(num(r.walls[k]&&r.walls[k].w),num(r.walls[k]&&r.walls[k].g)),0),V=num(r.area)*num(r.height);
+      if(env>0&&V>0)o.push({id:'dbc50',cat:'DBC H.4.9.1 · airtightness',label:'5 m³/h·m² at 50 Pa, ÷20 for natural conditions',v:Math.round(5*env/20/V*100)/100})}
+    o.push({id:'press',cat:'DBC H.4.9.1 · airtightness',label:'Pressurised building or interior room',v:0},
+      {id:'typ',cat:'Typical estimate',label:'Perimeter room, typical estimate',v:0.3},{id:'door',cat:'Typical estimate',label:'Entrance with frequent door use',v:1});
+    return o}
+};
+const SHOWV={people:false,oa:false,light:true,equip:true,ach:true};
+const RMETA={people:['People','pers.',1],light:['Lighting','W/m²',0.1],equip:['Equipment','W/m²',0.1],oa:['Fresh air','L/s',1],ach:['Infiltration','ACH',0.1]};
+
+/* ---------- helpers and state ---------- */
+const STORE='uae-heat-load-v1';
+const $=s=>document.querySelector(s);
+const num=v=>{const x=parseFloat(v);return isFinite(x)?x:0};
+const blank=v=>v===''||v==null;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=(x,d=1)=>isFinite(x)?x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}):'–';
+let seq=1;const newId=()=>'r'+Date.now().toString(36)+(seq++);
+function emptyWalls(){const o={};ORIENTS.forEach(k=>o[k]={w:'',g:''});return o}
+function defaultSrc(t){const vr=VENT_BY[t.vent];return {people:t.dbc?'dbc':(vr&&vr.dens>0?'a621':'typ'),light:t.a901?'a901':'typ',equip:'typ',oa:t.oaDef||t.vent,ach:'tight',act:t.act}}
+function resolveRoom(r){
+  const t=TYPES[r.type]||TYPES.office;r.src=r.src||defaultSrc(t);
+  if(VENT_ALIAS[r.src.oa])r.src.oa=VENT_ALIAS[r.src.oa];
+  for(const k of ROOMPICKS){if(r.src[k]==='custom')continue;const opts=ROOMOPTS[k](r,t);const o=opts.find(x=>x.id===r.src[k])||(k==='oa'?opts.find(x=>x.id===(t.oaDef||t.vent)):null)||opts[0];r.src[k]=o.id;r[k]=o.v}
+  if(r.src.act!=='custom'){const a=ACT_BY[r.src.act]||ACT_BY[t.act];r.src.act=a.id;r.ps=a.s;r.pl=a.l}
+}
+function changeType(r,type){
+  r.type=type;const t=TYPES[type]||TYPES.office,d=defaultSrc(t);
+  ['people','oa','act'].forEach(k=>{if(r.src[k]!=='custom')r.src[k]=d[k]});
+  ['light','equip','ach'].forEach(k=>{if(r.src[k]!=='custom'&&!ROOMOPTS[k](r,t).some(o=>o.id===r.src[k]))r.src[k]=d[k]});
+  resolveRoom(r);
+}
+/* what is above and below each room */
+const ABOVE=[['roof','Roof, sun-exposed'],['cond','Ceiling, conditioned above'],['uncond','Ceiling, unconditioned above']];
+const BELOW=[['cond','Floor, conditioned below'],['uncond','Floor, unconditioned below'],['outdoor','Floor, outdoor air below'],['ground','Slab on grade']];
+/* unconditioned adjacent spaces: temperature from outdoor (To) and room (Ti); ASHRAE: unknown unconditioned space ≈ outdoor − 2.8 K (5 °F) */
+const ADJ=[
+  ['cond','Conditioned space, same set-point (no gain)',(To,Ti)=>Ti,'room temp.'],
+  ['cond2','Conditioned space, different set-point',null,'edit temp.'],
+  ['mezz','Unconditioned mezzanine floor',(To,Ti)=>To-2.8,'To − 2.8 K'],
+  ['store','Unconditioned store or service room',(To,Ti)=>To-2.8,'To − 2.8 K'],
+  ['corridor','Unconditioned corridor, lobby or stair',(To,Ti)=>To-2.8,'To − 2.8 K'],
+  ['plant','Plant or electrical room (ventilated)',(To,Ti)=>To,'To'],
+  ['carpark','Car park (ventilated, DBC H.4.12.11)',(To,Ti)=>To,'To'],
+  ['attic','Roof void or attic (ventilated)',(To,Ti)=>To,'To'],
+  ['plenum','Return-air ceiling plenum',(To,Ti)=>Ti+2,'Ti + 2 K'],
+  ['project','Project value (section 3)',null,'section 3'],
+  ['custom','Custom temperature',null,'custom']];
+const uEff=(v,proj)=>v!==''&&v!=null&&isFinite(parseFloat(v))?num(v):num(proj);
+const ADJ_EDIT=id=>id==='custom'||id==='cond2';
+function adjTemp(p,e,id,custom){const a=ADJ.find(x=>x[0]===id)||ADJ.find(x=>x[0]==='project');if(a[0]==='custom')return num(custom);if(a[0]==='cond2')return custom!==''&&custom!=null?num(custom):num(p.tiDB)+2;if(!a[2])return num(p.tAdj);return Math.round(a[2](e.To,num(p.tiDB))*10)/10}
+const aboveOf=r=>r.above||(num(r.roof)>0?'roof':'cond'),belowOf=r=>r.below||(num(r.floor)>0?'uncond':'cond');
+function newRoom(name,type){const t=TYPES[type||'office'];const r={id:newId(),name:name||'New room',type:type||'office',qty:1,area:20,height:3,walls:emptyWalls(),roof:'',sky:'',part:'',floor:'',src:defaultSrc(t)};resolveRoom(r);return r}
+function presetVals(k){const l=LOC[k],s=(SUBLOC[k]||[])[0]||{};return {toDB:l.toDB,toWB:l.toWB,dr:s.dr!=null?s.dr:l.dr,elev:s.elev!=null?s.elev:l.elev,vDB:l.vDB,vWB:l.vWB,subloc:s.id||'custom'}}
+/* basis options for outdoor design conditions */
+const OUT_OPTS=[
+  {id:'dbc',label:'DBC H.1 · 46/29',db:46,wb:29,src:'DBC Table H.1'},
+  {id:'safat',label:"Al Sa'fat · 46/29",db:46,wb:29,src:SAFAT+' 501.03'},
+  {id:'doe-ad',label:'DoE Abu Dhabi · 46.1/29.4',db:46.1,wb:29.4,src:'DoE CLM Table 1'},
+  {id:'doe-aa',label:'DoE Al Ain · 48.8/28.3',db:48.8,wb:28.3,src:'DoE CLM Table 1'},
+  {id:'ash-dxb',label:'ASHRAE Dubai · 43.3/23.6',db:43.3,wb:23.6,src:'ASHRAE Fundamentals 2021'},
+  {id:'ash-auh',label:'ASHRAE Abu Dhabi · 45.1/23.0',db:45.1,wb:23.0,src:'ASHRAE Fundamentals 2021'},
+  {id:'ash-shj',label:'ASHRAE Sharjah · 44.3/23.5',db:44.3,wb:23.5,src:'ASHRAE Fundamentals 2021'},{id:'ash-rak',label:'ASHRAE RAK · 44.7/24.4',db:44.7,wb:24.4,src:'ASHRAE Fundamentals 2021'},{id:'ash-fuj',label:'ASHRAE Fujairah · 42.9/21.9',db:42.9,wb:21.9,src:'ASHRAE Fundamentals 2021'},{id:'ash-aan',label:'ASHRAE Al Ain · 46.0/22.5',db:46.0,wb:22.5,src:'ASHRAE Fundamentals 2021'}
+];
+const VENT_OPTS=[
+  {id:'dbc',label:'DBC H.4.6.4 · 34/32',db:34,wb:32,src:'DBC H.4.6.4'},
+  {id:'doe-ad',label:'DoE Abu Dhabi · 35.3/30.6',db:35.3,wb:30.6,src:'DoE CLM Table 2'},
+  {id:'doe-aa',label:'DoE Al Ain · 35.8/28.8',db:35.8,wb:28.8,src:'DoE CLM Table 2'},
+  {id:'same',label:'Same as cooling',src:'Cooling design condition'}
+];
+const LOC_SRC={dubai:['dbc','dbc'],abudhabi:['doe-ad','doe-ad'],alain:['doe-aa','doe-aa'],sharjah:['dbc','dbc'],ajman:['dbc','dbc'],uaq:['dbc','dbc'],rak:['dbc','dbc'],fujairah:['dbc','dbc']};
+const outSrcLabel=p=>p.src.out==='custom'?'Custom value':((OUT_OPTS.find(o=>o.id===p.src.out)||{}).src||'');
+const ventSrcLabel=p=>p.src.vent==='custom'?'Custom value':((VENT_OPTS.find(o=>o.id===p.src.vent)||{}).src||'');
+/* a design basis is acceptable when it is a recognised standard (DBC, Al Sa'fat, DoE, ASHRAE) or matches one */
+const stdMatch=(list,db,wb)=>list.find(o=>o.db!=null&&Math.abs(o.db-db)<0.05&&Math.abs(o.wb-wb)<0.05);
+function outBasis(p){if(p.src.out&&p.src.out!=='custom'){const o=OUT_OPTS.find(o=>o.id===p.src.out);if(o)return {std:true,o}}const m=stdMatch(OUT_OPTS,num(p.toDB),num(p.toWB));return m?{std:true,o:m}:{std:false}}
+function ventBasis(p){if(p.src.vent==='same')return {std:false,same:true};if(p.src.vent&&p.src.vent!=='custom'){const o=VENT_OPTS.find(o=>o.id===p.src.vent);if(o)return {std:true,o}}const m=stdMatch(VENT_OPTS,num(p.vDB),num(p.vWB));return m?{std:true,o:m}:{std:false}}
+function resolveProject(p){
+  if(p.src.out&&p.src.out!=='custom'){const o=OUT_OPTS.find(o=>o.id===p.src.out);if(o){p.toDB=o.db;p.toWB=o.wb}else p.src.out='custom'}
+  if(p.src.vent&&p.src.vent!=='custom'){if(p.src.vent==='same'){p.vDB=num(p.toDB);p.vWB=num(p.toWB)}else{const o=VENT_OPTS.find(o=>o.id===p.src.vent);if(o){p.vDB=o.db;p.vWB=o.wb}else p.src.vent='custom'}}
+  PPICKS.forEach(k=>{const s=p.src[k];if(s==='custom')return;const o=LIB[k].find(o=>o.id===s);if(o)p[k]=o.v;else p.src[k]='custom'});
+  if(p.src.indoor!=='custom'){const i=INDOOR.find(i=>i.id===p.src.indoor)||INDOOR[0];p.src.indoor=i.id;p.tiDB=i.db;p.tiRH=i.rh}
+}
+function defaultProject(){
+  const p=Object.assign({name:'',location:'dubai',cbasis:'safat-s'},presetVals('dubai'),{autoLink:true,autoBand:true,tiDB:24,tiRH:50,met:1.1,clo:0.61,vel:0.2,mrtOff:0,uPart:1.8,uCeil:0.6,uFloor:0.6,shade:1,tAdj:35,tSupply:13,sfS:10,sfL:5,fahu:true,diversity:100,erv:false,ervS:70,ervL:0,ervShare:50,ez:1,
+    cltd:{N:10,NE:13,E:18,SE:17,S:14,SW:21,W:23,NW:18,R:28},solar:{N:130,NE:430,E:570,SE:300,S:95,SW:300,W:570,NW:430,H:720},
+    src:Object.assign({indoor:'dbc',ez:'ceil-cool',out:'dbc',vent:'dbc'},CODESETS[0][2])});
+  resolveProject(p);return p;
+}
+function room(name,type,area,walls,extra){const r=newRoom(name,type);r.area=area;Object.entries(walls||{}).forEach(([o,[w,g]])=>{r.walls[o]={w,g}});const src=extra&&extra.src;Object.assign(r,extra||{});r.src=Object.assign(defaultSrc(TYPES[type]),src||{});resolveRoom(r);return r}
+function exampleState(){
+  const p=defaultProject();p.name='Example: G+1 office, Dubai (first floor)';CURP=p;
+  const rooms=[
+    room('Open office','office',120,{W:[36,14],S:[24,6]},{roof:120}),
+    room('Meeting room','meeting',24,{N:[15,4]},{roof:24}),
+    room('Manager office','privoffice',20,{E:[12,4]},{roof:20,qty:2}),
+    room('Reception','lobby',40,{E:[18,10]},{roof:40,src:{ach:'door'}}),
+    room('Corridor','corridor',30,{},{roof:30,src:{ach:'press'}})
+  ];
+  return {project:p,rooms,sel:rooms[0].id,example:true};
+}
+/* bring projects saved by earlier versions into the current structure */
+function migrate(s){
+  const sp=s.project;
+  if(!sp.src){sp.src={};ENVK.forEach(k=>{const o=LIB[k].find(o=>o.v===num(sp[k]));sp.src[k]=o?o.id:'custom'});sp.src.indoor=(num(sp.tiDB)===24&&num(sp.tiRH)===50)?'dbc':'custom'}
+  if(!sp.src.ez)sp.src.ez='ceil-cool';
+  if(!sp.src.out){const o=OUT_OPTS.find(o=>o.db===num(sp.toDB)&&o.wb===num(sp.toWB));sp.src.out=o?o.id:'custom'}
+  if(!sp.src.vent){const vd=(['dubai','sharjah','ajman','uaq','rak','fujairah'].includes(sp.location)&&num(sp.vDB)===46&&num(sp.vWB)===29)?[34,32]:[num(sp.vDB),num(sp.vWB)];const o=VENT_OPTS.find(o=>o.db===vd[0]&&o.wb===vd[1]);sp.src.vent=o?o.id:(vd[0]===num(sp.toDB)&&vd[1]===num(sp.toWB)?'same':'custom')}
+  if(['dubai','sharjah','ajman','uaq','rak','fujairah'].includes(sp.location)&&num(sp.vDB)===46&&num(sp.vWB)===29){sp.vDB=34;sp.vWB=32}
+  if(sp.location==='sharjah'&&sp.subloc==='falaj')sp.location='uaq';
+  if(sp.location==='sharjah'&&sp.subloc==='masfout')sp.location='ajman';
+  if(!sp.subloc){const m=(SUBLOC[sp.location]||[]).find(s=>s.elev===num(sp.elev)&&s.dr===num(sp.dr));sp.subloc=m?m.id:'custom'}
+  s.project=Object.assign(defaultProject(),sp);s.project.src=Object.assign({ez:'ceil-cool'},sp.src);resolveProject(s.project);CURP=s.project;
+  s.rooms.forEach(r=>{
+    if(!r.src){const t=TYPES[r.type]||TYPES.office;r.src=defaultSrc(t);r.src.people='typ';
+      ROOMPICKS.forEach(k=>{if(!blank(r[k])){const o=ROOMOPTS[k](r,t).find(o=>o.v===num(r[k]));r.src[k]=o?o.id:'custom'}});}
+    if(!TYPES[r.type])r.type='office';
+    resolveRoom(r);
+  });
+  return s;
+}
+let state;
+try{const s=JSON.parse(localStorage.getItem(STORE)||'null');if(s&&s.project&&Array.isArray(s.rooms))state=migrate(s)}catch(e){state=null}
+if(!state)state=exampleState();
+CURP=state.project;
+let saveT;function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}},300);histRecord()}
+/* ---------- undo / redo: snapshots of the whole project (rooms, inputs, selections); typing is grouped ---------- */
+const HIST={u:[],r:[],last:null,key:null,busy:false,t:null,max:150};
+const histKey=st=>JSON.stringify(Object.assign({},st,{sel:null}));
+function histFlush(){if(HIST.t){clearTimeout(HIST.t);HIST.t=null;histCommit()}}
+function histCommit(){const k=histKey(state);if(HIST.last===null){HIST.last=JSON.stringify(state);HIST.key=k;return}if(k===HIST.key){HIST.last=JSON.stringify(state);return}
+  HIST.u.push(HIST.last);if(HIST.u.length>HIST.max)HIST.u.shift();HIST.r=[];HIST.last=JSON.stringify(state);HIST.key=k;histBtns()}
+function histRecord(){if(HIST.busy)return;if(HIST.last===null){histCommit();return}clearTimeout(HIST.t);HIST.t=setTimeout(()=>{HIST.t=null;histCommit()},450)}
+function histBtns(){const u=document.getElementById('btn-undo'),r=document.getElementById('btn-redo');if(u)u.disabled=!HIST.u.length;if(r)r.disabled=!HIST.r.length}
+function histRestore(snap){HIST.busy=true;try{state=migrate(JSON.parse(snap));if(!state.rooms.find(r=>r.id===state.sel))state.sel=(state.rooms[0]||{}).id;rebuildAll()}finally{HIST.busy=false}
+  HIST.last=JSON.stringify(state);HIST.key=histKey(state);try{localStorage.setItem(STORE,HIST.last)}catch(e){}histBtns()}
+function undo(){histFlush();if(!HIST.u.length)return;HIST.r.push(HIST.last);histRestore(HIST.u.pop());toast('Undone')}
+function redo(){histFlush();if(!HIST.r.length)return;HIST.u.push(HIST.last);histRestore(HIST.r.pop());toast('Redone')}
+
+/* ---------- psychrometrics ---------- */
+const pws=T=>0.61094*Math.exp(17.625*T/(T+243.04));
+function W_rh(T,RH,P){const pw=RH/100*pws(T);return 0.621945*pw/(P-pw)}
+function W_wb(T,Twb,P){const ps=pws(Twb),Ws=0.621945*ps/(P-ps);return ((2501-2.326*Twb)*Ws-1.006*(T-Twb))/(2501+1.86*T-4.186*Twb)}
+const hOf=(T,W)=>1.006*T+W*(2501+1.86*T);
+function rhOf(T,W,P){const pw=W*P/(0.621945+W);return pw/pws(T)*100}
+function wbOf(T,W,P){let lo=-20,hi=T;for(let i=0;i<60;i++){const m=(lo+hi)/2;if(W_wb(T,m,P)>W)hi=m;else lo=m}return (lo+hi)/2}
+function dpOf(W,P){const pw=Math.max(1e-6,W*P/(0.621945+W)),a=Math.log(pw/0.61094);return 243.04*a/(17.625-a)}
+/* Site effects: pressure from elevation (ASHRAE Fundamentals standard atmosphere); air density factor k = P/101.325 on all air loads;
+   optional lapse rate of 6.5 K per 1,000 m above the emirate reference, holding the code humidity ratio. */
+function envOf(p){
+  const P=101.325*Math.pow(1-2.25577e-5*num(p.elev),5.2559),k=P/101.325;
+  const lapse=0.0065*Math.max(0,num(p.elev)-refElevOf(p));
+  const To=num(p.toDB)-lapse,Tv=num(p.vDB)-lapse;
+  const Wo=Math.min(W_wb(num(p.toDB),num(p.toWB),P),W_rh(To,100,P)),Wv=Math.min(W_wb(num(p.vDB),num(p.vWB),P),W_rh(Tv,100,P));
+  return {P,k,lapse,To,Tv,Wo,Wv,Wi:W_rh(num(p.tiDB),num(p.tiRH),P),
+    corr:(25.5-num(p.tiDB))+((To-num(p.dr)/2)-29.4)};
+}
+
+/* ---------- load calculation for one unit of a room, W ---------- */
+function calc(p,r,e){
+  const A=num(r.area),H=num(r.height),Ti=num(p.tiDB),dT=e.To-Ti,ks=1.23*e.k,kl=3010*e.k;
+  let walls=0,gSol=0,gCond=0,wallG=0,glassA=0;
+  for(const o of ORIENTS){
+    const w=num(r.walls[o]&&r.walls[o].w),g=num(r.walls[o]&&r.walls[o].g);glassA+=g;wallG+=Math.max(w,g);
+    walls+=num(p.uWall)*Math.max(0,w-g)*Math.max(0,num(p.cltd[o])+e.corr);
+    gCond+=num(p.uGlass)*g*dT;
+    gSol+=g*num(p.solar[o])*num(p.shgc)*num(p.shade);
+  }
+  const ab=aboveOf(r),be=belowOf(r),isRoof=ab==='roof';
+  const sky=isRoof?num(r.sky):0;
+  const roof=isRoof?num(p.uRoof)*Math.max(0,num(r.roof)-sky)*Math.max(0,num(p.cltd.R)+e.corr):0;
+  gCond+=num(p.uSky)*sky*dT;
+  gSol+=sky*num(p.solar.H)*num(p.shgcSky)*num(p.shade);
+  const dAdj=num(p.tAdj)-Ti;
+  const pq=x=>uEff(x.u,pxU(p,x.type))*num(x.a)*(adjTemp(p,e,x.adj||'project',x.t)-Ti),ce=cfOf(r,'a'),fl=cfOf(r,'b');
+  const partW=pxOf(r).filter(x=>x.type==='wall').reduce((a,x)=>a+pq(x),0);
+  const partC=ab==='uncond'?uEff(ce.u,pxU(p,'ceiling'))*num(ce.a)*(adjTemp(p,e,ce.adj||'project',ce.t)-Ti):0;
+  const partF=be==='uncond'?uEff(fl.u,p.uFloor)*num(fl.a)*(adjTemp(p,e,fl.adj||'project',fl.t)-Ti):be==='outdoor'?uEff(fl.u,p.uFloor)*num(fl.a)*Math.max(0,dT):0,part=partW+partC+partF;
+  const n=num(r.people),pS=n*num(r.ps),pL=n*num(r.pl),light=A*num(r.light),equip=A*num(r.equip);
+  const infQ=num(r.ach)*A*H/3.6,infS=ks*infQ*dT,infL=kl*infQ*Math.max(0,e.Wo-e.Wi);
+  const oaQ=num(r.oa),oaS=ks*oaQ*(e.Tv-Ti),oaL=kl*oaQ*Math.max(0,e.Wv-e.Wi);
+  const s0=walls+roof+gSol+gCond+part+pS+light+equip+infS,l0=pL+infL;
+  const mS=s0*num(p.sfS)/100,mL=l0*num(p.sfL)/100;
+  const roomS=s0+mS,roomL=l0+mL,toUnit=!p.fahu;
+  const unitS=roomS+(toUnit?oaS:0),unitL=roomL+(toUnit?oaL:0),unit=unitS+unitL;
+  const sa=roomS/(ks*Math.max(1,Ti-num(p.tSupply)));
+  return {n,oaQ,infQ,walls,roof,gSol,gCond,part,partW,partC,partF,pS,pL,light,equip,infS,infL,oaS,oaL,mS,mL,roomS,roomL,unitS,unitL,unit,oa:oaS+oaL,sa,A,wallG,glassA,sky,roofA:isRoof?num(r.roof):0,qty:Math.max(1,Math.round(num(r.qty))||1)};
+}
+/* DBC H.4.8.3: DCV in spaces over 100 m² with design occupancy of 25 people per 100 m² or more */
+function dcvNeeded(c){return c.A>100&&c.n/c.A*100>=25}
+function computeAll(pp){
+  const p=pp||state.project,e=envOf(p),res={};
+  state.rooms.forEach(r=>res[r.id]=calc(p,r,e));
+  const T={a:0,n:0,s:0,l:0,oa:0,oaS:0,oaL:0,u:0,sa:0,q:0,oaq:0,wallG:0,glass:0,roof:0,sky:0,dcv:[]};
+  state.rooms.forEach(r=>{const c=res[r.id],m=c.qty;
+    T.a+=c.A*m;T.n+=c.n*m;T.s+=c.roomS*m;T.l+=c.roomL*m;T.oa+=c.oa*m;T.oaS+=c.oaS*m;T.oaL+=c.oaL*m;T.u+=c.unit*m;T.sa+=c.sa*m;T.q+=m;T.oaq+=c.oaQ*m;
+    T.wallG+=c.wallG*m;T.glass+=c.glassA*m;T.roof+=c.roofA*m;T.sky+=c.sky*m;if(dcvNeeded(c))T.dcv.push(r.name||'Untitled')});
+  T.rec=p.fahu&&p.erv?(num(p.ervS)/100*T.oaS+num(p.ervL)/100*T.oaL)*num(p.ervShare)/100:0;
+  T.fahuW=p.fahu?Math.max(0,T.oa-T.rec):0;
+  T.plant=(T.u+T.fahuW)*num(p.diversity)/100;
+  T.wwr=T.wallG?T.glass/T.wallG*100:0;T.skyPct=T.roof?T.sky/T.roof*100:0;
+  return {p,e,res,T};
+}
+
+/* ---------- compliance check marks ---------- */
+const MK={ok:'✓',bad:'✗',warn:'!'};
+function projectChecks(p,T){
+  const out={},L=limitsFor(p.cbasis||'safat-s',T.wwr,T.skyPct);
+  const le=(k,v,lim,ref)=>{if(lim==null){out[k]=null;return}out[k]=v<=lim+1e-9?['ok',`≤ ${lim}, ${ref}`]:['bad',`exceeds ${lim}, ${ref}`]};
+  ENVK.forEach(k=>le(k,num(p[k]),L[k],L.name+(L.band&&(k==='uGlass'||k==='shgc')?', '+L.band:'')));
+  const loc=p.location,refO=(LOC[loc]||{}).ref||'';
+  const ee=envOf(p),lap=ee.lapse>0?`; calculation uses ${fmt(ee.To,1)} °C after −${fmt(ee.lapse,1)} K elevation adjustment`:'';
+  const ob=outBasis(p),vb=ventBasis(p);
+  out.toDB=out.toWB=ob.std?['ok',`${ob.o.src}${lap}`]:['warn','Non-standard design condition. Technical justification required for Authority approval'];
+  out.vDB=out.vWB=vb.std?['ok',vb.o.src]:vb.same?['warn','Cooling condition used for outdoor air: not standard practice (DBC H.4.6.4, DoE CLM Table 2)']:['warn','Non-standard outdoor air condition. Technical justification required for Authority approval'];
+  const ti=num(p.tiDB),rh=num(p.tiRH);
+  const ib=p.src.indoor==='custom'?'dbc':p.src.indoor;
+  if(ib==='ashrae'){
+    const ic=indoorChecks(p,envOf(p)),pm=ic.rows[3][3];
+    out.tiDB=[pm[0],`PMV ${fmt(ic.pmv,2)}: ${pm[1]}, ASHRAE 55`];
+    out.tiRH=ic.dp<=15&&ic.W<=12?['ok',`dew point ${fmt(ic.dp,1)} °C ≤ 15 °C (62.1 §5.12), W ≤ 12 g/kg (ASHRAE 55)`]:['bad',`dew point ${fmt(ic.dp,1)} °C or humidity ratio over the ASHRAE limits`];
+  }else if(ib==='safat'){
+    out.tiDB=ti>=22.5&&ti<=25.5?['ok',`${ti===24?'24 °C, ':'in 22.5–25.5 °C band, '}${SAFAT} 501.03 / 402.01`]:['bad',`outside 22.5–25.5 °C, ${SAFAT} 402.01`];
+    out.tiRH=Math.abs(rh-50)<=5?['ok',`50 ±5%, ${SAFAT} 501.03`]:['bad',`outside 50 ±5%, ${SAFAT} 501.03`];
+  }else{
+    out.tiDB=Math.abs(ti-24)<=1.5?['ok','24 ±1.5 °C, DBC Table H.2']:['bad','outside 24 ±1.5 °C, DBC Table H.2'];
+    out.tiRH=Math.abs(rh-50)<=5?['ok','50 ±5%, DBC Table H.2']:['bad','outside 50 ±5%, DBC Table H.2'];
+  }
+  const v=num(p.vel);out.vel=v>=0.2-1e-9&&v<=0.3+1e-9?['ok','0.2–0.3 m/s, DBC H.4.7']:['warn','outside 0.2–0.3 m/s, DBC H.4.7'];
+  out.sfS=num(p.sfS)<=10?['ok','≤ 10%, DBC H.4.6.3']:['bad','exceeds 10%, DBC H.4.6.3'];
+  out.sfL=num(p.sfL)<=5?['ok','≤ 5%, DBC H.4.6.3']:['bad','exceeds 5%, DBC H.4.6.3'];
+  if(p.erv){out.ervS=num(p.ervS)>=70?['ok','≥ 70%, DBC H.4.8.2']:['bad','below 70%, DBC H.4.8.2'];out.ervShare=num(p.ervShare)>=50?['ok','≥ 50%, DBC H.4.8.2']:['bad','below 50%, DBC H.4.8.2']}
+  else{out.ervS=null;out.ervShare=null}
+  out._limits=L;
+  return out;
+}
+function oaRequired(r,c){const t=TYPES[r.type]||TYPES.office;const id=r.src.oa!=='custom'?r.src.oa:(t.oaDef||t.vent);const o=ROOMOPTS.oa(r).find(x=>x.id===id)||ROOMOPTS.oa(r).find(x=>x.id===t.vent);
+  const ref=id==='a622'?'ASHRAE 62.2-2019':String(id).startsWith('a170-')?'ASHRAE 170-2021':'ASHRAE 62.1-2022';return {q:o?o.v:0,row:VENT_BY[t.vent],ref}}
+function roomChecks(r,c){
+  const t=TYPES[r.type]||TYPES.office,out={};
+  let need=null,ref='';
+  if(t.dbc){need=Math.ceil(c.A/t.dbc[0]);ref='DBC Table B.2'}
+  else{const vr=VENT_BY[t.vent];if(vr&&vr.dens>0){need=Math.ceil(c.A*vr.dens/100);ref='ASHRAE 62.1 default (DBC H.4.10.2)'}}
+  out.people=need==null?null:(c.n>=need?['ok',`≥ ${need} people, ${ref}`]:['warn',`below ${need} people from ${ref}; justify with the layout`]);
+  const req=oaRequired(r,c);
+  out.oa=c.oaQ>=req.q-0.05?['ok',`≥ ${fmt(req.q,1)} L/s, ${req.ref} (DBC H.4.10.2)`]:['bad',`below ${fmt(req.q,1)} L/s required by ${req.ref} (DBC H.4.10.2)`];
+  {const bam=String(r.src.light||'').startsWith('bam-')?LPD_BAM.find(x=>'bam-'+x[0]===r.src.light):null;
+   const lim=bam?Math.round(bam[2]*10.764*10)/10:t.a901,ref=bam?`ASHRAE 90.1-2019 Building Area Method, ${bam[1]}`:'ASHRAE 90.1-2022 Space-by-Space Method';
+   out.light=lim?(num(r.light)<=lim+1e-9?['ok',`≤ ${lim} W/m², ${ref} (DBC H.4.6.7.2)`]:['bad',`exceeds ${lim} W/m², ${ref} (DBC H.4.6.7.2)`]):null;}
+  return out;
+}
+const badge=v=>v?`<span class="cmark ${v[0]}" title="${esc(v[1])}">${MK[v[0]]} ${v[0]==='ok'?'Complies':v[0]==='warn'?'Check':'Fails'}</span>`:'';
+function setMark(id,v){const el=$(id);if(!el)return;if(!v){el.className='cmark';el.textContent='';el.removeAttribute('title');return}
+  el.className='cmark '+v[0];el.textContent=`${MK[v[0]]} ${v[0]==='ok'?'Complies':v[0]==='warn'?'Check':'Fails'}`;el.title=v[1];el.setAttribute('aria-label',v[1])}
+
+/* ---------- rendering: inputs ---------- */
+const optLabel=(o,showV)=>esc(o.label)+(showV?`: ${o.v}`:'');
+function optionsHTML(opts,src,showV){
+  let h='',cur=null;
+  opts.forEach(o=>{if(o.cat!==cur){if(cur!=null)h+='</optgroup>';if(o.cat)h+=`<optgroup label="${esc(o.cat)}">`;cur=o.cat}
+    h+=`<option value="${o.id}"${o.id===src?' selected':''}>${optLabel(o,showV)}</option>`});
+  if(cur)h+='</optgroup>';
+  return h+`<option value="custom"${src==='custom'?' selected':''}>Custom value</option>`;
+}
+/* partitions to unconditioned spaces: list of {type, a, adj, t, u}; older rooms are converted once */
+const PXT=[['wall','Wall'],['ceiling','Ceiling'],['floor','Floor']];
+const PXDEF={wall:'corridor',ceiling:'plenum',floor:'mezz'};
+const pxU=(p,t)=>t==='wall'?p.uPart:t==='ceiling'?(p.uCeil!=null&&p.uCeil!==''?p.uCeil:p.uFloor):p.uFloor;
+function cfOf(r,w){const k=w==='a'?'ce':'fl';
+  if(!r[k]||typeof r[k]!=='object'){pxOf(r);const ty=w==='a'?'ceiling':'floor',old=(r.px||[]).find(x=>x.type===ty);
+    r[k]=old?{a:old.a,adj:old.adj||'project',t:old.t,u:old.u}:{a:w==='a'?(aboveOf(r)==='uncond'?r.roof:''):r.floor,adj:(w==='a'?r.aAdj:r.bAdj)||PXDEF[ty],t:w==='a'?r.tA:r.tB,u:w==='a'?r.uC:r.uF};
+    if(old)r.px=r.px.filter(x=>x.type!==ty)}
+  return r[k]}
+function pxOf(r){
+  if(!Array.isArray(r.px)){const px=[];
+    if(num(r.part)>0||r.wAdj||(r.uW!==''&&r.uW!=null))px.push({type:'wall',a:r.part,adj:r.wAdj||'project',t:r.tW,u:r.uW});
+    (r.wx||[]).forEach(x=>px.push({type:'wall',a:x.a,adj:x.adj||'project',t:x.t,u:x.u}));
+    if(r.above==='uncond')px.push({type:'ceiling',a:r.roof,adj:r.aAdj||'project',t:r.tA,u:r.uC});
+    if(r.below==='uncond')px.push({type:'floor',a:r.floor,adj:r.bAdj||'project',t:r.tB,u:r.uF});
+    r.px=px}
+  return r.px;
+}
+function adjOpts(id){const o=([k,l,,f])=>`<option value="${k}"${k===id?' selected':''}>${l}${['project','custom','cond','cond2'].includes(k)?'':' ('+f+')'}</option>`;
+  return `<optgroup label="Conditioned">${ADJ.filter(a=>a[0].startsWith('cond')).map(o).join('')}</optgroup><optgroup label="Unconditioned">${ADJ.filter(a=>!a[0].startsWith('cond')&&!['project','custom'].includes(a[0])).map(o).join('')}</optgroup><optgroup label="Other">${ADJ.filter(a=>['project','custom'].includes(a[0])).map(o).join('')}</optgroup>`}
+function cfRow(r,w){
+  const p=state.project,e=envOf(p),sel=w==='a'?aboveOf(r):belowOf(r),L=w==='a'?ABOVE:BELOW;
+  const pick=`<select id="r-${w==='a'?'above':'below'}" data-r="${w==='a'?'above':'below'}" aria-label="${w==='a'?'Roof or ceiling':'Floor'}">${L.map(([k,l])=>`<option value="${k}"${k===sel?' selected':''}>${l}</option>`).join('')}</select>`;
+  if(w==='a'&&sel==='roof'){const cl=num(p.cltd.R)+e.corr;return `<tr><td>${pick}</td><td><input id="r-roof" data-r="roof" type="number" min="0" step="0.5" inputmode="decimal" aria-label="Roof area"></td><td class="muted">Outdoor, sun on roof</td><td class="n">${fmt(cl,1)} K</td><td class="n">${num(p.uRoof)} <span class="usrc">Section 3 roof</span></td></tr>`}
+  if(sel==='cond')return `<tr><td>${pick}</td><td class="muted">–</td><td class="muted">Conditioned at room temperature</td><td class="n">${num(p.tiDB)} °C</td><td class="muted">No transfer</td></tr>`;
+  if(sel==='ground')return `<tr><td>${pick}</td><td class="muted">–</td><td class="muted">Ground</td><td class="muted">–</td><td class="muted">Neglected for cooling</td></tr>`;
+  const x=cfOf(r,w),k=w==='a'?'ce':'fl',ty=w==='a'?'ceiling':'floor',U=num(pxU(p,ty)),cust=x.u!==''&&x.u!=null;
+  const outd=sel==='outdoor',id=x.adj||'project',T=outd?e.To:adjTemp(p,e,id,x.t);
+  return `<tr><td>${pick}</td><td><input data-cf="${k}" data-ck="a" class="expr" type="text" inputmode="decimal" value="${esc(x.a)}" aria-label="${ty} area"></td>
+    <td>${outd?'<span class="muted">Outdoor air</span>':`<select data-cf="${k}" data-ck="adj" aria-label="${ty} adjacent space">${adjOpts(id)}</select>`}</td>
+    <td><input data-cf="${k}" data-ck="t" id="r-cft-${k}" type="number" step="0.5" inputmode="decimal" value="${fmt(T,1).replace(/,/g,'')}"${!outd&&ADJ_EDIT(id)?'':' readonly'} aria-label="${ty} adjacent temperature"></td>
+    <td><span class="ucell${cust?' cust':''}"><input data-cf="${k}" data-ck="u" type="number" min="0" step="0.01" inputmode="decimal" value="${cust?x.u:U}" aria-label="${ty} U-value">${cust?`<button class="btn sm" type="button" data-act="cf-ureset" data-k="${k}" title="Back to section 3 value">↺</button>`:''}</span><span class="usrc">${cust?'Custom':'Section 3'}</span></td></tr>`;
+}
+function pxRow(r,x,i){
+  const p=state.project,e=envOf(p),id=x.adj||'project',T=adjTemp(p,e,id,x.t),U=num(pxU(p,x.type)),cust=x.u!==''&&x.u!=null;
+  return `<tr><td>Wall partition ${i+1}</td>
+    <td><input data-px="${i}" data-pk="a" class="expr" type="text" inputmode="decimal" value="${esc(x.a)}" aria-label="Partition ${i+1} area" title="Number or sum, e.g. 4*3.2"></td>
+    <td><select data-px="${i}" data-pk="adj" aria-label="Partition ${i+1} adjacent space">${adjOpts(id)}</select></td>
+    <td><input data-px="${i}" data-pk="t" id="r-pxt-${i}" type="number" step="0.5" inputmode="decimal" value="${T}"${ADJ_EDIT(id)?'':' readonly'} aria-label="Partition ${i+1} temperature" title="${ADJ_EDIT(id)?'Edit the adjacent space temperature':'Set by the space type; choose Custom or a different set-point to edit'}"></td>
+    <td><span class="ucell${cust?' cust':''}"><input data-px="${i}" data-pk="u" type="number" min="0" step="0.01" inputmode="decimal" value="${cust?x.u:U}" aria-label="Partition ${i+1} U-value" title="${cust?'Custom U-value':'Section 3 value; type to set a custom U-value'}">${cust?`<button class="btn sm" type="button" data-act="px-ureset" data-i="${i}" title="Back to section 3 value">↺</button>`:''}</span><span class="usrc">${cust?'Custom':'Section 3'}</span></td>
+    <td class="n"><button class="btn sm" type="button" data-act="px-del" data-i="${i}" aria-label="Delete partition ${i+1}" title="Delete">×</button></td></tr>`;
+}
+function adjHTML(r,w){
+  const p=state.project,e=envOf(p),id=r[w+'Adj']||'project',T=adjTemp(p,e,id,r['t'+w.toUpperCase()]);
+  const sel=`<select id="r-${w}Adj" data-adj="${w}">${ADJ.map(([k,l,,f])=>`<option value="${k}"${k===id?' selected':''}>${l}${k==='project'||k==='custom'?'':' ('+f+')'}</option>`).join('')}</select>`;
+  return `<div class="fld"><div class="flrow"><label class="fl" for="r-${w}Adj">${w==='a'?'Space above':'Space below'}</label></div><span class="in-u src-sel">${sel}</span><span class="in-u"><input id="r-t${w.toUpperCase()}" data-adjt="${w}" type="number" step="0.5" inputmode="decimal" value="${fmt(T,1).replace(/,/g,'')}"${id==='custom'?'':' readonly'}><span class="u">°C</span></span></div>`;
+}
+function pickHTML(pre,k,label,unit,step,opts,src,dataAttr,srcAttr,showV){
+  return `<div class="fld pick${src==='custom'?' is-custom':''}" id="${pre}pk-${k}"><div class="flrow"><label class="fl" for="${pre}-${k}">${label}</label><span class="cmark" id="${pre}cm-${k}"></span></div>
+    <span class="in-u src-sel"><select id="${pre}s-${k}" ${srcAttr}="${k}" aria-label="${label}: source">${optionsHTML(opts,src,showV)}</select></span>
+    <span class="in-u"><input id="${pre}-${k}" ${dataAttr}="${k}" type="number" min="0" step="${step}" inputmode="decimal">${unit?`<span class="u">${unit}</span>`:''}</span></div>`;
+}
+function fieldHTML(prefix,k,label,unit,step,attr){
+  return `<div class="fld"><div class="flrow"><label class="fl" for="${prefix}-${k}">${label}</label><span class="cmark" id="${prefix}cm-${k}"></span></div><span class="in-u"><input id="${prefix}-${k}" ${attr}="${k}" type="number" inputmode="decimal" step="${step}">${unit?`<span class="u">${unit}</span>`:''}</span></div>`;
+}
+const PF=[
+  ['out','toDB','Dry bulb','°C',0.1],['out','toWB','Wet bulb','°C',0.1],['out','dr','Daily range','K',0.1],
+  ['vent','vDB','Dry bulb','°C',0.1],['vent','vWB','Wet bulb','°C',0.1],
+  ['in','tiDB','Dry bulb','°C',0.5],['in','tiRH','Relative humidity','%',1],
+  ['adj','uPart','Wall partition U-value','W/m²K',0.01],['adj','uCeil','Ceiling partition U-value','W/m²K',0.01],['adj','uFloor','Floor partition / exposed floor U-value','W/m²K',0.01],['adj','tAdj','Unconditioned space','°C',0.5],['adj','shade','Glass shading factor','×',0.05],
+  ['sys','tSupply','Supply air temp','°C',0.5],['sys','diversity','Plant diversity','%',1],['sys','sfS','Margin, sensible','%',1],['sys','sfL','Margin, latent','%',1],
+  ['erv','ervS','Sensible effectiveness','%',1],['erv','ervL','Latent effectiveness','%',1],['erv','ervShare','Exhaust air recovered','% of OA',1]
+];
+const PLABEL=Object.fromEntries(PF.map(f=>[f[1],[f[2],f[3]]]));
+function buildProject(){
+  const p=state.project;
+  $('#p-location').innerHTML=Object.entries(LOC).map(([k,l])=>`<option value="${k}">${l.label}</option>`).join('');
+  {const gs=[...new Set(CODESETS.map(c=>c[4]))];$('#p-codeset').innerHTML=gs.map(g=>`<optgroup label="${esc(g)}">${CODESETS.filter(c=>c[4]===g).map(([id,l])=>`<option value="${id}">${esc(l)}</option>`).join('')}</optgroup>`).join('');}
+
+  const g={};PF.forEach(([grp,k,l,u,s])=>{(g[grp]=g[grp]||[]).push(fieldHTML('p',k,l,u,s,'data-p'))});
+  g.out.unshift(`<label class="fld wide" for="ps-out"><span class="fl">Basis</span><span class="in-u src-sel"><select id="ps-out" data-psrc="out">${OUT_OPTS.map(o=>`<option value="${o.id}">${esc(o.label)}</option>`).join('')}<option value="custom">Custom value</option></select></span></label>`);
+  g.vent.unshift(`<label class="fld wide" for="ps-vent"><span class="fl">Basis</span><span class="in-u src-sel"><select id="ps-vent" data-psrc="vent">${VENT_OPTS.map(o=>`<option value="${o.id}">${esc(o.label)}</option>`).join('')}<option value="custom">Custom value</option></select></span></label>`);
+  g.in.unshift(`<label class="fld wide" for="ps-indoor"><span class="fl">Basis</span><span class="in-u src-sel"><select id="ps-indoor" data-psrc="indoor">${INDOOR.map(i=>`<option value="${i.id}">${esc(i.label)}</option>`).join('')}<option value="custom">Custom value</option></select></span></label>`);
+  Object.entries(g).forEach(([grp,arr])=>{$('#g-'+grp).innerHTML=arr.join('')});
+  const pk=k=>pickHTML('p',k,PMETA[k][0],PMETA[k][1],PMETA[k][2],LIB[k],p.src[k],'data-p','data-psrc',true);
+  $('#g-env').innerHTML=['uWall','uRoof'].map(pk).join('');
+  $('#g-glz').innerHTML=['uGlass','shgc','uSky','shgcSky'].map(pk).join('');
+  $('#g-ez').innerHTML=pk('ez');
+  $('#g-erv').insertAdjacentHTML('afterbegin',`<label class="check" for="p-erv"><input type="checkbox" id="p-erv" data-p="erv"><span>FAHU has energy recovery<br><span class="muted" style="font-size:12px">Plate or wheel. Set latent above 0 only for an enthalpy wheel.</span></span></label>`);
+  $('#g-sys').insertAdjacentHTML('beforeend',`<label class="check" for="p-fahu"><input type="checkbox" id="p-fahu" data-p="fahu"><span>Fresh air treated by a FAHU<br><span class="muted" style="font-size:12px">Fresh air load is listed separately, not added to room units.</span></span></label>`);
+  $('#factor-body').innerHTML=[...ORIENTS.map(o=>[o,'Wall '+o,o]),['R','Roof / skylight','H']].map(([c,lab,s])=>
+    `<tr><td>${lab}</td><td><input id="f-c-${c}" data-cltd="${c}" type="number" step="0.5" inputmode="decimal" aria-label="Base CLTD ${lab}"></td><td id="corr-${c}">–</td><td><input id="f-s-${s}" data-solar="${s}" type="number" step="5" inputmode="decimal" aria-label="Solar gain ${lab}"></td></tr>`).join('');
+}
+function buildSubloc(){
+  const p=state.project,el=$('#p-subloc');
+  const html=(SUBLOC[p.location]||[]).map(s=>`<option value="${s.id}">${esc(s.label)}: daily range ${s.est?'≈':''}${s.dr} K</option>`).join('')+`<option value="custom">Custom daily range</option>`;
+  if(el.dataset.loc!==p.location){el.innerHTML=html;el.dataset.loc=p.location}
+  const s=subOf(p);$('#subloc-note').textContent=s?(s.est?'Estimate, confirm for your site. ':'Sourced. ')+s.src+'.':'Custom daily range. Record your data source.';
+}
+function syncProject(){
+  const p=state.project,act=document.activeElement;
+  buildSubloc();
+  document.querySelectorAll('[data-p]').forEach(el=>{if(el===act)return;const k=el.dataset.p;if(el.type==='checkbox')el.checked=!!p[k];else el.value=p[k]??''});
+  document.querySelectorAll('[data-psrc]').forEach(el=>{const k=el.dataset.psrc;el.value=p.src[k]||'custom';const pk=$('#ppk-'+k);if(pk)pk.classList.toggle('is-custom',el.value==='custom')});
+  document.querySelectorAll('[data-cltd]').forEach(el=>{if(el!==act)el.value=p.cltd[el.dataset.cltd]});
+  document.querySelectorAll('[data-solar]').forEach(el=>{if(el!==act)el.value=p.solar[el.dataset.solar]});
+  $('#loc-note').textContent='';$('#loc-note').hidden=true;{const vb=ventBasis(p);$('#vent-hint').textContent=vb.std?`Outdoor air (FAHU) design to ${vb.o.src}.`:'Outdoor air (FAHU) design: '+(vb.same?'cooling condition.':'custom values.')}
+  $('#example-note').hidden=!state.example;
+  /* show elevation-adjusted outdoor values in the fields while the adjustment is on */
+  const e=envOf(p),adj=e.lapse>0;
+  [['toDB',e.To,num(p.toDB)],['vDB',e.Tv,num(p.vDB)],['toWB',wbOf(e.To,e.Wo,e.P),num(p.toWB)],['vWB',wbOf(e.Tv,e.Wv,e.P),num(p.vWB)]].forEach(([k,v,code])=>{
+    const el=$('#p-'+k);if(!el)return;el.disabled=adj;el.title=adj?`Elevation-adjusted from the code value ${code}. Turn off the elevation adjustment to edit.`:'';
+    if(adj)el.value=fmt(v,1).replace(/,/g,'');else if(el!==act)el.value=p[k]??'';
+  });
+}
+function selRoom(){return state.rooms.find(r=>r.id===state.sel)}
+function renderEditor(){
+  const r=selRoom(),ed=$('#editor');
+  if(!r){ed.innerHTML=`<div class="empty">No rooms yet.<br><br><button class="btn primary" type="button" data-act="add">Add the first room</button></div>`;return}
+  const t=TYPES[r.type]||TYPES.office;
+  const opts=Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===r.type?' selected':''}>${v.label}</option>`).join('');
+  const pk=k=>pickHTML('r',k,RMETA[k][0],RMETA[k][1],RMETA[k][2],ROOMOPTS[k](r,t),r.src[k],'data-r','data-rsrc',SHOWV[k]);
+  const H0=num(r.height)||3;
+  const wc=(o,k,lab,ph,val)=>`<label class="wcf"><span>${lab}</span><input data-wc="${k}" data-o="${o}" type="text" inputmode="decimal" placeholder="${ph}" value="${val}" aria-label="${o} ${lab}"></label>`;
+  const rows=ORIENTS.map(o=>`<tr><td>${o}</td><td><input id="r-w-${o}" data-wall="${o}" data-part="w" class="expr" type="text" inputmode="decimal" value="${esc(r.walls[o].w)}" aria-label="${o} wall gross area" title="Enter a number or a sum, e.g. 6*3.2 + 2.5*3.2"></td><td><input id="r-g-${o}" data-wall="${o}" data-part="g" class="expr" type="text" inputmode="decimal" value="${esc(r.walls[o].g)}" aria-label="${o} glass area" title="Enter a number or a sum, e.g. 1.5*1.8*3"></td><td class="wcb"><button class="btn sm" type="button" data-act="wcalc" data-o="${o}" aria-expanded="false" title="Area calculator">L × H</button></td></tr>`+
+    `<tr class="wcalc" id="wc-${o}" hidden><td colspan="4"><div class="wcgrid">${wc(o,'L','Wall length','m','')}${wc(o,'H','Wall height','m',H0)}${wc(o,'ww','Window width','m','')}${wc(o,'wh','Window height','m','')}${wc(o,'wn','No. of windows','qty','1')}${wc(o,'dd','Doors / other openings','m²','0')}</div><div class="wcres"><span id="wcr-${o}">Enter wall length and height.</span><button class="btn sm primary" type="button" data-act="wcalc-apply" data-o="${o}">Apply to ${o}</button></div></td></tr>`).join('');
+  ed.innerHTML=`
+    <h3>Edit room</h3>
+    <div class="fgrid3">
+      <label class="fld" for="r-name" style="grid-column:span 2"><span class="fl">Room name</span><span class="in-u"><input id="r-name" data-r="name" type="text" value="${esc(r.name)}"></span></label>
+      ${fieldHTML('r','qty','Identical rooms','qty',1,'data-r')}
+      <label class="fld" for="r-type" style="grid-column:span 2"><span class="fl">Room type</span><span class="in-u"><select id="r-type" data-r="type">${opts}</select></span></label>
+      ${fieldHTML('r','height','Ceiling height','m',0.1,'data-r')}
+      ${fieldHTML('r','area','Floor area','m²',0.5,'data-r')}
+    </div>
+    <div class="ed-sec">
+      <h4>Internal loads</h4>
+      <div class="fgrid">
+        ${pk('people')}
+        <div class="fld pick${r.src.act==='custom'?' is-custom':''}" id="rpk-act"><div class="flrow"><label class="fl" for="rs-act">Activity, heat gain per person</label></div>
+          <span class="in-u src-sel"><select id="rs-act" data-rsrc="act" aria-label="Activity: source">${ACT.map(a=>`<option value="${a.id}"${a.id===r.src.act?' selected':''}>ASHRAE: ${esc(a.label)}: ${a.s}/${a.l} W</option>`).join('')}<option value="custom"${r.src.act==='custom'?' selected':''}>Custom value</option></select></span>
+          <span class="pair"><span class="in-u"><input id="r-ps" data-r="ps" type="number" min="0" step="1" inputmode="decimal" aria-label="Sensible W per person"><span class="u">W sens.</span></span><span class="in-u"><input id="r-pl" data-r="pl" type="number" min="0" step="1" inputmode="decimal" aria-label="Latent W per person"><span class="u">W lat.</span></span></span></div>
+        ${pk('light')}
+        ${pk('equip')}
+      </div>
+    </div>
+    <div class="ed-sec">
+      <h4>Air</h4>
+      <div class="fgrid">${pk('oa')}${pk('ach')}</div>
+    </div>
+    <div class="ed-sec">
+      <h4>External walls and glazing</h4>
+      <div class="tbl-wrap"><table class="exp"><thead><tr><th>Facing</th><th>Wall, gross (m²)</th><th>Glass (m²)</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><p class="hint">Type a number or a sum such as 6*3.2 + 2.5*3.2, or use L × H to work out wall and window areas.</p>
+    </div>
+    <div class="ed-sec">
+      <h4>Roof, ceiling and floor</h4>
+      <div class="tbl-wrap"><table class="exp ptbl"><colgroup><col style="width:27%"><col style="width:11%"><col style="width:29%"><col style="width:13%"><col style="width:20%"></colgroup>
+        <thead><tr><th>Element</th><th>Area (m²)</th><th>Adjacent space (tb)</th><th>tb / CLTD</th><th>U-value (W/m²K)</th></tr></thead><tbody>
+        ${cfRow(r,'a')}${aboveOf(r)==='roof'?`<tr><td class="sub">Skylight in roof</td><td><input id="r-sky" data-r="sky" type="number" min="0" step="0.5" inputmode="decimal" aria-label="Skylight area"></td><td class="muted" colspan="3">Solar and conduction, skylight SHGC and U from section 3</td></tr>`:''}${cfRow(r,'b')}
+      </tbody></table></div>
+      <h4 style="margin-top:16px">Wall partitions</h4>
+      <div class="tbl-wrap"><table class="exp ptbl"><colgroup><col style="width:27%"><col style="width:11%"><col style="width:29%"><col style="width:13%"><col style="width:14%"><col style="width:6%"></colgroup>
+        <thead><tr><th>Partition</th><th>Area (m²)</th><th>Adjacent space (tb)</th><th>tb (°C)</th><th>U-value (W/m²K)</th><th></th></tr></thead><tbody>
+        ${pxOf(r).length?pxOf(r).map((x,i)=>pxRow(r,x,i)).join(''):'<tr class="dis"><td colspan="6">No wall partitions.</td></tr>'}
+        <tr class="addrow"><td colspan="6"><button class="btn sm" type="button" data-act="px-add" data-t="wall">+ Add wall partition</button></td></tr>
+      </tbody></table></div>
+      <p class="hint">ASHRAE CLTD/CLF method: roof q = U × A × CLTD (corrected); ceilings, floors and partitions q = U × A × (tb − ti); tb for an unconditioned space, when unknown, = outdoor − 2.8 K; conditioned space at the same temperature and slab on grade: no cooling gain.</p>
+    </div>
+    <div class="ed-actions">
+      <button class="btn" type="button" data-act="dup">Duplicate room</button>
+      <button class="btn danger" type="button" data-act="del">Delete room</button>
+    </div>`;
+  syncRoom();
+}
+function syncRoom(){
+  const r=selRoom();if(!r)return;const act=document.activeElement;
+  ['qty','height','area','roof','sky','part','floor','ps','pl',...ROOMPICKS].forEach(k=>{const el=$('#r-'+k);if(el&&el!==act)el.value=r[k]??''});
+  [...ROOMPICKS,'act'].forEach(k=>{const el=$('#rs-'+k);if(el){el.value=r.src[k];const pk=$('#rpk-'+k);if(pk)pk.classList.toggle('is-custom',r.src[k]==='custom')}});
+}
+
+/* ---------- rendering: results ---------- */
+function renderList(res){
+  $('#rlist').innerHTML=state.rooms.map(r=>{const c=res[r.id],ch=roomChecks(r,c),fails=Object.values(ch).filter(v=>v&&v[0]==='bad').length;
+    return `<button type="button" class="ritem" data-id="${r.id}" aria-current="${r.id===state.sel}"><span class="nm">${esc(r.name||'Untitled')}${c.qty>1?` ×${c.qty}`:''}</span><span class="tr">${fmt(c.unit/3517,2)} TR</span><span class="ty">${esc((TYPES[r.type]||TYPES.office).label)} · ${fmt(num(r.area),0)} m²${fails?` · <b class="x">✗ ${fails} fail${fails>1?'s':''}</b>`:''}</span></button>`}).join('')+`<button type="button" class="add" data-act="add">+ Add room</button>`;
+}
+function renderResult(res){
+  const r=selRoom(),box=$('#result');
+  if(!r){box.innerHTML=`<div class="eyebrow">Selected room</div><p class="muted">Add a room to see its load.</p>`;return}
+  const c=res[r.id],p=state.project,ch=roomChecks(r,c),rm=c.roomS+c.roomL,kw=rm/1000,tr=rm/3517,e=envOf(p);
+  ['ce','fl'].forEach(k=>{const el=$('#r-cft-'+k),x=r[k];if(!el||!x||document.activeElement===el)return;const sel=k==='ce'?aboveOf(r):belowOf(r);if(sel==='outdoor')el.value=fmt(e.To,1);else if(!ADJ_EDIT(x.adj||'project'))el.value=adjTemp(p,e,x.adj||'project')});
+  pxOf(r).forEach((x,i)=>{const el=$('#r-pxt-'+i);if(el&&document.activeElement!==el&&!ADJ_EDIT(x.adj||'project'))el.value=adjTemp(p,e,x.adj||'project')});
+  const items=[['Walls',c.walls],['Roof',c.roof],['Glass, solar',c.gSol],['Glass, conduction',c.gCond],['Wall partitions',c.partW],['Ceiling partitions',c.partC],['Floor partitions / exposed floor',c.partF],['People, sensible',c.pS],['People, latent',c.pL,1],['Lighting',c.light],['Equipment',c.equip],['Infiltration, sensible',c.infS],['Infiltration, latent',c.infL,1],['Safety margin, sensible',c.mS],['Safety margin, latent',c.mL,1]];
+  const max=Math.max(...items.map(i=>i[1]),1);
+  box.innerHTML=`
+    <div class="eyebrow">Selected room · per unit</div>
+    <h3>${esc(r.name||'Untitled')}</h3>
+    <div class="big"><span class="big-num">${fmt(tr,2)}</span><span class="big-unit">TR</span></div>
+    <div class="sub">${fmt(kw,2)} kW room load, excluding fresh air${c.qty>1?` · ${c.qty} rooms = ${fmt(tr*c.qty,2)} TR`:''}</div>
+    <dl class="kv">
+      <dt>Sensible / latent</dt><dd>${fmt(c.roomS/1000,2)} / ${fmt(c.roomL/1000,2)} kW</dd>
+      <dt>Sensible heat ratio</dt><dd>${fmt(c.roomS/(rm||1),2)}</dd>
+      <dt>Load density</dt><dd>${fmt(c.A?rm/c.A:0,0)} W/m² · ${rm?fmt(c.A/tr,1):'–'} m²/TR</dd>
+      <dt>Supply air (ΔT ${fmt(num(p.tiDB)-num(p.tSupply),1)} K)</dt><dd>${fmt(c.sa,0)} L/s · ${fmt(c.sa*2.119,0)} CFM</dd>
+      <dt>Fresh air</dt><dd>${fmt(c.oaQ,0)} L/s ${badge(ch.oa)}</dd>
+      <dt>People</dt><dd>${fmt(c.n,0)} × ${num(r.ps)}/${num(r.pl)} W ${badge(ch.people)}</dd>
+      ${ch.light?`<dt>Lighting</dt><dd>${num(r.light)} W/m² ${badge(ch.light)}</dd>`:''}
+      ${dcvNeeded(c)?`<dt>Demand controlled ventilation</dt><dd><span class="pill req">Required, H.4.8.3</span></dd>`:''}
+    </dl>
+    <div class="oa-box">
+      <div class="oa-h"><span>Fresh air cooling load</span><span class="pill ${p.fahu?'ok':'warn'}">${p.fahu?'Treated in FAHU':'Handled by room unit'}</span></div>
+      <div class="oa-v"><b>${fmt(c.oa/3517,2)}</b> TR · ${fmt(c.oa/1000,2)} kW</div>
+      <dl class="kv">
+        <dt>Fresh air</dt><dd>${fmt(c.oaQ,0)} L/s · ${fmt(c.oaQ*2.119,0)} CFM</dd>
+        <dt>Sensible</dt><dd>${fmt(c.oaS/1000,2)} kW</dd>
+        <dt style="color:var(--lat)">Latent</dt><dd style="color:var(--lat)">${fmt(c.oaL/1000,2)} kW</dd>
+        <dt>Design</dt><dd>${fmt(e.Tv,1)}/${num(p.vWB)} °C → ${num(p.tiDB)} °C, ${num(p.tiRH)}%</dd>
+        <dt>Per 100 L/s</dt><dd>${c.oaQ?fmt(c.oa/c.oaQ*100/1000,2):'–'} kW</dd>
+      </dl>
+    </div>
+    ${p.fahu?'':`<div class="sub" style="margin-top:8px">Room unit selection: ${fmt(c.unit/3517,2)} TR (${fmt(c.unit/1000,2)} kW) room plus fresh air</div>`}
+    <div class="bars">
+      ${items.map(([l,v,lat,off])=>`<div class="bar-row${off?' off':''}${lat?' lat':''}"><span>${l}</span><span class="track"><span class="fill${lat?' lat':''}" style="width:${Math.max(0,v/max*100).toFixed(1)}%"></span></span><span class="v">${fmt(v/1000,2)} kW</span></div>`).join('')}
+      <div class="bar-row tot-row"><span><b>Room total</b></span><span class="muted" style="font-size:11px">${fmt(c.roomS/1000,2)} sensible + ${fmt(c.roomL/1000,2)} latent</span><span class="v"><b>${fmt((c.roomS+c.roomL)/1000,2)} kW</b></span></div>
+      <div class="legend"><span><i style="background:var(--bar)"></i>Sensible load</span><span><i style="background:var(--lat)"></i>Latent load</span></div>
+    </div>`;
+}
+function srcLabel(k){const p=state.project,s=p.src[k];if(s==='custom')return 'Custom value';const o=LIB[k].find(o=>o.id===s);return o?o.label:'Custom value'}
+function basisRows(){
+  const p=state.project,loc=LOC[p.location]||{};
+  return [
+    ['Outdoor design (envelope)',`${fmt(envOf(p).To,1)} °C DB / ${num(p.toWB)} °C WB${envOf(p).lapse>0?` (code ${num(p.toDB)} °C, elevation-adjusted)`:''}`,outSrcLabel(p)],
+    ['Sub-location: elevation, daily range',`${(subOf(p)||{label:'Custom'}).label}: ${num(p.elev)} m, ${num(p.dr)} K`,(subOf(p)||{src:'Custom values'}).src],
+    ['Outdoor air (FAHU) design',`${fmt(envOf(p).Tv,1)} °C DB / ${num(p.vWB)} °C WB${envOf(p).lapse>0?` (code ${num(p.vDB)} °C, elevation-adjusted)`:''}`,ventSrcLabel(p)],
+    ['Indoor design',`${num(p.tiDB)} °C / ${num(p.tiRH)}% RH`,p.src.indoor==='custom'?'Custom value':(INDOOR.find(i=>i.id===p.src.indoor)||INDOOR[0]).src],
+    ...PPICKS.map(k=>[PMETA[k][0],`${num(p[k])}${PMETA[k][1]?' '+PMETA[k][1]:''}`,srcLabel(k)]),
+    ['Wall / ceiling / floor partition U-value',`${num(p.uPart)} / ${num(p.uCeil)} / ${num(p.uFloor)} W/m²K, default adjacent space ${num(p.tAdj)} °C`,'Project values'],
+    ['Margins',`${num(p.sfS)}% sensible / ${num(p.sfL)}% latent`,'DBC H.4.6.3 maximum 10% / 5%'],
+    ['Fresh air',p.fahu?'Treated by FAHU':'Mixed at room units','ASHRAE 62.1-2022 Table 6-1 per room, DBC H.4.10.2'],
+    ['Energy recovery',p.fahu&&p.erv?`${num(p.ervS)}% sensible, ${num(p.ervL)}% latent, on ${num(p.ervShare)}% of OA`:'Not modelled','DBC H.4.8.2'],
+    ['Supply air temperature',`${num(p.tSupply)} °C`,'Project value'],
+    ['Plant diversity',`${num(p.diversity)}%`,'Project value']
+  ];
+}
+const PILL={ok:'Complies',bad:'Fails',req:'Required',warn:'Check',na:'Not triggered'};
+function allChecks(p,T,res,pc){
+  const rows=[],add=(s,c,t)=>rows.push([s,c,t]),gen=(c,t)=>rows.push(['req',c,t,1]);
+  const L=pc._limits,envBad=ENVK.filter(k=>pc[k]&&pc[k][0]==='bad');
+  add(envBad.length?'bad':'ok','Envelope',envBad.length?`${envBad.map(k=>PMETA[k][0]).join(', ')} exceed${envBad.length===1?'s':''} the ${L.name} limits${L.band?' ('+L.band+')':''}.`:`All U-values and SHGC meet ${L.name}${L.band?' ('+L.band+')':''}.`);
+  {const ob=outBasis(p),ee=envOf(p),adjTxt=ee.lapse>0?` Elevation adjustment −${fmt(ee.lapse,1)} K applied (${fmt(ee.To,1)} °C).`:'';
+    add(ob.std?'ok':'warn','Outdoor design basis',(ob.std?`${num(p.toDB)} °C DB / ${num(p.toWB)} °C WB to ${ob.o.src}.`:`${num(p.toDB)} °C DB / ${num(p.toWB)} °C WB is not a recognised design basis. Technical justification required for Authority approval.`)+adjTxt)}
+  const okH2=pc.tiDB[0]==='ok'&&pc.tiRH[0]==='ok',ti=num(p.tiDB),rh=num(p.tiRH);
+  add(okH2?'ok':'bad','DBC Table H.2',okH2?`Indoor design ${ti} °C / ${rh}% RH is within 24 °C ±1.5 and 50% ±5.`:`Indoor design ${ti} °C / ${rh}% RH is outside 24 °C ±1.5 and 50% ±5. Justify it from the ASHRAE HVAC Applications handbook.`);
+  const okH3=ti>=22.5&&ti<=25.5&&rh>=30&&rh<=60;
+  add(okH3?'ok':'bad','DBC Table H.3',okH3?'Indoor design is inside the 22.5–25.5 °C, 30–60% RH band.':'Indoor design is outside the 22.5–25.5 °C, 30–60% RH band.');
+  {const vb=ventBasis(p);
+    add(vb.std?(p.fahu?'ok':'warn'):'warn','Outdoor air system',`${p.fahu?'FAHU provides treated outdoor air':'Fresh air mixed at room units: DBC H.4.6.4 requires an outdoor air system'}; design ${num(p.vDB)} °C DB / ${num(p.vWB)} °C WB${vb.std?' to '+vb.o.src:vb.same?' (cooling condition, not standard practice)':' (non-standard)'}.`)}
+  const plz=outdoorPlaus(p,envOf(p));
+  if(plz.length)add(plz.some(x=>x[1]==='bad')?'bad':'warn','Outdoor plausibility',plz.map(x=>esc(x[2])).join(' '));
+  const ic=indoorChecks(p,envOf(p));
+  [ic.rows[3],ic.rows[5]].forEach(r=>add(r[3][0],r[0],`${r[1]}: ${r[2]}. ${r[3][1]}.`));
+  const okSF=pc.sfS[0]==='ok'&&pc.sfL[0]==='ok';
+  add(okSF?'ok':'bad','DBC H.4.6.3',okSF?`Safety factors ${num(p.sfS)}% / ${num(p.sfL)}% are within 10% sensible / 5% latent.`:`Safety factors ${num(p.sfS)}% / ${num(p.sfL)}% exceed 10% sensible / 5% latent.`);
+  gen('DBC H.4.6.5','Heat load calculated for each air-conditioned space including its peak load incidence. Final calculations for submission shall be carried out using software registered with the Authority.');
+  gen('DBC H.4.6.6 / H.4.6.7','External loads use orientation, construction U-values and shading factors (Part E, E.5.3). Occupancy per DBC B.5.1; lighting and equipment are project values, otherwise ASHRAE 90.1 recommendations.');
+  const oaLow=[],pplLow=[],lpdHigh=[];
+  state.rooms.forEach(r=>{const ch=roomChecks(r,res[r.id]);if(ch.oa&&ch.oa[0]==='bad')oaLow.push(r.name);if(ch.people&&ch.people[0]!=='ok')pplLow.push(r.name);if(ch.light&&ch.light[0]==='bad')lpdHigh.push(r.name)});
+  add(oaLow.length?'bad':'ok','DBC H.4.10.2',oaLow.length?`Fresh air below the ASHRAE 62.1 / 62.2 / 170 minimum in: ${oaLow.map(esc).join(', ')}.`:'Fresh air in every room meets DBC H.4.10.2: ASHRAE 62.1-2022 Table 6-1 (with Ez), ASHRAE 62.2 for dwellings, ASHRAE 170 for healthcare.');
+  add(pplLow.length?'warn':'ok','DBC B.5.1 / Table B.2',pplLow.length?`Occupancy below the DBC Table B.2 or ASHRAE default density in: ${pplLow.map(esc).join(', ')}. DBC H.4.10.2 asks for B.2 densities where possible.`:'Occupancy meets DBC Table B.2 (or the ASHRAE default where B.2 has no entry).');
+  if(lpdHigh.length)add('bad','ASHRAE 90.1-2022 LPD',`Lighting exceeds the space-by-space allowance in: ${lpdHigh.map(esc).join(', ')}.`);
+  if(T.oaq>1000){const modelled=p.fahu&&p.erv&&num(p.ervS)>=70&&num(p.ervShare)>=50;
+    add(modelled?'ok':'req','DBC H.4.8.2',`Treated outdoor air is ${fmt(T.oaq,0)} L/s, above 1,000 L/s. Energy recovery on at least 50% of exhaust air at 70% or higher sensible effectiveness is required.${modelled?' Modelled in the FAHU load.':' Turn it on in section 3.'}`)}
+  else add('na','DBC H.4.8.2',`Treated outdoor air is ${fmt(T.oaq,0)} L/s, not above 1,000 L/s.`);
+  add(T.dcv.length?'req':'na','DBC H.4.8.3',T.dcv.length?`CO₂ demand controlled ventilation required in: ${T.dcv.map(esc).join(', ')}. Set-point below 800 ppm, alarm above 1,000 ppm, recalibrate every 12 months.`:'No room is over 100 m² with 25 or more people per 100 m².');
+  const kW=T.plant/1000;
+  add(kW>=1000?'req':'na','DBC H.4.9.1',kW>=1000?`Plant load ${fmt(kW,0)} kW is 1 MW or more: air leakage ≤5 m³/h·m² at 50 Pa (BS EN 13829 / ASTM E779), positive pressure.`:`Plant load ${fmt(kW,0)} kW is below 1 MW.`);
+  add(kW>=1000||T.a>=5000?'req':'na','DBC H.4.14.2',kW>=1000||T.a>=5000?'A BMS is required: cooling load 1,000 kW or more, or gross floor area 5,000 m² or more.':`Below 1,000 kW. A BMS is still required if gross floor area is 5,000 m² or more.`);
+  gen('DBC H.4.8.1','Equipment efficiency: split, packaged, cassette, water-source heat pump and multi-split units to UAE.S 5010-5 (ESMA) Tables 1, 2 and 4; chillers to ASHRAE 90.1-2019 Tables 6.8.1–6.8.3, including leaving fluid below 4.5 °C.');
+  gen('DBC H.4.8.4','Insulate refrigerant, chilled and hot water pipes and conditioned-air supply ducts, including runs through conditioned spaces, to BS 5422 or ASHRAE 90.1.');
+  gen('DBC H.4.10.3','Filters to ISO 16890-1. Indoor air limits (Table H.4): formaldehyde <0.08 ppm, TVOC <300 μg/m³, PM10 <150 μg/m³ (8 h TWA). Test before occupancy.');
+  gen('DBC H.4.10.4','Outdoor air intakes upwind and exhausts downwind, separated per ASHRAE 62.1:2019 Table 5-1. Sand trap louvers sized for ≥1 m/s face velocity with ≥80% efficiency at 355–425 μm.');
+  add(p.fahu?'req':'na','DBC H.4.12.1',p.fahu?'Supply air approximately equal to return plus exhaust air. AHUs and FAHUs AHRI or Eurovent certified; installation to ASHRAE Fundamentals Ch. 16.':'No air handling unit modelled.');
+  gen('DBC H.4.12.2 / H.4.12.6','Duct sizing to ASHRAE Fundamentals Ch. 21; metal ducts to SMACNA. Pressure test ductwork with external static pressure above 250 Pa or exposed to ambient or unconditioned spaces.');
+  {const kit=state.rooms.filter(r=>r.type==='kitchen');
+   add(kit.length?'req':'na','DBC H.4.12.15.3',kit.length?`Commercial kitchen (${kit.map(r=>esc(r.name||'Kitchen')).join(', ')}): make-up air 75–95% of extract, kitchen about −0.25 Pa, building +1.25 to +5.0 Pa, make-up air within 6 °C of the space; ASHRAE 154:2016 and DW/172.`:'No commercial kitchen in the room list.');}
+  add(kW>350?'req':'na','DBC H.5.2.4',kW>350?`Plant load ${fmt(kW,0)} kW is above 350 kW: recover and reuse AC condensate.`:`Plant load ${fmt(kW,0)} kW is not above 350 kW.`);
+  const key=c=>{const m=/^DBC H\.([\d.]+)/.exec(c);return m?m[1].split('.').map(Number):null};
+  const cmp=(x,y)=>{for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d}return 0};
+  const head=rows.filter(r=>!key(r[1])),dbc=rows.filter(r=>key(r[1])).sort((a,b)=>cmp(key(a[1]),key(b[1])));
+  return head.concat(dbc);
+}
+let lastChecks=[];
+/* show a check only when its calculation applies or the feature is turned on */
+const applicable=c=>c[0]!=='na'&&!c[3];
+function renderSchedule(d,pc){
+  const {p,res,T}=d;
+  const rows=state.rooms.map(r=>{const c=res[r.id],m=c.qty;
+    return `<tr><td>${esc(r.name||'Untitled')}</td><td>${m}</td><td>${fmt(c.A,1)}</td><td>${fmt(c.n,0)}</td><td>${fmt(c.roomS/1000,2)}</td><td>${fmt(c.roomL/1000,2)}</td><td>${fmt(c.oa/1000,2)}</td><td>${fmt(c.unit/1000,2)}</td><td>${fmt(c.unit/3517,2)}</td><td>${fmt(c.A?c.unit/c.A:0,0)}</td><td>${fmt(c.sa,0)}</td><td>${fmt(c.oaQ,0)}</td></tr>`}).join('');
+  $('#sched').innerHTML=`<thead><tr><th>Room</th><th>Qty</th><th>Area m²</th><th>People</th><th>Room sens. kW</th><th>Room lat. kW</th><th>Fresh air kW</th><th>Unit load kW</th><th>Unit TR</th><th>W/m²</th><th>Supply L/s</th><th>Fresh air L/s</th></tr></thead><tbody>${rows||'<tr><td colspan="12" class="muted">No rooms yet.</td></tr>'}</tbody><tfoot><tr><td>Total (× qty)</td><td>${T.q}</td><td>${fmt(T.a,1)}</td><td>${fmt(T.n,0)}</td><td>${fmt(T.s/1000,2)}</td><td>${fmt(T.l/1000,2)}</td><td>${fmt(T.oa/1000,2)}</td><td>${fmt(T.u/1000,2)}</td><td>${fmt(T.u/3517,2)}</td><td>${fmt(T.a?T.u/T.a:0,0)}</td><td>${fmt(T.sa,0)}</td><td>${fmt(T.oaq,0)}</td></tr></tfoot>`;
+  $('#totals').innerHTML=`
+    <div class="tot"><div class="k">Room load (excl. fresh air)</div><div class="v">${fmt((T.s+T.l)/3517,1)}<small>TR</small></div><div class="s">${fmt((T.s+T.l)/1000,1)} kW${p.fahu?'':' · room units '+fmt(T.u/3517,1)+' TR incl. fresh air'}</div></div>
+    <div class="tot"><div class="k">Fresh air cooling load${p.fahu&&T.rec?' (net of recovery)':''}</div><div class="v">${fmt((p.fahu?T.fahuW:T.oa)/3517,1)}<small>TR</small></div><div class="s">${fmt((p.fahu?T.fahuW:T.oa)/1000,1)} kW · ${fmt(T.oaq,0)} L/s · ${p.fahu?'FAHU':'in room units'}${T.rec?' · '+fmt(T.rec/1000,1)+' kW recovered':''}</div></div>
+    <div class="tot key"><div class="k">Plant load${num(p.diversity)!==100?' at '+fmt(num(p.diversity),0)+'% diversity':''}</div><div class="v">${fmt(T.plant/3517,1)}<small>TR</small></div><div class="s">${fmt(T.plant/1000,1)} kW</div></div>
+    <div class="tot"><div class="k">Overall density</div><div class="v">${T.a&&T.plant?fmt(T.a/(T.plant/3517),1):'–'}<small>m²/TR</small></div><div class="s">${fmt(T.a?T.plant/T.a:0,0)} W/m² over ${fmt(T.a,0)} m²</div></div>`;
+  $('#sched-note').textContent=(p.name?p.name+' · ':'')+((LOC[p.location]||{}).label||'');
+  lastChecks=allChecks(p,T,res,pc).filter(applicable);
+  const nBad=lastChecks.filter(c=>c[0]==='bad').length,nOk=lastChecks.filter(c=>c[0]==='ok').length;
+  const scope=(p.location==='dubai'||p.location==='custom')?'':' DBC applies to Dubai; shown for reference.';
+  $('#checks').innerHTML=`<h3><span>Compliance checks</span><span class="muted" style="font-weight:normal">${nOk} complying · ${nBad} failing.${scope}</span></h3>`+lastChecks.map(([s,c,t])=>`<div class="chk"><span class="pill ${s}">${s==='ok'?'✓ ':s==='bad'?'✗ ':''}${PILL[s]}</span><span class="cl">${c}</span><span class="tx">${t}</span></div>`).join('');
+  $('#basis').innerHTML=`<thead><tr><th>Design basis</th><th>Value</th><th>Source</th></tr></thead><tbody>${basisRows().map(([a,b,c])=>`<tr><td>${esc(a)}</td><td>${esc(b)}</td><td>${esc(c)}</td></tr>`).join('')}</tbody>`;
+}
+function wwrNote(T,pc){
+  const el=$('#wwr-note');
+  if(!T.wallG){el.textContent='Enter wall and glass areas in the rooms to see the glazing ratio.';el.className='hint';return}
+  const w=T.wwr,bandTxt=w<=40?'≤40%':w<60?'40–60%':'≥60%';
+  let txt=`Project glazing ratio: ${fmt(w,0)}% of external wall (${SAFAT} ${bandTxt} band).`;
+  if(T.roof>0)txt+=` Roof glazing: ${fmt(T.skyPct,0)}% of roof.`;
+  const p=state.project;if(p.autoBand!==false&&['uGlass','shgc','shgcSky'].some(k=>(p.src[k]||'').startsWith('safat')))txt+=` ${SAFAT} glazing values follow this band automatically.`;
+  el.innerHTML=esc(txt)+` <label style="display:inline-flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" id="p-autoBand" data-p="autoBand"${p.autoBand!==false?' checked':''}> Auto-select band</label>`;el.className='hint';
+}
+function applyMarks(pc){
+  Object.entries(pc).forEach(([k,v])=>{if(k[0]!=='_')setMark('#pcm-'+k,v)});
+  ['dr','elev'].forEach(k=>setMark('#pcm-'+k,null));
+  const worst={};outdoorPlaus(state.project,envOf(state.project)).forEach(([k,l,t])=>{if(!worst[k]||l==='bad')worst[k]=[l,t]});
+  Object.entries(worst).forEach(([k,v])=>setMark('#pcm-'+k,v));
+  const L=pc._limits;$('#cbasis-note').textContent=`Limits used: wall ${L.uWall}, roof ${L.uRoof}, glazing ${L.uGlass} W/m²K, SHGC ${L.shgc}${L.band?' ('+L.band+', from the project glazing ratio)':''}, skylight ${L.uSky} W/m²K${L.shgcSky!=null?', skylight SHGC '+L.shgcSky:''}. Hover a badge to see the limit.`;
+  const r=selRoom();
+  if(r){const c=calc(state.project,r,envOf(state.project)),ch=roomChecks(r,c);['people','oa','light'].forEach(k=>setMark('#rcm-'+k,ch[k]));['equip','ach'].forEach(k=>setMark('#rcm-'+k,null))}
+}
+
+/* ---------- psychrometric chart ---------- */
+function stateTable(d){
+  const {p,e,T}=d,P=e.P,Ti=num(p.tiDB),Ts=num(p.tSupply);
+  const Wsup=T.sa>0?Math.max(0.0005,e.Wi-T.l/(3010*e.k*T.sa)):e.Wi;
+  const pts=[{k:'O',name:'Outdoor (envelope)',t:e.To,w:e.Wo,c:'bad'},{k:'V',name:'Outdoor (fresh air)',t:e.Tv,w:e.Wv,c:'warn'},{k:'R',name:'Room design',t:Ti,w:e.Wi,c:'ok'},{k:'S',name:'Supply air',t:Ts,w:Wsup,c:'acc'}];
+  if(!p.fahu&&T.sa>0){const x=Math.min(1,T.oaq/T.sa);pts.push({k:'M',name:`Mixed air (${fmt(x*100,0)}% fresh air)`,t:x*e.Tv+(1-x)*Ti,w:x*e.Wv+(1-x)*e.Wi,c:'mid'})}
+  if(Math.abs(e.Tv-e.To)<0.05&&Math.abs(e.Wv-e.Wo)<1e-5)pts.splice(1,1);
+  const supersat=Wsup>W_rh(Ts,100,P);
+  return {pts,Wsup,supersat,P};
+}
+/* mode 'out': outdoor air states (envelope, fresh air, mixed); mode 'in': indoor states (room, supply, mixed) with comfort limits.
+   Axes rescale to the current states, so the chart follows every input change. */
+function psyRange(pts,mode,P){
+  const ts=pts.map(q=>q.t),ws=pts.map(q=>q.w*1000);
+  if(mode==='in'){const w15=W_rh(15,100,P)*1000;
+    const x0=Math.min(10,Math.floor((Math.min(...ts)-4)/5)*5),x1=Math.max(35,Math.ceil((Math.max(...ts)+5)/5)*5);
+    return {x0,x1,y1:Math.max(20,Math.ceil((Math.max(...ws,w15,12)+3)/2)*2),xs:5,ys:2}}
+  if(mode==='all'){const x0=Math.min(10,Math.floor((Math.min(...ts)-4)/5)*5),x1=Math.max(45,Math.ceil((Math.max(...ts)+4)/5)*5);
+    return {x0,x1,y1:Math.max(25,Math.ceil((Math.max(...ws)+4)/5)*5),xs:5,ys:5}}
+  const x0=Math.min(15,Math.floor((Math.min(...ts)-6)/5)*5),x1=Math.max(45,Math.ceil((Math.max(...ts)+4)/5)*5);
+  return {x0,x1,y1:Math.max(25,Math.ceil((Math.max(...ws)+4)/5)*5),xs:5,ys:5};
+}
+function psychroSVG(d,print,mode){
+  mode=mode||'all';
+  const {P}=d.e,all=stateTable(d).pts;
+  const pts=mode==='all'?all:all.filter(q=>mode==='out'?['O','V','M'].includes(q.k):['R','S','M'].includes(q.k));
+  const isIn=mode!=='out';
+  const C=(n,f)=>print?f:`var(--${n},${f})`;
+  const {x0,x1,y1,xs,ys}=psyRange(pts,mode,P);
+  const W0=mode==='all'?760:640,H0=mode==='all'?470:430,ml=42,mr=56,mt=mode==='all'?34:16,mb=46;
+  const X=t=>ml+(t-x0)/(x1-x0)*(W0-ml-mr),Y=w=>H0-mb-(w/y1)*(H0-mt-mb);
+  const cid='psyclip'+mode+(print?'r':'p');
+  const ttl=mode==='out'?'Outdoor air':mode==='in'?'Indoor air':'Indoor and outdoor air';
+  let s=`<svg viewBox="0 0 ${W0} ${H0}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${ttl} psychrometric chart at ${fmt(P,1)} kPa"><defs><clipPath id="${cid}"><rect x="${ml}" y="${mt}" width="${W0-ml-mr}" height="${H0-mt-mb}"/></clipPath></defs>`;
+  s+=`<rect x="${ml}" y="${mt}" width="${W0-ml-mr}" height="${H0-mt-mb}" fill="${C('surface','#FFFFFF')}" stroke="${C('line-strong','#BCC0C7')}"/>`;
+  for(let t=x0;t<=x1;t+=xs)s+=`<line x1="${X(t)}" y1="${Y(0)}" x2="${X(t)}" y2="${Y(y1)}" stroke="${C('line','#E1E3E7')}"/><text x="${X(t)}" y="${Y(0)+16}" text-anchor="middle" font-size="11" font-family="Arial" fill="${C('muted','#5B6472')}">${t}</text>`;
+  for(let w=0;w<=y1;w+=ys)s+=`<line x1="${X(x0)}" y1="${Y(w)}" x2="${X(x1)}" y2="${Y(w)}" stroke="${C('line','#E1E3E7')}"/><text x="${X(x1)+6}" y="${Y(w)+4}" font-size="11" font-family="Arial" fill="${C('muted','#5B6472')}">${w}</text>`;
+  s+=`<text x="${(ml+W0-mr)/2}" y="${H0-10}" text-anchor="middle" font-size="12" font-family="Arial" fill="${C('fg','#1F2937')}">Dry bulb temperature, °C</text>`;
+  s+=`<text transform="translate(${W0-12},${(mt+H0-mb)/2}) rotate(90)" text-anchor="middle" font-size="12" font-family="Arial" fill="${C('fg','#1F2937')}">Humidity ratio, g/kg dry air</text>`;
+  s+=`<g clip-path="url(#${cid})">`;
+  const curve=rh=>{let dd='';for(let t=x0;t<=x1+0.01;t+=0.25){const w=W_rh(t,rh,P)*1000;dd+=(dd?'L':'M')+X(t).toFixed(1)+' '+Y(Math.min(w,y1+5)).toFixed(1);if(w>y1+5)break}return dd};
+  if(isIn){
+    let cz='';for(let t=22.5;t<=25.51;t+=0.25)cz+=(cz?'L':'M')+X(t).toFixed(1)+' '+Y(W_rh(t,30,P)*1000).toFixed(1);
+    for(let t=25.5;t>=22.49;t-=0.25)cz+='L'+X(t).toFixed(1)+' '+Y(W_rh(t,60,P)*1000).toFixed(1);
+    s+=`<path d="${cz}Z" fill="${C('ok-bg','#E7F1E9')}" stroke="${C('ok','#2F6B3B')}" stroke-width="1.2"/>`;
+  }
+  for(let rh=10;rh<100;rh+=10)s+=`<path d="${curve(rh)}" fill="none" stroke="${C('bar-2','#A3A9B3')}" stroke-width="0.9"/>`;
+  const wbStep=mode==='in'?5:5;
+  for(let wb=Math.ceil(x0/wbStep)*wbStep;wb<=x1;wb+=wbStep){const ws=W_rh(wb,100,P);const tEnd=wb+(2501-2.326*wb)*ws/1.006;let dd='';for(let i=0;i<=20;i++){const t=wb+(tEnd-wb)*i/20;dd+=(dd?'L':'M')+X(t).toFixed(1)+' '+Y(Math.max(0,W_wb(t,wb,P))*1000).toFixed(1)}
+    s+=`<path d="${dd}" fill="none" stroke="${C('bar-2','#A3A9B3')}" stroke-width="0.8" stroke-dasharray="4 3"/>`}
+  s+=`<path d="${curve(100)}" fill="none" stroke="${C('fg','#1F2937')}" stroke-width="1.8"/>`;
+  const w15=W_rh(15,100,P)*1000;
+  if(isIn){
+    s+=`<line x1="${X(15)}" y1="${Y(w15)}" x2="${X(x1)}" y2="${Y(w15)}" stroke="${C('bad','#B42318')}" stroke-width="1" stroke-dasharray="2 3"/>`;
+    s+=`<line x1="${X(x0)}" y1="${Y(12)}" x2="${X(x1)}" y2="${Y(12)}" stroke="${C('req','#7A4E00')}" stroke-width="1" stroke-dasharray="8 4"/>`;
+  }
+  s+=`</g>`;
+  if(isIn){
+    s+=`<text x="${mode==='all'?X(x1)-4:X(x0)+6}" y="${Y(w15)+12}" text-anchor="${mode==='all'?'end':'start'}" font-size="10" font-family="Arial" fill="${C('bad','#B42318')}">Dew point 15 °C (62.1 §5.12)</text>`;
+    s+=`<text x="${mode==='all'?X(x1)-4:X(x0)+6}" y="${Y(12)-4}" text-anchor="${mode==='all'?'end':'start'}" font-size="10" font-family="Arial" fill="${C('req','#7A4E00')}">12 g/kg (ASHRAE 55)</text>`;
+    s+=`<text x="${X(24)}" y="${Y(W_rh(24,30,P)*1000)+14}" text-anchor="middle" font-size="10" font-family="Arial" fill="${C('ok','#2F6B3B')}">DBC H.3 band</text>`;
+  }
+  for(let rh=20;rh<100;rh+=20){let t=x1,w=W_rh(t,rh,P)*1000;if(w>y1){let lo=x0,hi=x1;for(let i=0;i<30;i++){const m=(lo+hi)/2;if(W_rh(m,rh,P)*1000>y1)hi=m;else lo=m}t=lo;w=y1}
+    s+=`<text x="${X(t)-3}" y="${Y(w)+(w>=y1?12:-4)}" text-anchor="end" font-size="10" font-family="Arial" fill="${C('muted','#5B6472')}">${rh}%</text>`}
+  for(let wb=Math.ceil(x0/5)*5;wb<=x1;wb+=5){const w=W_rh(wb,100,P)*1000;if(w<y1&&wb>x0)s+=`<text x="${X(wb)-4}" y="${Y(w)-4}" text-anchor="end" font-size="10" font-family="Arial" fill="${C('muted','#5B6472')}">WB ${wb}</text>`}
+  const P_=k=>pts.find(q=>q.k===k);
+  const line=(a,b,dash)=>a&&b?`<line x1="${X(a.t)}" y1="${Y(Math.min(a.w*1000,y1))}" x2="${X(b.t)}" y2="${Y(Math.min(b.w*1000,y1))}" stroke="${C('accent','#B08A2E')}" stroke-width="1.8"${dash?' stroke-dasharray="6 4"':''}/>`:'';
+  if(mode==='all'){const Vp=P_('V')||P_('O');if(P_('M'))s+=line(Vp,P_('M'),true)+line(P_('R'),P_('M'),true)+line(P_('M'),P_('S'));else s+=line(Vp,P_('R'),true);s+=line(P_('R'),P_('S'))}
+  else if(mode==='out'){const Vp=P_('V')||P_('O');if(P_('M'))s+=line(Vp,P_('M'),true)}
+  else{if(P_('M'))s+=line(P_('R'),P_('M'),true)+line(P_('M'),P_('S'));s+=line(P_('R'),P_('S'))}
+  const col={bad:C('bad','#B42318'),warn:C('req','#7A4E00'),ok:C('ok','#2F6B3B'),acc:C('accent','#B08A2E'),mid:C('bar','#374151')};
+  if(mode==='all'){const lg=[[C('bad','#B42318'),'Outdoor air: O envelope, V fresh air'],[C('ok','#2F6B3B'),'Indoor air: R room, S supply'+(P_('M')?', M mixed':'')]];
+    let lx=ml;lg.forEach(([c,t])=>{s+=`<circle cx="${lx+6}" cy="${mt-14}" r="5" fill="${c}"/><text x="${lx+15}" y="${mt-10}" font-size="11.5" font-family="Arial" fill="${C('fg','#1F2937')}">${t}</text>`;lx+=t.length*6.2+40});
+    s+=`<line x1="${lx}" y1="${mt-14}" x2="${lx+22}" y2="${mt-14}" stroke="${C('accent','#B08A2E')}" stroke-width="1.8" stroke-dasharray="6 4"/><text x="${lx+28}" y="${mt-10}" font-size="11.5" font-family="Arial" fill="${C('fg','#1F2937')}">Fresh-air treatment</text>`}
+  pts.forEach((q,i)=>{const cx=X(q.t),cy=Y(Math.min(q.w*1000,y1)),rh=rhOf(q.t,q.w,P);
+    const right=cx<W0-mr-120,tx=right?cx+10:cx-10,anc=right?'start':'end',dy=(i%2?16:-8);
+    s+=`<g><title>${esc(q.name)}: ${fmt(q.t,1)} °C DB, ${fmt(wbOf(q.t,q.w,P),1)} °C WB, ${fmt(Math.min(100,rh),0)}% RH, ${fmt(q.w*1000,1)} g/kg, ${fmt(hOf(q.t,q.w),1)} kJ/kg</title>`+
+      `<circle cx="${cx}" cy="${cy}" r="6.5" fill="${col[q.c]}" stroke="${C('surface','#FFFFFF')}" stroke-width="1.5"/>`+
+      `<text x="${tx}" y="${cy+dy}" text-anchor="${anc}" font-size="11.5" font-family="Arial" fill="${C('fg','#1F2937')}" stroke="${C('surface','#FFFFFF')}" stroke-width="3.5" paint-order="stroke" stroke-linejoin="round"><tspan font-weight="bold">${q.k}</tspan> ${fmt(q.t,1)} °C · ${fmt(Math.min(100,rh),0)}% · ${fmt(q.w*1000,1)} g/kg</text></g>`});
+  return s+`</svg>`;
+}
+function stateRowsHTML(d,mode){
+  let {pts}=stateTable(d);const P=d.e.P;
+  if(mode)pts=pts.filter(q=>mode==='out'?['O','V','M'].includes(q.k):['R','S','M'].includes(q.k));
+  return pts.map(q=>{const rh=rhOf(q.t,q.w,P);return [q.k,q.name,fmt(q.t,1),fmt(wbOf(q.t,q.w,P),1),fmt(Math.min(100,rh),0),fmt(q.w*1000,2),fmt(hOf(q.t,q.w),1),fmt(dpOf(q.w,P),1),q.c]});
+}
+function renderPsychro(d){
+  const col={bad:'var(--bad)',warn:'var(--req)',ok:'var(--ok)',acc:'var(--accent)',mid:'var(--bar)'};
+  $('#psy-chart').innerHTML=psychroSVG(d,false,'all');
+  const row=r=>`<tr><td><span class="dot" style="background:${col[r[8]]}"></span><b>${r[0]}</b> ${esc(r[1])}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td><td>${r[7]}</td></tr>`;
+  const grp=t=>`<tr class="grp"><td colspan="7">${t}</td></tr>`;
+  $('#psy-states').innerHTML=`<thead><tr><th>Point</th><th>DB °C</th><th>WB °C</th><th>RH %</th><th>W g/kg</th><th>h kJ/kg</th><th>DP °C</th></tr></thead><tbody>${grp('Outdoor air')}${stateRowsHTML(d,'out').filter(r=>r[0]!=='M').map(row).join('')}${grp('Indoor air')}${stateRowsHTML(d,'in').map(row).join('')}</tbody>`;
+  const st=stateTable(d),T=d.T;
+  const shr=T.s+T.l>0?T.s/(T.s+T.l):1;
+  $('#psy-sub').textContent=`At ${fmt(d.e.P,2)} kPa (${num(d.p.elev)} m). Room sensible heat ratio ${fmt(shr,2)}.`;
+  $('#psy-note').innerHTML=(st.supersat?`<span class="warn">The supply point is above saturation: the room's latent load is too high for ${num(d.p.tSupply)} °C supply air. Lower the supply temperature, raise the airflow, or treat latent load in the FAHU.</span> `:'')+
+    `Axes rescale automatically to the current design states. Supply humidity is set by the total room latent load over the total supply airflow. ${d.p.fahu?'Fresh air is treated by the FAHU to room condition.':'Dashed lines: outdoor and return air mixing; solid: coil and room process.'} The green band is DBC Table H.3. Hover a point for its full state.`;
+}
+
+/* Design-day profile: ASHRAE Fundamentals Ch. 14 fraction of daily range by hour (1–24, solar time), applied to design DB and DR.
+   Humidity ratio held at the design value through the day, so wet bulb follows from DB and W. */
+const DRF=[0.88,0.92,0.95,0.98,1.00,0.98,0.91,0.74,0.55,0.38,0.23,0.13,0.05,0.00,0.00,0.06,0.14,0.24,0.39,0.50,0.59,0.68,0.75,0.82];
+const DBC_DR=13.8;
+function designDay(p,e){
+  const dr=num(p.dr);
+  return DRF.map((f,i)=>{const t=e.To-f*dr,w=Math.min(e.Wo,W_rh(t,100,e.P));return {h:i+1,db:t,wb:wbOf(t,w,e.P),rh:Math.min(100,rhOf(t,w,e.P)),w}});
+}
+function dayChartSVG(p,e,print){
+  const C=(n,f)=>print?f:`var(--${n},${f})`,d=designDay(p,e);
+  const W0=print?760:1100,H0=print?260:280,ml=44,mr=16,mt=16,mb=36;
+  const lo=Math.floor(Math.min(...d.map(x=>x.wb))-2),hi=Math.ceil(Math.max(...d.map(x=>x.db))+1);
+  const X=h=>ml+(h-1)/23*(W0-ml-mr),Y=t=>H0-mb-(t-lo)/(hi-lo)*(H0-mt-mb);
+  let s=`<svg viewBox="0 0 ${W0} ${H0}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Outdoor design day temperature profile">`;
+  for(let t=Math.ceil(lo/5)*5;t<=hi;t+=5)s+=`<line x1="${ml}" x2="${W0-mr}" y1="${Y(t)}" y2="${Y(t)}" stroke="${C('line','#E1E3E7')}"/><text x="${ml-6}" y="${Y(t)+4}" text-anchor="end" font-size="11" font-family="Arial" fill="${C('muted','#5B6472')}">${t}</text>`;
+  for(const h of [1,3,6,9,12,15,18,21,24]){s+=`<text x="${X(h)}" y="${H0-mb+16}" text-anchor="middle" font-size="11" font-family="Arial" fill="${C('muted','#5B6472')}">${String(h).padStart(2,'0')}:00</text>`}
+  s+=`<text x="${(ml+W0-mr)/2}" y="${H0-4}" text-anchor="middle" font-size="11" font-family="Arial" fill="${C('fg','#1F2937')}">Hour (solar time) · °C</text>`;
+  const path=k=>d.map((x,i)=>(i?'L':'M')+X(x.h).toFixed(1)+' '+Y(x[k]).toFixed(1)).join('');
+  s+=`<path d="${path('db')}" fill="none" stroke="${C('bad','#B42318')}" stroke-width="2"/>`;
+  s+=`<path d="${path('wb')}" fill="none" stroke="${C('bar','#374151')}" stroke-width="1.6" stroke-dasharray="6 4"/>`;
+  const mx=d.reduce((a,b)=>b.db>a.db?b:a),mn=d.reduce((a,b)=>b.db<a.db?b:a);
+  s+=`<circle cx="${X(mx.h)}" cy="${Y(mx.db)}" r="4" fill="${C('bad','#B42318')}"/><text x="${X(mx.h)}" y="${Y(mx.db)-8}" text-anchor="middle" font-size="11" font-weight="bold" font-family="Arial" fill="${C('fg','#1F2937')}">${fmt(mx.db,1)} °C</text>`;
+  s+=`<circle cx="${X(mn.h)}" cy="${Y(mn.db)}" r="4" fill="${C('bad','#B42318')}"/><text x="${X(mn.h)}" y="${Y(mn.db)+16}" text-anchor="middle" font-size="11" font-weight="bold" font-family="Arial" fill="${C('fg','#1F2937')}">${fmt(mn.db,1)} °C</text>`;
+  s+=`<text x="${W0-mr}" y="${mt+10}" text-anchor="end" font-size="11" font-family="Arial" fill="${C('bad','#B42318')}">Dry bulb ━</text><text x="${W0-mr}" y="${mt+26}" text-anchor="end" font-size="11" font-family="Arial" fill="${C('bar','#374151')}">Wet bulb ╌</text>`;
+  return s+'</svg>';
+}
+function renderDay(p,e){
+  const d=designDay(p,e),mx=d.reduce((a,b)=>b.db>a.db?b:a),mn=d.reduce((a,b)=>b.db<a.db?b:a),dr=num(p.dr);
+  $('#day-sum').textContent=`Max ${fmt(mx.db,1)} °C at ${String(mx.h).padStart(2,'0')}:00 · min ${fmt(mn.db,1)} °C at ${String(mn.h).padStart(2,'0')}:00 · mean ${fmt(e.To-dr/2,1)} °C · range ${fmt(dr,1)} K (DBC typical ${DBC_DR} K)`;
+  $('#day-chart').innerHTML=dayChartSVG(p,e,false);
+  const hh=d.map(x=>`<th class="n">${String(x.h).padStart(2,'0')}</th>`).join('');
+  $('#day-table').innerHTML=`<thead><tr><th>Hour</th>${hh}</tr></thead><tbody><tr><td>Dry bulb °C</td>${d.map(x=>`<td class="n">${fmt(x.db,1)}</td>`).join('')}</tr><tr><td>Wet bulb °C</td>${d.map(x=>`<td class="n">${fmt(x.wb,1)}</td>`).join('')}</tr><tr><td>RH %</td>${d.map(x=>`<td class="n">${fmt(x.rh,0)}</td>`).join('')}</tr><tr><td>Fraction of range</td>${DRF.map(f=>`<td class="n">${f.toFixed(2)}</td>`).join('')}</tr></tbody>`;
+}
+/* ASHRAE 2021 climatic design data, 0.4% cooling DB and mean coincident WB (station, WMO) */
+const ASH04={dubai:{db:43.3,wb:23.6,st:'Dubai Intl (411940)'},abudhabi:{db:45.1,wb:23.0,st:'Abu Dhabi Intl (412170)'},alain:{db:46.0,wb:22.5,st:'Al Ain Intl (412180)'},
+  sharjah:{db:44.3,wb:23.5,st:'Sharjah Intl (411960)'},ajman:{db:44.3,wb:23.5,st:'Sharjah Intl (411960), nearest station'},uaq:{db:44.3,wb:23.5,st:'Sharjah Intl (411960), nearest station'},rak:{db:44.7,wb:24.4,st:'Ras Al Khaimah Intl (411840)'},fujairah:{db:42.9,wb:21.9,st:'Fujairah Intl (411980)'}};
+/* plausibility of outdoor inputs for the UAE. Typical: ASHRAE 0.4% DB at UAE stations 42.9–46.0 °C, code values 46–48.8 °C,
+   peak WB about 28–31 °C (DoE Table 2 up to 30.6 °C), recorded highs about 52 °C, highest ground about 1,934 m */
+function outdoorPlaus(p,e){
+  const out=[],chk=(key,label,v,unit,badLo,warnLo,warnHi,badHi,why)=>{
+    if(!isFinite(v))return out.push([key,'bad',`${label} is missing.`]);
+    const s=`${label} ${fmt(v,1)} ${unit}`;
+    if(v<badLo)out.push([key,'bad',`${s} is abnormally low for the UAE (expected ${warnLo}–${warnHi} ${unit}). ${why}`]);
+    else if(v>badHi)out.push([key,'bad',`${s} is abnormally high for the UAE (expected ${warnLo}–${warnHi} ${unit}). ${why}`]);
+    else if(v<warnLo)out.push([key,'warn',`${s} is below the usual UAE design range of ${warnLo}–${warnHi} ${unit}. Check the source.`]);
+    else if(v>warnHi)out.push([key,'warn',`${s} is above the usual UAE design range of ${warnLo}–${warnHi} ${unit}. Check for oversizing.`]);
+  };
+  chk('toDB','Outdoor dry bulb',num(p.toDB),'°C',35,42,49,52,'Code values are 46 °C (Dubai), 46.1 °C (Abu Dhabi) and 48.8 °C (Al Ain).');
+  chk('toWB','Outdoor wet bulb',num(p.toWB),'°C',18,22,31,32,'Code values are 28.3–29.4 °C.');
+  chk('vDB','Outdoor air (FAHU) dry bulb',num(p.vDB),'°C',28,32,49,52,'DBC H.4.6.4 uses 34 °C; DoE Table 2 uses 35.3–35.8 °C.');
+  chk('vWB','Outdoor air (FAHU) wet bulb',num(p.vWB),'°C',20,26,32,33,'DBC H.4.6.4 uses 32 °C; DoE Table 2 uses 28.8–30.6 °C.');
+  chk('dr','Daily range',num(p.dr),'K',3,5,18,22,'Published UAE July ranges are about 6–15 K.');
+  chk('elev','Elevation',num(p.elev),'m',-10,-5,1950,2000,'UAE ground ranges from sea level to about 1,934 m.');
+  if(num(p.toWB)>=num(p.toDB))out.push(['toWB','bad','Outdoor wet bulb must be lower than dry bulb.']);
+  if(num(p.vWB)>=num(p.vDB))out.push(['vWB','bad','Fresh-air wet bulb must be lower than dry bulb.']);
+  const dp=dpOf(e.Wo,e.P);if(dp>30)out.push(['toWB','bad',`Outdoor dew point ${fmt(dp,1)} °C is unrealistic; UAE peaks are about 28–30 °C.`]);
+  if(e.To<=num(p.tiDB))out.push(['toDB','bad',`Outdoor dry bulb ${fmt(e.To,1)} °C is not above indoor ${num(p.tiDB)} °C, so envelope conduction would be negative.`]);
+  return out;
+}
+function outdoorChecks(p,e){
+  const loc=p.location,rows=[],add=(a,b,c,d)=>rows.push([a,b,c,d]);
+  const pl=outdoorPlaus(p,e);
+  const tD=num(p.toDB),tW=num(p.toWB),vD=num(p.vDB),vW=num(p.vWB),ge=(a,b)=>a>=b-1e-9;
+  const val=(d,w)=>`${fmt(d,1)} °C DB / ${fmt(w,1)} °C WB`;
+  if(pl.length)pl.forEach(([k,lvl,txt])=>add('Range check (UAE)',txt,`${PLABEL[k]?PLABEL[k][0]:k}`,[lvl,lvl==='bad'?'Out of range':'Verify']));
+  else add('Range check (UAE)','Outdoor design within typical UAE design range',val(tD,tW),['ok','Within range']);
+  const ob=outBasis(p),vb=ventBasis(p);
+  add(ob.std?ob.o.src:'Custom value','Cooling design condition (envelope, infiltration)',val(tD,tW),ob.std?['ok','Complies']:['warn','Subject to Authority approval']);
+  add(vb.std?vb.o.src:vb.same?'Same as cooling':'Custom value','Outdoor air system design condition (peak humidity)',val(vD,vW),vb.std?['ok','Complies']:vb.same?['warn','Deviates from standard practice']:['warn','Subject to Authority approval']);
+  add(loc==='abudhabi'||loc==='alain'?'DoE CLM §5.2 / DBC H.4.6.4':'DBC H.4.6.4','Outdoor air system for fully air-conditioned buildings; treated outdoor air ≥ 95% of the year',p.fahu?'FAHU / DOAS':'Mixed at room units',p.fahu?['ok','Provided']:['warn','Verify outdoor air system']);
+  const a=ASH04[loc];
+  if(a)add('ASHRAE Fundamentals 2021',`0.4% cooling design DB / MCWB, ${a.st}: ${a.db} / ${a.wb} °C`,`${fmt(num(p.toDB),1)} °C DB`,num(p.toDB)>=a.db-0.05?['ok',num(p.toDB)>a.db+0.05?`Conservative, +${fmt(num(p.toDB)-a.db,1)} K`:'Complies']:(outBasis(p).std?['ok','Recognised basis selected']:['warn','Below 0.4% DB, subject to Authority approval']));
+  const rh=rhOf(e.To,e.Wo,e.P);
+  add('Psychrometrics','Valid air state: WB < DB, RH ≤ 100%',`RH ${fmt(Math.min(rh,100),0)}%, DP ${fmt(dpOf(e.Wo,e.P),1)} °C`,tW<tD&&rh<=100.5?['ok','Valid']:['bad','Invalid state']);
+  add((loc==='abudhabi'||loc==='alain')?'DoE CLM §2.2 / ASHRAE 62.1':'ASHRAE 62.1-2022','Ventilation design humidity ratio ≥ cooling design humidity ratio',`${fmt(W_wb(num(p.vDB),num(p.vWB),e.P)*1000,1)} / ${fmt(W_wb(num(p.toDB),num(p.toWB),e.P)*1000,1)} g/kg`,(W_wb(num(p.vDB),num(p.vWB),e.P)>=W_wb(num(p.toDB),num(p.toWB),e.P)-1e-5||ventBasis(p).std)?['ok','Complies']:['warn','Latent load may be understated']);
+  const sb=subOf(p);
+  const drv=num(p.dr);
+  return rows;
+}
+function renderVentRemark(p,e){
+  const el=$('#vent-remark');if(!el)return;
+  const P=e.P,k=e.k,Ti=num(p.tiDB),Wi=e.Wi;
+  const tD=e.To,Wo=e.Wo,vD=e.Tv,Wv=e.Wv;
+  const ho=hOf(tD,Wo),hv=hOf(vD,Wv);
+  const q=(T,W)=>100*(1.23*k*(T-Ti)+3010*k*Math.max(0,W-Wi))/1000;
+  const qo=q(tD,Wo),qv=q(vD,Wv);
+  const ad=p.location==='abudhabi'||p.location==='alain',cl=ad?'DoE CLM Table 2':'DBC H.4.6.4',env=ad?'DoE CLM Table 1':'DBC Table H.1';
+  if(!ventBasis(p).std){
+    const Wd=W_wb(34,32,P),qd=q(34,Wd),hd=hOf(34,Wd),qc=q(vD,Wv),short=qd>qc?(1-qc/qd)*100:0;
+    el.className='remark warn';el.hidden=false;
+    el.innerHTML=`<b>Outdoor air design ${fmt(num(p.vDB),1)} °C DB / ${num(p.vWB)} °C WB is ${p.src.vent==='same'?'the cooling condition, not standard practice for outdoor air systems':'not a recognised design basis'}</b>`+
+      `Adopt a recognised basis (DBC H.4.6.4, DoE CLM Table 2) or submit technical justification for Authority approval. DBC H.4.6.4 designs the outdoor air system at 34 °C DB / 32 °C WB (W ${fmt(Wd*1000,1)} g/kg, h ${fmt(hd,1)} kJ/kg, ${fmt(qd,2)} kW per 100 L/s). `+
+      `The current values give ${fmt(qc,2)} kW per 100 L/s${short>0?`, so the FAHU would be undersized by about ${fmt(short,0)}%, mostly in dehumidification`:''}. `+
+      `<br><button class="btn" type="button" data-act="apply-vent" style="margin-top:8px">Apply 34 °C DB / 32 °C WB</button>`;
+    return;
+  }
+  el.className='vent-why';el.hidden=false;
+  if(Math.abs(vD-tD)<0.05&&Math.abs(Wv-Wo)<1e-6){el.hidden=true;el.innerHTML='';return}
+  const under=qv>qo?(1-qo/qv)*100:0,wasOpen=!!el.querySelector('details[open]');
+  el.innerHTML=`<details${wasOpen?' open':''}><summary>Why not ${fmt(tD,1)} °C DB / ${num(p.toWB)} °C WB?</summary><p>FAHU coils are sized for peak enthalpy (humid days), not peak temperature. `+
+   `${fmt(vD,1)}/${num(p.vWB)} °C: ${fmt(hv,1)} kJ/kg, ${fmt(qv,2)} kW per 100 L/s. ${fmt(tD,1)}/${num(p.toWB)} °C: ${fmt(ho,1)} kJ/kg, ${fmt(qo,2)} kW per 100 L/s`+
+   (under>0?`, about ${fmt(under,0)}% undersized`:'')+`. ${fmt(tD,1)} °C is used for the envelope.</p></details>`;
+}
+const cntPill=(nb,nw)=>{const n=nb+nw;return `<span class="pill ${nb?'bad':nw?'warn':'ok'}">${nb?MK.bad:nw?MK.warn:MK.ok} ${n} non-compliant</span>`};
+function renderOutdoor(p,e){
+  renderVentRemark(p,e);
+  const pl=outdoorPlaus(p,e),rm=$('#out-remark');
+  if(pl.length){const bad=pl.some(x=>x[1]==='bad');rm.className='remark'+(bad?'':' warn');rm.hidden=false;
+    rm.innerHTML=`<b>${bad?'✗ Remark: abnormal outdoor design condition':'! Remark: unusual outdoor design condition'}</b><ul>${pl.map(x=>`<li>${esc(x[2])}</li>`).join('')}</ul>`}
+  else{rm.hidden=true;rm.innerHTML=''}
+  const rows=outdoorChecks(p,e),nb=rows.filter(r=>r[3][0]==='bad').length,nw=rows.filter(r=>r[3][0]==='warn').length;
+  $('#outdoor-sum').textContent=`Design ${fmt(e.To,1)} °C DB / ${fmt(wbOf(e.To,e.Wo,e.P),1)} °C WB · W ${fmt(e.Wo*1000,1)} g/kg · h ${fmt(hOf(e.To,e.Wo),1)} kJ/kg`;$('#outdoor-cnt').innerHTML=cntPill(nb,nw);
+  const tb=$('#outdoor-checks');tb.className='tl cmp';
+  tb.innerHTML=`<colgroup><col style="width:22%"><col style="width:36%"><col style="width:20%"><col style="width:22%"></colgroup><thead><tr><th>Standard / clause</th><th>Requirement</th><th class="n">Design value</th><th>Status</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="n">${esc(r[2])}</td><td><span class="pill ${r[3][0]}">${MK[r[3][0]]} ${esc(r[3][1])}</span></td></tr>`).join('')}</tbody>`;
+}
+/* compare the selected sub-location with the emirate reference (first sub-location, no lapse) */
+function siteData(){
+  const p=state.project,s0=(SUBLOC[p.location]||[])[0];
+  const pr=Object.assign({},p,s0?{elev:s0.elev,dr:s0.dr,subloc:s0.id}:{elev:0},{lapse:false});
+  const vals=pp=>{const e=envOf(pp),d=computeAll(pp),Ti=num(pp.tiDB),Ts=num(pp.tSupply);
+    return {elev:num(pp.elev),P:e.P,k:e.k*100,rho:e.P*1000/(287.055*(Ti+273.15)),To:e.To,WB:wbOf(e.To,e.Wo,e.P),RH:rhOf(e.To,e.Wo,e.P),W:e.Wo*1000,h:hOf(e.To,e.Wo),DP:dpOf(e.Wo,e.P),
+      dr:num(pp.dr),Tm:e.To-num(pp.dr)/2,corr:e.corr,oa100:100*(1.23*e.k*(e.Tv-Ti)+3010*e.k*Math.max(0,e.Wv-e.Wi))/1000,sa1:1000/(1.23*e.k*Math.max(1,Ti-Ts)),plant:d.T.plant/3517}};
+  const a=vals(pr),b=vals(p);
+  const rows=[
+    ['Elevation','m','elev',0,'Sets atmospheric pressure'],
+    ['Atmospheric pressure','kPa','P',2,'ASHRAE standard atmosphere'],
+    ['Air density vs sea level','%','k',1,'Scales every air load and the supply airflow'],
+    ['Air density at room temperature','kg/m³','rho',3,'Dry air at indoor design temperature'],
+    ['Design dry bulb used','°C','To',1,'Code value less 6.5 K per 1,000 m above the reference'],
+    ['Design wet bulb','°C','WB',1,'From code humidity at site pressure'],
+    ['Outdoor relative humidity','%','RH',0,''],
+    ['Outdoor humidity ratio','g/kg','W',2,'Rises at altitude for the same DB/WB'],
+    ['Outdoor enthalpy','kJ/kg','h',1,''],
+    ['Outdoor dew point','°C','DP',1,''],
+    ['Daily range','K','dr',1,'Sets the mean outdoor temperature'],
+    ['Mean outdoor temperature (To − DR/2)','°C','Tm',1,'Drives wall and roof conduction'],
+    ['CLTD correction','K','corr',1,'Added to every wall and roof CLTD'],
+    ['Fresh-air load per 100 L/s','kW','oa100',2,'Sensible + latent at the fresh-air design'],
+    ['Supply air per kW of sensible load','L/s','sa1',1,'Lower density needs more airflow'],
+    ['Project plant load','TR','plant',2,'This project, all rooms']];
+  return {p,s0,a,b,rows};
+}
+function siteRowsOut(sd){
+  return sd.rows.map(([l,u,k,dp,why])=>{const va=sd.a[k],vb=sd.b[k],dv=vb-va,pc=Math.abs(va)>1e-9?dv/Math.abs(va)*100:0;
+    return [l+(u?` (${u})`:''),fmt(va,dp),fmt(vb,dp),Math.abs(dv)<Math.pow(10,-dp)/2?'–':`${dv>0?'+':''}${fmt(dv,dp)}${Math.abs(va)>1e-9&&k!=='elev'&&k!=='k'?` (${pc>0?'+':''}${fmt(pc,1)}%)`:''}`,why]});
+}
+function renderSite(){
+  const sd=siteData(),same=sd.rows.every(([,,k])=>Math.abs(sd.b[k]-sd.a[k])<1e-6);
+  const refName=sd.s0?sd.s0.label:'Sea level';
+  $('#site-sum').textContent=same?`Reference: ${refName}`:`Plant load ${fmt(sd.a.plant,2)} → ${fmt(sd.b.plant,2)} TR (${sd.b.plant>=sd.a.plant?'+':''}${fmt((sd.b.plant/sd.a.plant-1)*100,1)}%) vs ${refName}`;
+  const st=$('#site-effect');st.className='tl';
+  st.innerHTML=`<colgroup><col style="width:28%"><col style="width:12%"><col style="width:12%"><col style="width:16%"><col style="width:32%"></colgroup><thead><tr><th>Parameter</th><th class="n">Reference</th><th class="n">Selected</th><th class="n">Change</th><th>Why it changes</th></tr></thead><tbody>${siteRowsOut(sd).map(r=>`<tr><td>${esc(r[0])}</td><td class="n">${r[1]}</td><td class="n">${r[2]}</td><td class="n">${r[3]}</td><td class="why">${esc(r[4])}</td></tr>`).join('')}</tbody>`;
+  $('#site-note').textContent='Elevation lowers air pressure and density: the same design DB/WB holds more moisture per kg of air, but each litre of air carries less mass, so fresh-air and infiltration loads per L/s fall and supply airflow per kW rises. A larger daily range lowers the mean outdoor temperature, which reduces wall and roof conduction (−0.5 K of CLTD correction per +1 K of range). Glass solar and internal gains do not change. For sites above the emirate reference, the design dry bulb is also lowered by 6.5 K per 1,000 m.';
+}
+function renderIndoor(p,e){
+  const ic=indoorChecks(p,e),nb=ic.rows.filter(r=>r[3][0]==='bad').length,nw=ic.rows.filter(r=>r[3][0]==='warn').length;
+  $('#indoor-sum').textContent=`PMV ${ic.pmv>=0?'+':''}${fmt(ic.pmv,2)} · PPD ${fmt(ic.ppd,0)}% · dew point ${fmt(ic.dp,1)} °C`;$('#indoor-cnt').innerHTML=cntPill(nb,nw);
+  const tb=$('#indoor-checks');tb.className='tl cmp';
+  tb.innerHTML=`<colgroup><col style="width:22%"><col style="width:36%"><col style="width:20%"><col style="width:22%"></colgroup><thead><tr><th>Standard / clause</th><th>Requirement</th><th class="n">Design value</th><th>Status</th></tr></thead><tbody>${ic.rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="n">${esc(r[2])}</td><td><span class="pill ${r[3][0]}">${MK[r[3][0]]} ${esc(r[3][1])}</span></td></tr>`).join('')}</tbody>`;
+}
+/* ---------- update cycle ---------- */
+function update(){
+  let d=computeAll();
+  if(autoBand(d.p,d.T)){resolveProject(d.p);syncProject();d=computeAll()}
+  const {p,e,res,T}=d;
+  $('#derived').innerHTML=`<span>Outdoor W <b>${fmt(e.Wo*1000,1)}</b> g/kg</span><span>Fresh-air W <b>${fmt(e.Wv*1000,1)}</b> g/kg</span><span>Indoor W <b>${fmt(e.Wi*1000,1)}</b> g/kg</span><span>CLTD correction <b>${e.corr>=0?'+':''}${fmt(e.corr,1)}</b> K</span><span>Pressure <b>${fmt(e.P,1)}</b> kPa</span>`;
+  [...ORIENTS,'R'].forEach(o=>{const el=$('#corr-'+o);if(el)el.textContent=fmt(Math.max(0,num(p.cltd[o])+e.corr),1)});
+  const pc=projectChecks(p,T);
+  renderOutdoor(p,e);renderIndoor(p,e);{const sel=$('#p-codeset');if(!p.codeset||!CODESETS.find(c=>c[0]===p.codeset&&c[3]===p.cbasis)){const c=CODESETS.find(c=>c[3]===p.cbasis);p.codeset=c?c[0]:'safat-s-40'}if(sel&&document.activeElement!==sel)sel.value=p.codeset}
+  renderList(res);renderResult(res);renderSchedule(d,pc);wwrNote(T,pc);applyMarks(pc);renderPsychro(d);save();
+}
+
+/* ---------- report ---------- */
+const ck=v=>v?`<span class="ck ${v[0]}">${MK[v[0]]}</span> ${esc(v[1])}`:'<span class="ck na">–</span>';
+function tbl(head,rows,foot){return `<table><thead><tr>${head.map(h=>`<th${h[1]?' class="n"':''}>${h[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td${head[i]&&head[i][1]?' class="n"':''}>${c}</td>`).join('')}</tr>`).join('')}</tbody>${foot?`<tfoot><tr>${foot.map((c,i)=>`<td${head[i]&&head[i][1]?' class="n"':''}>${c}</td>`).join('')}</tr></tfoot>`:''}</table>`}
+function roomSrcText(r,k){if(r.src[k]==='custom')return 'Custom value';const t=TYPES[r.type]||TYPES.office;const o=ROOMOPTS[k](r,t).find(o=>o.id===r.src[k]);return o?(o.cat?o.cat+': ':'')+o.label:''}
+function reportBody(){
+  const d=computeAll(),{p,e,res,T}=d,pc=projectChecks(p,T),allC=allChecks(p,T,res,pc),checks=allC.filter(applicable),genC=allC.filter(c=>c[3]);
+  const today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const loc=LOC[p.location]||{};
+  let h=`<h1>Heat Load Calculation Report</h1><p class="rsub">NOVAC Simplified Thermal Load Calculator · ${esc(p.name||'Untitled project')} · ${esc(loc.label||'')} · ${today}</p><p class="small">Developed on ASHRAE's CLTD/CLF method, in compliance with DBC, Al Sa'fat, Estidama and ASHRAE standards</p>`;
+  const half=Math.ceil(ABBR.length/2),ab=[];for(let i=0;i<half;i++){const a=ABBR[i],b=ABBR[i+half]||['',''];ab.push([`<b>${esc(a[0])}</b>`,esc(a[1]),`<b>${esc(b[0])}</b>`,esc(b[1])])}
+  h+=`<h2>Abbreviations and symbols</h2>`+tbl([['Term'],['Meaning'],['Term'],['Meaning']],ab);
+  h+=`<h2>1. Summary</h2>`+tbl([['Item'],['Value']],[
+    ['Project',esc(p.name||'Untitled project')],['Location',esc(loc.label||'')+((subOf(p)||{}).label?', '+esc(subOf(p).label):'')],['Authority basis',esc(authLine(p.location))],['Date',today],['Method','ASHRAE CLTD/CLF, room by room; ventilation per DBC H.4.10.2 (ASHRAE 62.1-2022, 62.2-2019, 170-2021)'],['Rooms',`${state.rooms.length} room types, ${T.q} rooms in total`],['Conditioned floor area',`${fmt(T.a,1)} m²`]]);
+  h+=`<div class="kpis"><div class="kpi"><div class="k">Room units</div><div class="v">${fmt(T.u/3517,1)} TR</div><div class="s">${fmt(T.u/1000,1)} kW</div></div><div class="kpi"><div class="k">Fresh air (FAHU)</div><div class="v">${p.fahu?fmt(T.fahuW/3517,1)+' TR':'In units'}</div><div class="s">${fmt(T.oaq,0)} L/s</div></div><div class="kpi"><div class="k">Plant load</div><div class="v">${fmt(T.plant/3517,1)} TR</div><div class="s">${fmt(T.plant/1000,1)} kW at ${fmt(num(p.diversity),0)}% diversity</div></div><div class="kpi"><div class="k">Overall density</div><div class="v">${T.plant?fmt(T.a/(T.plant/3517),1):'–'} m²/TR</div><div class="s">${fmt(T.a?T.plant/T.a:0,0)} W/m²</div></div></div>`;
+  const nBad=checks.filter(c=>c[0]==='bad').length;
+  h+=`<p>${nBad?`<span class="ck bad">✗</span> ${nBad} compliance item${nBad>1?'s':''} failing. See section 6.`:'<span class="ck ok">✓</span> All checked design inputs comply with the selected standards. See section 6.'}</p>`;
+  h+=`<h2>2. Design conditions and psychrometrics</h2>`+tbl([['Parameter'],['Value'],['Source'],['Check']],[
+    ['Outdoor design, envelope',`${fmt(e.To,1)} °C DB / ${num(p.toWB)} °C WB${e.lapse>0?` (code ${num(p.toDB)} °C, elevation-adjusted)`:''}`,esc(outSrcLabel(p)),ck(pc.toDB&&pc.toWB?(pc.toDB[0]==='ok'&&pc.toWB[0]==='ok'?pc.toDB:(pc.toDB[0]!=='ok'?pc.toDB:pc.toWB)):null)],
+    ['Outdoor air (FAHU) design',`${fmt(e.Tv,1)} °C DB / ${num(p.vWB)} °C WB${e.lapse>0?` (code ${num(p.vDB)} °C, elevation-adjusted)`:''}`,esc(ventSrcLabel(p)),ck(pc.vWB)],
+    ['Sub-location, elevation, daily range',`${esc((subOf(p)||{label:'Custom'}).label)}: ${num(p.elev)} m (${fmt(e.P,2)} kPa), ${num(p.dr)} K`,esc((subOf(p)||{src:'Custom values'}).src),ck(null)],
+    ['Indoor design',`${num(p.tiDB)} °C / ${num(p.tiRH)}% RH`,esc(p.src.indoor==='custom'?'Custom value':(INDOOR.find(i=>i.id===p.src.indoor)||INDOOR[0]).src),ck(pc.tiDB[0]==='ok'?pc.tiRH:pc.tiDB)],
+    ['Humidity ratio: outdoor / fresh air / indoor',`${fmt(e.Wo*1000,2)} / ${fmt(e.Wv*1000,2)} / ${fmt(e.Wi*1000,2)} g/kg`,'Calculated',ck(null)],
+    ['CLTD correction',`${e.corr>=0?'+':''}${fmt(e.corr,1)} K`,'(25.5 − Ti) + (To − DR/2 − 29.4)',ck(null)]]);
+  h+=`<h3>Outdoor design basis checks</h3>`+tbl([['Standard / clause'],['Requirement'],['Design value'],['Status']],outdoorChecks(p,e).map(r=>[esc(r[0]),esc(r[1]),esc(r[2]),`<span class="ck ${r[3][0]}">${MK[r[3][0]]}</span> ${esc(r[3][1])}`]));
+  const dd=designDay(p,e);
+  h+=`<h3>Outdoor design day temperature profile</h3><p class="small">Design dry bulb ${fmt(e.To,1)} °C, daily range ${fmt(num(p.dr),1)} K (DBC Table H.1 typical ${DBC_DR} K), hourly fractions per ASHRAE Fundamentals Ch. 14.</p><div class="chart">${dayChartSVG(p,e,true)}</div>`;
+  h+=tbl([['Hour'],['DB °C',1],['WB °C',1],['RH %',1],['Hour'],['DB °C',1],['WB °C',1],['RH %',1]],dd.slice(0,12).map((x,i)=>{const y=dd[i+12];return [String(x.h).padStart(2,'0')+':00',fmt(x.db,1),fmt(x.wb,1),fmt(x.rh,0),String(y.h).padStart(2,'0')+':00',fmt(y.db,1),fmt(y.wb,1),fmt(y.rh,0)]}));
+  const icr=indoorChecks(p,e);
+  h+=`<h3>Indoor design basis checks</h3>`+tbl([['Standard / clause'],['Requirement'],['Design value'],['Status']],icr.rows.map(r=>[esc(r[0]),esc(r[1]),esc(r[2]),`<span class="ck ${r[3][0]}">${MK[r[3][0]]}</span> ${esc(r[3][1])}`]));
+  h+=`<div class="chart">${psychroSVG(d,true,'all')}</div>`;
+  h+=tbl([['Point'],['DB °C',1],['WB °C',1],['RH %',1],['W g/kg',1],['h kJ/kg',1],['DP °C',1]],stateRowsHTML(d).map(r=>[`<b>${r[0]}</b> ${esc(r[1])}`,r[2],r[3],r[4],r[5],r[6],r[7]]));
+  const st=stateTable(d);if(st.supersat)h+=`<p><span class="ck bad">✗</span> The supply point is above saturation at ${num(p.tSupply)} °C: room latent load needs a lower supply temperature, more airflow or latent treatment in the FAHU.</p>`;
+  h+=`<h2>3. Envelope and system inputs</h2><p class="small">Compliance checked against ${esc(pc._limits.name)}${pc._limits.band?' ('+esc(pc._limits.band)+', project glazing ratio '+fmt(T.wwr,0)+'%)':''}.</p>`;
+  h+=tbl([['Input'],['Value',1],['Source'],['Check']],[
+    ...PPICKS.map(k=>[PMETA[k][0],`${num(p[k])} ${PMETA[k][1]}`,esc(srcLabel(k)),ck(pc[k])]),
+    ['Wall partition U-value',`${num(p.uPart)} W/m²K`,'Project value',ck(null)],['Ceiling partition U-value',`${num(p.uCeil)} W/m²K`,'Project value',ck(null)],['Exposed floor U-value',`${num(p.uFloor)} W/m²K`,'Project value',ck(null)],
+    ['Unconditioned space temperature',`${num(p.tAdj)} °C`,'Project value',ck(null)],['Glass shading factor',`${num(p.shade)}`,'Project value',ck(null)],
+    ['Supply air temperature',`${num(p.tSupply)} °C`,'Project value',ck(null)],
+    ['Safety margin, sensible',`${num(p.sfS)}%`,'DBC H.4.6.5',ck(pc.sfS)],['Safety margin, latent',`${num(p.sfL)}%`,'DBC H.4.6.5',ck(pc.sfL)],
+    ['Plant diversity',`${num(p.diversity)}%`,'Project value',ck(null)],
+    ['Fresh air treatment',p.fahu?'FAHU':'Mixed at room units','Project choice',ck(null)],
+    ['Energy recovery',p.fahu&&p.erv?`${num(p.ervS)}% sens. / ${num(p.ervL)}% lat. on ${num(p.ervShare)}% of OA`:'Not modelled','DBC H.4.8.2',ck(p.erv?(pc.ervS[0]==='ok'?pc.ervShare:pc.ervS):null)],
+    ['Project glazing ratio',`${fmt(T.wwr,0)}% of wall, ${fmt(T.skyPct,0)}% of roof`,'Calculated',ck(null)]]);
+  h+=`<h3>Orientation factors</h3>`+tbl([['Surface'],['Base CLTD K',1],['Corrected K',1],['Solar on glass W/m²',1]],[...ORIENTS.map(o=>['Wall '+o,num(p.cltd[o]),fmt(Math.max(0,num(p.cltd[o])+e.corr),1),num(p.solar[o])]),['Roof / skylight',num(p.cltd.R),fmt(Math.max(0,num(p.cltd.R)+e.corr),1),num(p.solar.H)]]);
+  h+=`<h2>4. Rooms: inputs and loads</h2>`;
+  state.rooms.forEach((r,i)=>{
+    const c=res[r.id],t=TYPES[r.type]||TYPES.office,ch=roomChecks(r,c);
+    h+=`<div class="room"><h3>4.${i+1} ${esc(r.name||'Untitled')}${c.qty>1?` (× ${c.qty} identical rooms)`:''}</h3>`;
+    h+=tbl([['Input'],['Value',1],['Source'],['Check']],[
+      ['Room type',esc(t.label),'',ck(null)],['Floor area / ceiling height',`${fmt(c.A,1)} m² / ${num(r.height)} m`,'Project value',ck(null)],
+      ['People',fmt(c.n,0),esc(roomSrcText(r,'people')),ck(ch.people)],
+      ['Heat gain per person',`${num(r.ps)} W sens. / ${num(r.pl)} W lat.`,esc(r.src.act==='custom'?'Custom value':'ASHRAE Fundamentals: '+(ACT_BY[r.src.act]||{}).label),ck(null)],
+      ['Lighting',`${num(r.light)} W/m²`,esc(roomSrcText(r,'light')),ck(ch.light)],
+      ['Equipment',`${num(r.equip)} W/m²`,esc(roomSrcText(r,'equip')),ck(null)],
+      ['Fresh air',`${fmt(c.oaQ,1)} L/s`,esc(roomSrcText(r,'oa'))+(ezNow()!==1?`, Ez ${ezNow()}`:''),ck(ch.oa)],
+      ['Infiltration',`${num(r.ach)} ACH (${fmt(c.infQ,1)} L/s)`,esc(roomSrcText(r,'ach')),ck(null)],
+      ['Above / below',`${(ABOVE.find(x=>x[0]===aboveOf(r))||[])[1]} · ${(BELOW.find(x=>x[0]===belowOf(r))||[])[1]}`,'Project value',ck(null)],['Roof or ceiling / skylight / floor',`${num(r.roof)} / ${num(r.sky)} / ${num(r.floor)} m²`,'Project value',ck(null)],
+      ['Partition / floor to unconditioned',`${num(r.part)} / ${num(r.floor)} m²`,'Project value',ck(null)]]);
+    const wr=ORIENTS.filter(o=>num(r.walls[o].w)||num(r.walls[o].g)).map(o=>{const w=num(r.walls[o].w),g=num(r.walls[o].g);return [o,fmt(Math.max(w,g),1),fmt(g,1),fmt(Math.max(0,w-g),1),fmt(Math.max(w,g)?g/Math.max(w,g)*100:0,0)+'%']});
+    if(wr.length)h+=tbl([['Facing'],['Wall gross m²',1],['Glass m²',1],['Net wall m²',1],['Glazing',1]],wr);
+    h+=tbl([['Load component'],['Sensible W',1],['Latent W',1]],[
+      ['Walls',fmt(c.walls,0),''],['Roof',fmt(c.roof,0),''],['Glass, solar',fmt(c.gSol,0),''],['Glass, conduction',fmt(c.gCond,0),''],['Wall partitions',fmt(c.partW,0),''],['Ceiling partitions',fmt(c.partC,0),''],['Floor partitions / exposed floor',fmt(c.partF,0),''],
+      ['People',fmt(c.pS,0),fmt(c.pL,0)],['Lighting',fmt(c.light,0),''],['Equipment',fmt(c.equip,0),''],['Infiltration',fmt(c.infS,0),fmt(c.infL,0)],
+      ['Safety margin',fmt(c.mS,0),fmt(c.mL,0)],['<b>Room load</b>',`<b>${fmt(c.roomS,0)}</b>`,`<b>${fmt(c.roomL,0)}</b>`],
+      [p.fahu?'Fresh air (to FAHU, not in unit)':'Fresh air (in unit)',fmt(c.oaS,0),fmt(c.oaL,0)]],
+      ['Unit load',fmt(c.unitS,0),fmt(c.unitL,0)]);
+    h+=`<p class="small">Unit load ${fmt(c.unit/1000,2)} kW = ${fmt(c.unit/3517,2)} TR · SHR ${fmt(c.unitS/(c.unit||1),2)} · ${fmt(c.A?c.unit/c.A:0,0)} W/m² · ${c.unit?fmt(c.A/(c.unit/3517),1):'–'} m²/TR · supply air ${fmt(c.sa,0)} L/s (${fmt(c.sa*2.119,0)} CFM)${dcvNeeded(c)?' · DCV required (DBC H.4.8.3)':''}</p></div>`;
+  });
+  h+=`<h2>5. Load schedule</h2>`+tbl([['Room'],['Qty',1],['Area m²',1],['People',1],['Room sens. kW',1],['Room lat. kW',1],['Fresh air kW',1],['Unit kW',1],['Unit TR',1],['Supply L/s',1],['Fresh air L/s',1]],
+    state.rooms.map(r=>{const c=res[r.id];return [esc(r.name||'Untitled'),c.qty,fmt(c.A,1),fmt(c.n,0),fmt(c.roomS/1000,2),fmt(c.roomL/1000,2),fmt(c.oa/1000,2),fmt(c.unit/1000,2),fmt(c.unit/3517,2),fmt(c.sa,0),fmt(c.oaQ,0)]}),
+    ['Total (× qty)',T.q,fmt(T.a,1),fmt(T.n,0),fmt(T.s/1000,2),fmt(T.l/1000,2),fmt(T.oa/1000,2),fmt(T.u/1000,2),fmt(T.u/3517,2),fmt(T.sa,0),fmt(T.oaq,0)]);
+  h+=tbl([['Plant summary'],['kW',1],['TR',1]],[['Room units',fmt(T.u/1000,1),fmt(T.u/3517,1)],['Fresh air (FAHU)'+(T.rec?', net of energy recovery':''),fmt(T.fahuW/1000,1),fmt(T.fahuW/3517,1)],...(T.rec?[['Energy recovered',fmt(T.rec/1000,1),fmt(T.rec/3517,1)]]:[]),[`Plant load at ${fmt(num(p.diversity),0)}% diversity`,`<b>${fmt(T.plant/1000,1)}</b>`,`<b>${fmt(T.plant/3517,1)}</b>`]]);
+  h+=`<h2>6. Compliance checks</h2><p class="small">Checks shown where the calculation applies or the feature is turned on.</p>`+tbl([['Result'],['Criterion'],['Detail']],checks.map(([s,c,t])=>[`<span class="ck ${s==='req'?'warn':s}">${s==='ok'?'✓':s==='bad'?'✗':'!'}</span> ${PILL[s]}`,esc(c),t]));
+  h+=`<h3>General DBC design requirements</h3>`+tbl([['Clause'],['Requirement']],genC.map(([,c,t])=>[esc(c),t]));
+  h+=`<h2>7. Method and formulas</h2>`+METHOD_HTML.replace(/<code>/g,'<b>').replace(/<\/code>/g,'</b>');
+  h+=`<h2>8. References and limitations</h2><ul><li>Dubai Building Code 2021: Part B Table B.2 (occupant loads); Part H Indoor Environment, Tables H.1–H.4, H.4.6.2–H.4.6.7, H.4.7, H.4.8.1–H.4.8.4, H.4.9.1, H.4.10.2–H.4.10.4, H.4.12.1, H.4.12.2, H.4.12.6, H.4.12.15.3, H.4.14.2, H.5.2.4; ASHRAE 169:2013 Table A-6 (climate zone 0B).</li><li>${SAFAT} Dubai Green Building Evaluation System: 401.01, 402.01, 501.01, 501.03, 501.05.</li><li>ASHRAE 62.1-2022 Tables 6-1 and 6-4; ASHRAE 90.1-2022 Table 5.5-0 and space-by-space lighting allowances; ASHRAE Handbook Fundamentals (CLTD/CLF method, people heat gain).</li><li>DoE Abu Dhabi Cooling Load Manual (2026) for Abu Dhabi and Al Ain conditions. Estidama and Barjeel envelope values from a 2020 comparative study; confirm against current editions.</li><li>This is a simplified peak-load method for concept design and checking. DBC H.4.6.5 requires final calculations in software registered with the Authority.</li></ul>`;
+  h+=`<div class="sign"><div>Prepared by</div><div>Reviewed by</div><div>Date</div></div>`;
+  return h;
+}
+const METHOD_HTML=`<ul>
+<li>Walls and roof: <code>Q = U × A × (CLTD + (25.5 − Ti) + (To − DR/2 − 29.4))</code>, ASHRAE CLTD/CLF method. Wall area is net of glass.</li>
+<li>Glass conduction: <code>Q = U × A × (To − Ti)</code>. Glass solar: <code>Q = A × solar gain × SHGC × shading factor</code>.</li>
+<li>Partitions, ceilings and floors to unconditioned space: <code>Q = U × A × (T adjacent − Ti)</code>; floors exposed to outdoors: <code>Q = U × A × (To − Ti)</code>; conditioned space above or below and slab on ground: no gain.</li>
+<li>People: count × sensible and latent gain for the selected activity (ASHRAE Fundamentals). Lighting and equipment: W/m² × area, all sensible.</li>
+<li>Occupancy: DBC Table B.2 where listed, otherwise ASHRAE 62.1-2022 default densities (DBC H.4.10.2), or a typical layout value when selected.</li>
+<li>Fresh air: ASHRAE 62.1-2022, <code>L/s = (Rp × people + Ra × area) / Ez</code>. Infiltration: <code>L/s = ACH × volume / 3.6</code>.</li>
+<li>Air loads: sensible <code>1.23 × k × L/s × ΔT</code>, latent <code>3010 × k × L/s × ΔW</code>, with density factor <code>k = P / 101.325</code>. Site pressure <code>P = 101.325 × (1 − 2.25577×10⁻⁵ × Z)^5.2559</code> kPa from elevation Z in metres (ASHRAE Fundamentals).</li>
+<li>Daily range sets the mean outdoor temperature <code>To − DR/2</code> in the CLTD correction. An elevation adjustment is always applied: it lowers design dry bulb by 6.5 K per 1,000 m above the emirate reference and keeps the code humidity ratio.</li>
+<li>${SAFAT} glazing limits are given as shading coefficient and converted with <code>SHGC = SC × 0.87</code>.</li>
+<li>With a FAHU, fresh air is a separate load from outdoor to room condition, less any energy recovery. Supply air is sized on room sensible load: <code>L/s = Qs / (1.23 × (Ti − Ts))</code>.</li>
+<li>Room peaks are summed without time diversity, which is conservative. Verify final selections with an hourly tool such as HAP, IES VE or TRACE.</li></ul>`;
+function reportDoc(){
+  const css=[...document.styleSheets].map(s=>{try{return [...s.cssRules].map(r=>r.cssText).filter(t=>t.startsWith('.rpt')).join('\n')}catch(e){return ''}}).join('\n');
+  const p=state.project;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heat Load Report - ${esc(p.name||'Project')}</title><style>@page{size:letter;margin:.5in}body{margin:0;background:#fff}${css}@media print{.rpt{padding:0}.rpt .room,.rpt table,.rpt .chart{break-inside:avoid}.rpt h2,.rpt h3{break-after:avoid}}</style></head><body><div class="rpt">${reportBody()}</div></body></html>`;
+}
+function scheduleCSV(){
+  const {p,res}=computeAll(),q=v=>`"${String(v).replace(/"/g,'""')}"`;
+  const rows=[['Room','Type','Qty','Area m2','People','Room sensible kW','Room latent kW','Fresh air kW','Unit load kW','Unit TR','W/m2','Supply air L/s','Fresh air L/s']];
+  state.rooms.forEach(r=>{const c=res[r.id];rows.push([r.name,(TYPES[r.type]||{}).label,c.qty,c.A,c.n,(c.roomS/1000).toFixed(2),(c.roomL/1000).toFixed(2),(c.oa/1000).toFixed(2),(c.unit/1000).toFixed(2),(c.unit/3517).toFixed(2),Math.round(c.A?c.unit/c.A:0),Math.round(c.sa),Math.round(c.oaQ)])});
+  return rows.map(r=>r.map(q).join(',')).join('\r\n');
+}
+const fileBase=()=>'NOVAC_'+((state.project.name||'project').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40)||'project')+'_'+new Date().toISOString().slice(0,10);
+function showReport(){$('#report-paper').innerHTML=reportBody();$('#calc').hidden=true;$('#report-view').hidden=false;try{location.hash='report'}catch(e){}window.scrollTo(0,0)}
+function hideReport(){$('#report-view').hidden=true;$('#calc').hidden=false;try{history.replaceState(null,'',location.pathname+location.search)}catch(e){try{location.hash=''}catch(_){}}}
+let DL=null;
+try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(dl=>{DL=dl;['#btn-dl-html','#btn-dl-csv'].forEach(s=>$(s).hidden=!dl)}).catch(()=>{})}catch(e){}
+async function saveFile(filename,data){
+  if(!DL){toast('Downloads are not available in this view. Use Copy report instead.');return}
+  try{await DL.save({filename,data});toast('Saved '+filename)}catch(err){if(err&&err.code==='declined')return;if(err&&(err.code==='unavailable'||err.code==='not_granted')){['#btn-dl-html','#btn-dl-csv'].forEach(s=>$(s).hidden=true)}toast('Could not save the file'+(err&&err.message?': '+err.message:''))}
+}
+
+document.addEventListener('input',ev=>{const el=ev.target;if(!el.dataset)return;const r=selRoom();if(!r)return;
+  if(el.dataset.adj){const w=el.dataset.adj;r[w+'Adj']=el.value;if(el.value==='custom'&&blank(r['t'+w.toUpperCase()]))r['t'+w.toUpperCase()]=adjTemp(state.project,envOf(state.project),'project');renderEditor();const s2=$('#r-'+w+'Adj');if(s2)s2.focus();update()}
+  else if(el.dataset.adjt){const w=el.dataset.adjt;if((r[w+'Adj']||'project')!=='custom')return;r['t'+w.toUpperCase()]=num(el.value);update()}});
+document.addEventListener('input',ev=>{const el=ev.target;if(!el.dataset||el.dataset.px==null)return;const r=selRoom();if(!r)return;const x=pxOf(r)[+el.dataset.px];if(!x)return;const k=el.dataset.pk;
+  if(k==='type'){x.type=el.value;renderEditor();update();return}
+  if(k==='adj'){x.adj=el.value;if(el.value==='custom'&&blank(x.t))x.t=adjTemp(state.project,envOf(state.project),'project');if(el.value==='cond2'&&blank(x.t))x.t=num(state.project.tiDB)+2;renderEditor();update();return}
+  if(k==='t'&&!ADJ_EDIT(x.adj||'project'))return;
+  if(k==='a'){const v=evalArea(el.value);if(v===null)return;x.a=v;update();return}
+  x[k]=el.value===''?'':num(el.value);
+  if(k==='u'){const c=el.closest('.ucell');if(c){c.classList.add('cust');const sEl=c.parentElement.querySelector('.usrc');if(sEl)sEl.textContent='Custom'}}
+  update()});
+document.addEventListener('input',ev=>{const el=ev.target;if(!el.dataset||!el.dataset.cf)return;const r=selRoom();if(!r)return;const x=cfOf(r,el.dataset.cf==='ce'?'a':'b'),k=el.dataset.ck;
+  if(k==='adj'){x.adj=el.value;if(el.value==='custom'&&blank(x.t))x.t=adjTemp(state.project,envOf(state.project),'project');if(el.value==='cond2'&&blank(x.t))x.t=num(state.project.tiDB)+2;renderEditor();update();return}
+  if(k==='t'&&!ADJ_EDIT(x.adj||'project'))return;
+  if(k==='a'){const v=evalArea(el.value);if(v===null)return;x.a=v;update();return}
+  x[k]=el.value===''?'':num(el.value);if(k==='u'){const c=el.closest('.ucell');if(c){c.classList.add('cust');const sEl=c.parentElement.querySelector('.usrc');if(sEl)sEl.textContent='Custom'}}update()});
+document.addEventListener('click',ev=>{const b=ev.target.closest('button[data-act="cf-ureset"]');if(!b)return;const r=selRoom();if(!r)return;cfOf(r,b.dataset.k==='ce'?'a':'b').u='';renderEditor();update()});
+document.addEventListener('change',ev=>{const el=ev.target;if(!el.dataset||(el.dataset.pk!=='a'&&el.dataset.ck!=='a'))return;const v=evalArea(el.value);if(typeof v==='number')el.value=v});
+document.addEventListener('click',ev=>{const b=ev.target.closest('button[data-act^="px-"]');if(!b)return;const r=selRoom();if(!r)return;const px=pxOf(r);
+  if(b.dataset.act==='px-add'){const t=b.dataset.t;px.push({type:t,a:t==='wall'?'':num(r.area),adj:PXDEF[t],t:'',u:''})}
+  else if(b.dataset.act==='px-del')px.splice(+b.dataset.i,1);
+  else if(b.dataset.act==='px-ureset'){const x=px[+b.dataset.i];if(x)x.u=''}
+  renderEditor();update()});
+/* ---------- wall area calculator ---------- */
+/* accepts numbers or simple arithmetic: 6*3.2 + 2.5*3.2, 4.5x3, (10-1.2)*3 */
+function evalArea(str){
+  const t=String(str).trim().replace(/[×xX]/g,'*').replace(/,/g,'.');
+  if(t==='')return '';
+  if(!/^[\d.+\-*/()\s]+$/.test(t))return null;
+  try{const v=Function('"use strict";return ('+t+')')();return isFinite(v)&&v>=0?Math.round(v*100)/100:null}catch(e){return null}
+}
+function wcCalc(o){
+  const g=k=>{const el=document.querySelector(`[data-wc="${k}"][data-o="${o}"]`);const v=el?evalArea(el.value):'';return typeof v==='number'?v:0};
+  const L=g('L'),H=g('H'),gl=g('ww')*g('wh')*(g('wn')||0),dd=g('dd'),wall=Math.round(L*H*100)/100;
+  return {wall,glass:Math.round(gl*100)/100,dd,ok:wall>0};
+}
+document.addEventListener('input',ev=>{const el=ev.target;if(!el.dataset||!el.dataset.wc)return;const o=el.dataset.o,c=wcCalc(o),out=$('#wcr-'+o);
+  if(out)out.textContent=c.ok?`Wall ${fmt(c.wall,2)} m² gross · glass ${fmt(c.glass,2)} m² · opaque ${fmt(Math.max(0,c.wall-c.glass-c.dd),2)} m²${c.glass+c.dd>c.wall?' · openings exceed the wall':''}`:'Enter wall length and height.'});
+document.addEventListener('change',ev=>{const el=ev.target;if(!el.dataset||!el.dataset.wall)return;const v=evalArea(el.value);if(typeof v==='number')el.value=v;else if(v===null){el.classList.add('bad-in');setTimeout(()=>el.classList.remove('bad-in'),1200)}});
+document.addEventListener('click',ev=>{const b=ev.target.closest('button[data-act^="wcalc"]');if(!b)return;const o=b.dataset.o;
+  if(b.dataset.act==='wcalc'){const row=$('#wc-'+o);row.hidden=!row.hidden;b.setAttribute('aria-expanded',String(!row.hidden));if(!row.hidden){const f=row.querySelector('[data-wc="L"]');if(f)f.focus()}return}
+  const r=selRoom();if(!r)return;const c=wcCalc(o);if(!c.ok){toast('Enter wall length and height');return}
+  r.walls[o].w=c.wall;r.walls[o].g=c.glass;$('#r-w-'+o).value=c.wall;$('#r-g-'+o).value=c.glass||'';
+  if(r.src.ach==='dbc50')resolveRoom(r);$('#wc-'+o).hidden=true;update();toast(`${o}: wall ${fmt(c.wall,2)} m², glass ${fmt(c.glass,2)} m²`)});
+
+/* ---------- events ---------- */
+const DESIGN_KEYS=[];
+const STRING_KEYS=['name','location','cbasis','subloc'];
+document.addEventListener('input',ev=>{
+  const el=ev.target,p=state.project;
+  if(el.dataset.psrc||el.dataset.rsrc||el.id==='p-codeset')return;
+  if(el.dataset.p){const k=el.dataset.p;
+    if(k==='location'){p.location=el.value;if(el.value!=='custom'){Object.assign(p,presetVals(el.value));const ls=LOC_SRC[el.value];if(ls){p.src.out=ls[0];p.src.vent=ls[1];resolveProject(p)}}else p.subloc='custom';
+      const why=applyAuto(p);if(why){state.rooms.forEach(resolveRoom);toast('Applied '+why)}}
+    else if(k==='subloc'){p.subloc=el.value;const s=subOf(p);if(s){p.elev=s.elev;p.dr=s.dr}}
+    else if(el.type==='checkbox')p[k]=el.checked;
+    else if(STRING_KEYS.includes(k))p[k]=el.value;
+    else{p[k]=el.value===''?'':num(el.value);
+      if(DESIGN_KEYS.includes(k)&&p.location!=='custom'){p.location='custom';p.subloc='custom'}
+      if(k==='elev'||k==='dr')p.subloc='custom';
+      if(k==='toDB'||k==='toWB'){p.src.out='custom';if(p.src.vent==='same'){p.vDB=num(p.toDB);p.vWB=num(p.toWB)}}
+      if(k==='vDB'||k==='vWB')p.src.vent='custom';
+      if(PPICKS.includes(k))p.src[k]='custom';
+      if(k==='tiDB'||k==='tiRH')p.src.indoor='custom';
+      if(k==='ez')state.rooms.forEach(resolveRoom);}
+    syncProject();if(k==='ez')syncRoom();
+  }else if(el.dataset.cltd){p.cltd[el.dataset.cltd]=num(el.value)}
+  else if(el.dataset.solar){p.solar[el.dataset.solar]=num(el.value)}
+  else if(el.dataset.r){const r=selRoom();if(!r)return;const k=el.dataset.r;
+    if(k==='type'){changeType(r,el.value);renderEditor();const s=$('#r-type');if(s)s.focus();update();return}
+    if(k==='name'){r.name=el.value}
+    else if(k==='above'||k==='below'){const w=k==='above'?'a':'b',x=cfOf(r,w);r[k]=el.value;
+      if(k==='above'&&el.value==='roof'&&!num(r.roof))r.roof=num(r.area);
+      if(['uncond','outdoor'].includes(el.value)&&!num(x.a))x.a=num(r.area);
+      if(k==='above'&&el.value!=='roof')r.sky='';resolveRoom(r);renderEditor();const s2=$('#r-'+k);if(s2)s2.focus();update();return}
+    else{r[k]=el.value===''?'':num(el.value);
+      if(ROOMPICKS.includes(k))r.src[k]='custom';
+      if(k==='ps'||k==='pl')r.src.act='custom';}
+    resolveRoom(r);syncRoom();
+  }else if(el.dataset.wall){const r=selRoom();if(!r)return;const v=evalArea(el.value);if(v===null)return;r.walls[el.dataset.wall][el.dataset.part]=v===''?'':v;if(r.src.ach==='dbc50'){resolveRoom(r);syncRoom()}}
+  else return;
+  update();
+});
+document.addEventListener('change',ev=>{
+  const el=ev.target,p=state.project;
+  if(el.id==='p-fahu'||el.id==='p-erv'){p[el.dataset.p]=el.checked;update();return}
+  if(el.dataset.psrc){p.src[el.dataset.psrc]=el.value;resolveProject(p);if(el.dataset.psrc==='ez')state.rooms.forEach(resolveRoom);syncProject();syncRoom();update();return}
+  if(el.dataset.rsrc){const r=selRoom();if(!r)return;r.src[el.dataset.rsrc]=el.value;resolveRoom(r);syncRoom();update();return}
+  if(el.id==='p-codeset'&&el.value){const cs=CODESETS.find(c=>c[0]===el.value);Object.assign(p.src,cs[2]);p.cbasis=cs[3];p.codeset=cs[0];resolveProject(p);syncProject();update();toast('Applied: '+cs[1])}
+});
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest('button');if(!b)return;
+  if(b.classList.contains('ritem')){state.sel=b.dataset.id;renderEditor();update();return}
+  const act=b.dataset.act;
+  if(act==='add'){const r=newRoom('Room '+(state.rooms.length+1),'office');state.rooms.push(r);state.sel=r.id;renderEditor();update();const n=$('#r-name');if(n){n.focus();n.select()}}
+  else if(act==='apply-code'){const p=state.project,cs=CODESETS.find(c=>c[0]===b.dataset.cs);if(cs){Object.assign(p.src,cs[2]);p.cbasis=cs[3];resolveProject(p);syncProject();update();toast('Applied: '+cs[1])}}
+  else if(act==='apply-vent'){const p=state.project;p.src.vent='dbc';resolveProject(p);syncProject();update();toast('Applied DBC H.4.6.4: 34 °C DB / 32 °C WB')}
+  else if(act==='dup'){const r=selRoom();if(!r)return;const c=JSON.parse(JSON.stringify(r));c.id=newId();c.name=r.name+' (copy)';state.rooms.splice(state.rooms.indexOf(r)+1,0,c);state.sel=c.id;renderEditor();update()}
+  else if(act==='del'){arm(b,'Click again to delete',()=>{const i=state.rooms.findIndex(r=>r.id===state.sel);state.rooms.splice(i,1);state.sel=(state.rooms[Math.max(0,i-1)]||{}).id;renderEditor();update();toast('Room deleted')})}
+});
+function arm(b,label,fn){
+  if(b.dataset.armed==='1'){b.dataset.armed='0';clearTimeout(b._t);b.textContent=b._orig;fn();return}
+  b.dataset.armed='1';b._orig=b._orig||b.textContent;b.textContent=label;
+  b._t=setTimeout(()=>{b.dataset.armed='0';b.textContent=b._orig},4000);
+}
+function rebuildAll(){CURP=state.project;buildProject();syncProject();renderEditor();update()}
+$('#btn-new').addEventListener('click',ev=>arm(ev.currentTarget,'Click again to clear all',()=>{
+  const p=defaultProject();CURP=p;const r=newRoom('Room 1','office');state={project:p,rooms:[r],sel:r.id,example:false};rebuildAll();toast('New project started');
+}));
+$('#btn-example').addEventListener('click',()=>{state=exampleState();rebuildAll();toast('Example loaded')});
+$('#btn-report').addEventListener('click',showReport);
+$('#btn-undo').addEventListener('click',undo);$('#btn-redo').addEventListener('click',redo);
+document.addEventListener('keydown',ev=>{if(!(ev.ctrlKey||ev.metaKey)||ev.altKey)return;const k=ev.key.toLowerCase();
+  const rep=document.getElementById('report-view');if(rep&&!rep.hidden&&rep.offsetParent!==null)return;
+  if(k==='z'&&!ev.shiftKey){ev.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();undo()}
+  else if(k==='y'||(k==='z'&&ev.shiftKey)){ev.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();redo()}});
+$('#btn-back').addEventListener('click',hideReport);
+$('#btn-dl-html').addEventListener('click',()=>saveFile(fileBase()+'_report.html',reportDoc()));
+$('#btn-dl-csv').addEventListener('click',()=>saveFile(fileBase()+'_schedule.csv',scheduleCSV()));
+function copyText(text,html){
+  const ta=$('#copy-out');
+  const fallback=()=>{ta.hidden=false;ta.value=text;ta.focus();ta.select();toast('Press Ctrl+C to copy')};
+  try{
+    const pr=(html&&window.ClipboardItem&&navigator.clipboard.write)?navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([text],{type:'text/plain'})})]):navigator.clipboard.writeText(text);
+    pr.then(()=>{ta.hidden=true;toast('Copied')},()=>{if(html){navigator.clipboard.writeText(text).then(()=>toast('Copied as plain text'),fallback)}else fallback()});
+  }catch(err){fallback()}
+}
+$('#btn-copy-report').addEventListener('click',()=>{const paper=$('#report-paper');copyText(paper.innerText,reportDoc())});
+$('#btn-copy').addEventListener('click',()=>{
+  const {p,res}=computeAll();
+  const head=['Room','Type','Qty','Area m2','People','Room sensible kW','Room latent kW','Fresh air kW','Unit load kW','Unit TR','W/m2','Supply air L/s','Fresh air L/s'];
+  const lines=[['NOVAC Simplified Thermal Load Calculator: load schedule'],[`Project: ${p.name||'-'}`],[],['Design basis','Value','Source'],...basisRows(),[],['Compliance check','Criterion','Detail'],...lastChecks.map(([s,c,t])=>[PILL[s],c,t.replace(/<[^>]+>/g,'')]),[],head];
+  state.rooms.forEach(r=>{const c=res[r.id];lines.push([r.name,(TYPES[r.type]||{}).label,c.qty,c.A,c.n,(c.roomS/1000).toFixed(2),(c.roomL/1000).toFixed(2),(c.oa/1000).toFixed(2),(c.unit/1000).toFixed(2),(c.unit/3517).toFixed(2),Math.round(c.A?c.unit/c.A:0),Math.round(c.sa),Math.round(c.oaQ)])});
+  copyText(lines.map(l=>l.join('\t')).join('\n'));
+});
+let toastT;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2400)}
+window.addEventListener('hashchange',()=>{if(location.hash==='#report')showReport();else if(!$('#report-view').hidden)hideReport()});
+
+const ABBR=[
+  ['ACH','Air changes per hour'],['ASHRAE','American Society of Heating, Refrigerating and Air-Conditioning Engineers'],['BMS','Building management system'],
+  ['CFM','Cubic feet per minute (1 L/s = 2.119 CFM)'],['CIBSE','Chartered Institution of Building Services Engineers'],['CLF','Cooling load factor'],
+  ['CLM','Cooling Load Manual (DoE Abu Dhabi)'],['CLTD','Cooling load temperature difference'],['clo','Clothing insulation unit (1 clo = 0.155 m²K/W)'],
+  ['CO₂','Carbon dioxide'],['CSV','Comma-separated values file'],['CZ','Climate zone (ASHRAE 169:2013)'],['ESMA','Emirates Authority for Standardization and Metrology'],['ESP','External static pressure'],['IAQ','Indoor air quality'],['MERV','Minimum efficiency reporting value (ASHRAE 52.2)'],['SMACNA','Sheet Metal and Air Conditioning Contractors\' National Association'],['TVOC','Total volatile organic compounds'],['TWA','Time-weighted average'],['DB','Dry bulb temperature'],['DBC','Dubai Building Code'],
+  ['ADIBC','Abu Dhabi International Building Codes'],['AMPD','Ajman Municipality and Planning Department'],['DCV','Demand controlled ventilation'],['DDA','Dubai Development Authority'],['DEWA','Dubai Electricity and Water Authority'],['DM','Dubai Municipality'],['DMT','Department of Municipalities and Transport, Abu Dhabi'],['DoE','Department of Energy, Abu Dhabi'],['DP','Dew point temperature'],
+  ['DR','Daily range: mean daily max minus mean daily min'],['EPD','Equipment power density (W/m²)'],['ERV','Energy recovery ventilation'],
+  ['EtihadWE','Etihad Water and Electricity (northern emirates utility)'],['Ez','Zone air distribution effectiveness (ASHRAE 62.1)'],['FAHU','Fresh air handling unit'],['GBC','Green Building Code (Al Sa\'fat, Dubai)'],['GFA','Gross floor area'],['GLA','Gross leasable area'],
+  ['h','Specific enthalpy (kJ/kg dry air)'],['k','Air density factor, site pressure ÷ 101.325 kPa'],['kW','Kilowatt'],['L/s','Litres per second'],
+  ['LPD','Lighting power density (W/m²)'],['met','Metabolic rate unit (1 met = 58.2 W/m²)'],['MOEI','Ministry of Energy and Infrastructure'],['MRT','Mean radiant temperature'],['TAQA','Abu Dhabi National Energy Company (ADDC, AADC distribution)'],['OA','Outdoor (fresh) air'],
+  ['P','Atmospheric pressure at site elevation (kPa)'],['PBRS','Pearl Building Rating System (Estidama)'],['PMV','Predicted mean vote, ASHRAE 55 comfort index (−3 cold to +3 hot)'],
+  ['PPD','Predicted percentage dissatisfied'],['RAK','Ras Al Khaimah'],['RAKEZ','Ras Al Khaimah Economic Zone'],['Ra','Area outdoor air rate (L/s·m²)'],['RH','Relative humidity'],
+  ['Rp','People outdoor air rate (L/s·person)'],['SA','Supply air'],['SC','Shading coefficient (SHGC ≈ SC × 0.87)'],['SEWA','Sharjah Electricity, Water and Gas Authority'],['SHGC','Solar heat gain coefficient'],
+  ['SHR','Sensible heat ratio: sensible ÷ total load'],['Ti','Indoor design dry bulb'],['To','Outdoor design dry bulb (envelope)'],['TR','Ton of refrigeration (3.517 kW)'],
+  ['Ts','Supply air temperature'],['Tv','Outdoor design dry bulb (fresh air)'],['U','Thermal transmittance, U-value (W/m²K)'],['UAQ','Umm Al Quwain'],
+  ['W','Humidity ratio (g water / kg dry air)'],['WB','Wet bulb temperature'],['WWR','Window-to-wall ratio (glazing ratio)']
+];
+ABBR.sort((a,b)=>a[0].localeCompare(b[0],'en',{sensitivity:'base'}));
+function buildAbbr(){$('#abbr-list').innerHTML=ABBR.map(([a,b])=>`<div><dt>${esc(a)}</dt><dd>${esc(b)}</dd></div>`).join('')}
+function buildLibrary(){
+  const t=(title,head,rows)=>`<div><h4>${title}</h4><div class="tbl-wrap"><table class="lib"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  const dbc=[['H.4.6.2, Table H.1','Dubai outdoor design 46 °C DB / 29 °C WB, 13.8 K daily range, 25° N, climate zone 0B (ASHRAE 169:2013 Table A-6)'],['H.4.6.3, Table H.2','Indoor design 24 °C ±1.5 DB, 50% ±5 RH; other occupancies per ASHRAE HVAC Applications; safety factors sensible ≤10%, latent ≤5%; diversity per ASHRAE Fundamentals Ch. 18 when unknown'],['H.4.6.4','Outdoor air system in fully air-conditioned buildings; treated outdoor air ≥95% of the year; design 34 °C DB / 32 °C WB (maximum)'],['H.4.6.5','Heat load for each air-conditioned space including peak load incidence; software registered with the Authority'],['H.4.6.6','External loads: orientation, construction, plans, elevations, shading factors (Part E, E.5.3)'],['H.4.6.7','Occupancy per B.5.1, else ASHRAE 62.1/62.2/170 defaults; lighting and equipment project-specific, else ASHRAE 90.1'],['H.4.7, Table H.3','Hold 22.5–25.5 °C, 30–60% RH for 95% of the year; 0.2–0.3 m/s air velocity'],['H.4.8.1','Equipment efficiency to UAE.S 5010-5 (ESMA) Tables 1, 2, 4; chillers to ASHRAE 90.1-2019 Tables 6.8.1–6.8.3'],['H.4.8.2','Treated OA above 1,000 L/s: energy recovery on ≥50% of exhaust, ≥70% sensible effectiveness'],['H.4.8.3','DCV in spaces over 100 m² with ≥25 people/100 m²; CO₂ below 800 ppm, alarm above 1,000 ppm'],['H.4.8.4','Insulate refrigerant, chilled and hot water pipes and supply ducts to BS 5422 or ASHRAE 90.1'],['H.4.9.1','Buildings of 1 MW or more: air leakage ≤5 m³/h·m² at 50 Pa (BS EN 13829 / ASTM E779); positive pressure always'],['H.4.9.2','Lobby or door barrier at main entrance'],['H.4.10.2','Ventilation to ASHRAE 62.1, 62.2 and 170; occupancy from DBC B.5.1 (Table B.2), else ASHRAE defaults'],['H.4.10.3, Table H.4','Filters ISO 16890-1; formaldehyde <0.08 ppm, TVOC <300 μg/m³, PM10 <150 μg/m³ (8 h TWA); IAQ test before occupancy'],['H.4.10.4','Intake/exhaust separation ASHRAE 62.1:2019 Table 5-1; sand trap louvers ≥1 m/s face, ≥80% at 355–425 μm'],['H.4.11','Natural ventilation permitted but not relied on for ventilation or comfort'],['H.4.12.1','Supply ≈ return + exhaust; AHUs AHRI or Eurovent certified; ASHRAE Fundamentals Ch. 16'],['H.4.12.2','Duct sizing ASHRAE Fundamentals Ch. 21; SMACNA construction; flexible ducts UL 181, ≤250 °C'],['H.4.12.5','Filters per ASHRAE 52.2:2017 Table E-1 MERV; UL 900 / UL 586 / UL 867'],['H.4.12.6','Duct leakage test: ESP above 250 Pa or ducts exposed to ambient / unconditioned spaces'],['H.4.12.11','Car parks: CO below 50 ppm, ≥6 ACH or CO-controlled VAV, 1 sensor per 400 m², alarm at 75 ppm, 10 ACH smoke clearance'],['H.4.12.15.3','Kitchens: make-up air 75–95% of extract, −0.25 Pa kitchen, +1.25 to +5.0 Pa building, make-up ΔT ≤6 °C'],['H.4.14.2','BMS at 1,000 kW cooling load or 5,000 m² gross floor area'],['H.5.2.4','Recover AC condensate above 350 kW cooling load']];
+  const b2=Object.values(TYPES).filter(x=>x.dbc).map(x=>[esc(x.dbc[1]),x.dbc[0]+' m²/person']);
+  const env=ENVK.flatMap(k=>LIB[k].map(o=>[esc(PMETA[k][0]),esc(o.label),o.v,esc(o.src)]));
+  const lpd=Object.values(TYPES).filter(x=>x.a901).map(x=>[esc(x.label),x.a901+' W/m²','ASHRAE 90.1-2022 Table 9.6.1 Space-by-Space']).concat(LPD_BAM.map(([,l,w])=>[esc(l),(Math.round(w*10.764*10)/10)+' W/m² ('+w+' W/ft²)','ASHRAE 90.1-2019 Table 9.5.1 Building Area Method'])).concat([['General (energy model baseline)','8.7 W/m²','Estidama baseline'],['Residential (energy model baseline)','6.8 W/m²','Estidama baseline']]);
+  $('#lib').innerHTML=
+    t('Dubai Building Code',['Clause','Requirement'],dbc)+
+    t('Sub-locations: elevation and daily range',['Location','Elevation m','Range K','Basis','Source'],Object.values(SUBLOC).flat().map(s=>[esc(s.label),s.elev,s.dr,s.est?'Estimate':'Sourced',esc(s.src)]))+
+    t('Indoor design basis',['Option','Design','Checks'],INDOOR.map(i=>[esc(i.label),`${i.db} °C / ${i.rh}%`,esc(i.src)]))+
+    t('DBC Table B.2 occupant load factors',['Use','Factor'],b2)+
+    t('Envelope',['Item','Option','Value','Source'],env)+
+    t('Zone air distribution effectiveness, ASHRAE 62.1-2022 Table 6-4',['Configuration','Ez'],LIB.ez.map(o=>[esc(o.label),o.v]))+
+    t('Fresh air, ASHRAE 62.1-2022 Table 6-1',['Space','Rp L/s·p','Ra L/s·m²','Default /100 m²'],VENT.map(v=>[esc(v.label),v.rp,v.ra,v.dens||'–']))+
+    t('People heat gain, ASHRAE Fundamentals Ch. 18',['Activity','Sensible W','Latent W'],ACT.map(a=>[esc(a.label),a.s,a.l]))+
+    t('Lighting power density',['Space','Value','Source'],lpd)+
+    t('Infiltration (summer design)',['Basis','ACH','Source'],ROOMOPTS.ach(null).map(o=>[esc(o.label),o.v,esc(o.cat)]).concat([['DBC H.4.9.1 airtightness 5 m³/h·m² at 50 Pa','envelope area × 5 ÷ 20 ÷ volume','DBC H.4.9.1; ÷20 rule for natural conditions']]))+
+    t('Equipment power density',['Space','Value','Source'],[['Office equipment','15 W/m²','CIBSE TM37, as cited in DoE Cooling Load Manual'],['General (energy model baseline)','8.1 W/m²','Estidama baseline'],['Residential (energy model baseline)','2.7 W/m²','Estidama baseline']]);
+  $('#refs').innerHTML=`Sources and notes. Dubai Building Code 2021, Part B Table B.2 and Part H Indoor Environment. ${SAFAT}: Dubai Green Building Evaluation System, Articles 401.01, 402.01, 501.01, 501.03, 501.05. ASHRAE 62.1-2022 Tables 6-1 and 6-4. ASHRAE 62.2 governs whole-dwelling ventilation for residential units; the 62.1 bedroom/living row is used here per room. Estidama and Barjeel envelope values from <a href="https://www.witpress.com/Secure/elibrary/papers/SC20/SC20008FU1.pdf" target="_blank" rel="noopener">WIT Press, Sustainable City 2020</a>; Estidama lighting and equipment baselines from <a href="https://support.sefaira.com/hc/en-us/articles/204459785-UAE-Baseline-Estidama" target="_blank" rel="noopener">Sefaira's UAE Estidama baseline</a>. ASHRAE 90.1-2022 lighting values from <a href="https://www.ashrae.org/file%20library/technical%20resources/bookstore/part5_90.1-2022lightingchanges.pdf" target="_blank" rel="noopener">ASHRAE Journal, Sept 2023</a>. Abu Dhabi and Al Ain conditions from the <a href="https://www.doe.gov.ae/-/media/Project/DOE/Department-Of-Energy/Media-Center-Publications/2026/July/CoolingLoadManual-eng.pdf" target="_blank" rel="noopener">DoE Cooling Load Manual</a>. Confirm values against the editions that apply to your permit.`;
+  $('#method').innerHTML=METHOD_HTML;
+}
+
+if(!state.rooms.find(r=>r.id===state.sel))state.sel=(state.rooms[0]||{}).id;
+buildAbbr();buildLibrary();rebuildAll();
+if(location.hash==='#report')showReport();
+</script>
+
+</body></html>
