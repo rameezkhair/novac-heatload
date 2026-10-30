@@ -97,7 +97,7 @@ export function reportBody(s: AppState, compliance = false, today = new Date()) 
   const allC = allChecks(d, pc, L), checks = allC.filter(applicable), genC = allC.filter(c => c[3]);
   const date = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const loc = LOC[p.location] || { label: '' }, sub = subOf(p);
-  let h = `<h1>Heat Load Calculation Report</h1><p class="rsub">NOVAC Heat Load Calculator · ${esc(p.name || 'Untitled project')} · ${esc(loc.label)} · ${date}</p><p class="small">Developed on ASHRAE's CLTD/CLF method${c_ ? ", with checks against DBC, Al Sa'fat, Estidama and ASHRAE standards" : ''}</p>`;
+  let h = `<h1>Heat Load Calculation Report</h1><p class="rsub">NOVAC Simplified Heat Load Calculator · ${esc(p.name || 'Untitled project')} · ${esc(loc.label)} · ${date}</p><p class="small">Developed on ASHRAE's CLTD/CLF method${c_ ? ", with checks against DBC, Al Sa'fat, Estidama and ASHRAE standards" : ''}</p>`;
   const half = Math.ceil(ABBR.length / 2), ab: string[][] = [];
   for (let i = 0; i < half; i++) { const a = ABBR[i], b = ABBR[i + half] || ['', '']; ab.push([`<b>${esc(a[0])}</b>`, esc(a[1]), `<b>${esc(b[0])}</b>`, esc(b[1])]); }
   h += `<h2>Abbreviations and symbols</h2>` + tbl([['Term'], ['Meaning'], ['Term'], ['Meaning']], ab);
@@ -198,7 +198,7 @@ export function scheduleCSV(s: AppState) {
 export function scheduleTSV(s: AppState, compliance = false) {
   const d = computeAll(s.project, s.rooms), { marks, limits } = projectChecks(s.project, d.T, s.rooms);
   const checks = allChecks(d, marks, limits).filter(applicable);
-  const lines: (string | number)[][] = [['NOVAC Heat Load Calculator: load schedule'], [`Project: ${s.project.name || '-'}`], [],
+  const lines: (string | number)[][] = [['NOVAC Simplified Heat Load Calculator: load schedule'], [`Project: ${s.project.name || '-'}`], [],
     ...(compliance ? [['Design basis', 'Value', 'Source'], ...basisRows(s.project, d), [], ['Compliance check', 'Criterion', 'Detail'], ...checks.map(([st, c, t]) => [PILL[st], c, t]), []] : []), SCHED_HEAD, ...scheduleRows(s)];
   return lines.map(l => l.join('\t')).join('\n');
 }
