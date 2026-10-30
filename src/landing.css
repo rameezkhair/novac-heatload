@@ -26,7 +26,7 @@ main section{margin-top:0}
 .hero{background:radial-gradient(1000px 500px at 85% 0%,rgba(201,162,74,.16),transparent 60%),var(--hero);color:var(--hero-fg);overflow:hidden}
 .hero .wrap{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:56px;align-items:center;padding-block:72px 88px}
 .pill{display:inline-flex;align-items:center;gap:8px;margin:0 0 18px;padding:5px 12px;border-radius:999px;border:1px solid rgba(201,162,74,.4);background:rgba(201,162,74,.08);color:var(--gold);font-size:13px;font-weight:600}
-.pill .dot{width:7px;height:7px;border-radius:50%;background:var(--gold)}
+.pill .uae-flag{width:24px;height:14px;flex:none;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
 .hero-h{margin:0;font-size:44px;line-height:1.1;letter-spacing:-.025em;font-weight:700;text-wrap:balance}
 .lead{margin:18px 0 0;font-size:17px;line-height:1.6;color:var(--hero-muted);max-width:56ch}
 .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
