@@ -83,8 +83,8 @@ export function SelectField({ id, label, value, onChange, children, wide }: { id
     <span className="in-u src-sel"><select id={id} value={value} onChange={e => onChange(e.target.value)}>{children}</select></span></label>;
 }
 
-export function SecHead({ n, title, sub }: { n: number; title: string; sub?: ReactNode }) {
-  return <div className="sec-head"><h2><span className="n">{n}</span>{title}</h2>{sub ? <p>{sub}</p> : null}</div>;
+export function SecHead({ n, title, sub }: { n?: number; title: string; sub?: ReactNode }) {
+  return <div className="sec-head"><h2>{n != null && <span className="n">{n}</span>}{title}</h2>{sub ? <p>{sub}</p> : null}</div>;
 }
 
 /* a button that asks for a second click before acting */

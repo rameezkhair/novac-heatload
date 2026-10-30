@@ -20,7 +20,7 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
   const setSolar = (k: Orient | 'H', v: Num) => update(s => { s.project.solar[k] = num(v); }, 'solar.' + k);
 
   return <section>
-    <SecHead n={3} title="Envelope & system" sub="Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance." />
+    <SecHead n={2} title="Envelope & system" sub="Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance." />
     <div className="codebar">
       <label className="fld" htmlFor="p-codeset"><span className="fl">Envelope code · fills all values and sets the compliance basis</span>
         <span className="in-u"><select id="p-codeset" value={p.codeset} onChange={e => { const v = e.target.value; let lbl = ''; update(s => { lbl = applyCodeset(s.project as Project, v)?.[1] || ''; }); toast('Applied: ' + lbl); }}>

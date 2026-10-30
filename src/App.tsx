@@ -16,15 +16,24 @@ import { ArmButton, ComplianceProvider, useToast } from './components/ui';
 export default function App() {
   const store = useStore(), { state, undo, redo } = store, toast = useToast();
   const [report, setReport] = useState(() => location.hash === '#report');
+  const [activeStep, setActiveStep] = useState(0);
   /* compliance checks and design basis stay hidden; per-input badges always show */
   const showC = false;
   const d = useMemo(() => computeAll(state.project, state.rooms), [state]);
   const { marks, limits } = useMemo(() => projectChecks(d.p, d.T, d.rooms), [d]);
   const checks = useMemo(() => allChecks(d, marks, limits).filter(applicable), [d, marks, limits]);
+  const completed = workflowCompletion(state);
+  const steps = [
+    { title: 'Project & climate', description: 'Set the location and indoor and outdoor design conditions.' },
+    { title: 'Envelope & system', description: 'Review envelope properties and cooling-system assumptions.' },
+    { title: 'Rooms', description: 'Enter room areas, loads and surface details.' },
+    { title: 'Review', description: 'Review the load schedule and generate a report.' },
+  ];
 
   /* the project file on disk that Save writes back to, if any */
   const [file, setFile] = useState<FileHandle | null>(null);
   const replace = (s: typeof state, f: FileHandle | null = null) => { store.replace(s); setFile(f); };
+  const navigateStep = (step: number) => { setActiveStep(step); scrollTo(0, 0); };
   const save = async (as: boolean) => {
     try {
       const r = await saveProjectFile(as ? null : file, fileBase(state.project.name) + '.novac.json', JSON.stringify(state, null, 1));
@@ -91,13 +100,70 @@ export default function App() {
     {report ? <ReportView state={state} onBack={() => showReport(false)} /> :
       <main className="wrap" id="calc">
         {state.example && <div className="notice">Example data loaded: a small Dubai office. Replace the rooms and envelope values with your project's figures, or start a new project.</div>}
-        <ProjectSection store={store} d={d} marks={marks} />
-        <PsychroSection d={d} />
-        <EnvelopeSection store={store} d={d} marks={marks} limits={limits} />
-        <RoomsSection store={store} d={d} />
-        <ScheduleSection d={d} checks={checks} />
+        <nav className="workflow" aria-label="Calculator steps">
+          <div className="workflow-stepper" id="workflow-stepper">
+            {steps.map((step, index) => {
+              const isComplete = completed[index];
+              const status = isComplete ? 'Complete' : index === activeStep ? 'In progress' : 'Needs input';
+              return <button
+                key={step.title}
+                className={'workflow-step' + (isComplete ? ' is-complete' : '')}
+                type="button"
+                data-step={index}
+                aria-current={index === activeStep ? 'step' : undefined}
+                aria-label={`Step ${index + 1}: ${step.title}. ${status}`}
+                onClick={() => navigateStep(index)}
+              >
+                <span className="workflow-marker" aria-hidden="true">
+                  {isComplete ? <svg viewBox="0 0 16 16" focusable="false"><path d="m3 8 3.2 3.2L13 4.5" /></svg> : index + 1}
+                </span>
+                <span className="workflow-label">
+                  <span className="workflow-title">{step.title}</span>
+                  <span className="workflow-status">{status}</span>
+                </span>
+              </button>;
+            })}
+          </div>
+          <p className="workflow-caption"><b>Step {activeStep + 1} of {steps.length}</b><span aria-hidden="true">·</span>{steps[activeStep].description}</p>
+        </nav>
+        {activeStep === 0 && <>
+          <ProjectSection store={store} d={d} marks={marks} />
+          <PsychroSection d={d} />
+        </>}
+        {activeStep === 1 && <EnvelopeSection store={store} d={d} marks={marks} limits={limits} />}
+        {activeStep === 2 && <RoomsSection store={store} d={d} />}
+        {activeStep === 3 && <ScheduleSection d={d} checks={checks} />}
+        <div className="workflow-controls" aria-label="Step navigation">
+          {activeStep > 0
+            ? <button className="btn" type="button" onClick={() => navigateStep(activeStep - 1)}>Previous</button>
+            : <span />}
+          {activeStep < steps.length - 1
+            ? <button className="btn primary" type="button" onClick={() => navigateStep(activeStep + 1)}>Continue</button>
+            : <span />}
+        </div>
       </main>}
   </ComplianceProvider>;
+}
+
+function workflowCompletion(state: Store['state']): boolean[] {
+  const p = state.project;
+  const hasNumber = (value: unknown) => typeof value === 'number'
+    ? Number.isFinite(value)
+    : typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value));
+  const positive = (value: unknown) => hasNumber(value) && Number(value) > 0;
+  const climate = !!p.location && !!p.subloc
+    && [p.toDB, p.toWB, p.dr, p.elev, p.vDB, p.vWB, p.tiDB, p.tiRH].every(hasNumber)
+    && Number(p.dr) >= 0 && Number(p.tiRH) >= 0 && Number(p.tiRH) <= 100;
+  const envelope = !!p.codeset && [
+    p.uPart, p.uCeil, p.uFloor, p.shade, p.tAdj, p.tSupply, p.sfS, p.sfL, p.diversity,
+    p.uWall, p.uRoof, p.uGlass, p.shgc, p.uSky, p.shgcSky, p.ez, p.ervS, p.ervL, p.ervShare,
+    ...Object.values(p.cltd), ...Object.values(p.solar),
+  ].every(hasNumber) && positive(p.ez);
+  const rooms = state.rooms.length > 0 && state.rooms.every(room =>
+    room.name.trim() !== '' && !!room.type
+    && positive(room.qty) && positive(room.area) && positive(room.height)
+    && [room.people, room.light, room.equip, room.oa, room.ach, room.ps, room.pl].every(value => hasNumber(value) && Number(value) >= 0));
+  return [climate, envelope, rooms, climate && envelope && rooms];
 }
 
 /* save and open projects: in this browser, or as .json files to share */

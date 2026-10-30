@@ -23,7 +23,7 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
   const add = () => update(s => { const n = newRoom('Room ' + (s.rooms.length + 1), 'office', ezOf(s.project as AppState['project'])); s.rooms.push(n); s.sel = n.id; });
 
   return <section>
-    <SecHead n={4} title="Rooms" sub="Each load item has a source list. Changing a value by hand switches it to Custom." />
+    <SecHead n={3} title="Rooms" sub="Each load item has a source list. Changing a value by hand switches it to Custom." />
     <div className="workspace">
       <nav className="rlist" aria-label="Rooms">
         {state.rooms.map(x => {

@@ -13,7 +13,7 @@ export function PsychroSection({ d }: { d: Computed }) {
   const row = (r: StateRow) => <tr key={r.k}><td><span className="dot" style={{ background: COL[r.c] }} /><b>{r.k}</b> {r.name}</td><td>{r.db}</td><td>{r.wb}</td><td>{r.rh}</td><td>{r.w}</td><td>{r.h}</td><td>{r.dp}</td></tr>;
   const grp = (t: string) => <tr className="grp"><td colSpan={7}>{t}</td></tr>;
   return <section>
-    <SecHead n={2} title="Psychrometric chart" sub={`At ${fmt(d.e.P, 2)} kPa (${num(d.p.elev)} m). Room sensible heat ratio ${fmt(shr, 2)}.`} />
+    <SecHead title="Psychrometric chart" sub={`At ${fmt(d.e.P, 2)} kPa (${num(d.p.elev)} m). Room sensible heat ratio ${fmt(shr, 2)}.`} />
     <div className="psy-wrap">
       <div className="psy-box" dangerouslySetInnerHTML={{ __html: svg }} />
       <div>

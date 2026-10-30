@@ -28,10 +28,40 @@ beforeEach(async () => {
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
 
 describe('app', () => {
-  it('renders the example project', () => {
+  it('renders the example project', async () => {
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     expect($$('.ritem').map(e => e.querySelector('.nm')!.textContent)).toEqual(['Open office', 'Meeting room', 'Manager office ×2', 'Reception', 'Corridor']);
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     expect(plantTR()).toMatch(/^\d+\.\dTR$/);
     expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+
+  it('navigates through the calculator steps and counts valid defaults as complete', async () => {
+    expect($$('.workflow-step')).toHaveLength(4);
+    expect($('.workflow-step[data-step="0"]').getAttribute('aria-current')).toBe('step');
+    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['Complete', 'Complete', 'Complete', 'Complete']);
+    expect($('#p-codeset')).toBeNull();
+    expect($('.psy-wrap')).not.toBeNull();
+
+    await act(async () => $('.workflow-step[data-step="1"]').click());
+    expect($('#p-codeset')).not.toBeNull();
+    expect($('.psy-wrap')).toBeNull();
+    await act(async () => byText('button', 'Continue').click());
+    expect($('#r-area')).not.toBeNull();
+    await act(async () => byText('button', 'Continue').click());
+    expect($('.tot.key')).not.toBeNull();
+    await act(async () => byText('button', 'Previous').click());
+    expect($('#r-area')).not.toBeNull();
+  });
+
+  it('removes completion when a required design value is cleared without locking navigation', async () => {
+    await act(async () => setValue($('#p-toDB'), ''));
+    expect($('.workflow-step[data-step="0"] .workflow-status').textContent).toBe('In progress');
+    expect($('.workflow-step[data-step="0"]').classList.contains('is-complete')).toBe(false);
+    expect($('.workflow-step[data-step="3"] .workflow-status').textContent).toBe('Needs input');
+    await act(async () => byText('button', 'Continue').click());
+    expect($('.workflow-step[data-step="0"] .workflow-status').textContent).toBe('Needs input');
+    expect($('#p-codeset')).not.toBeNull();
   });
 
   it('shows abbreviations in a dropdown in the top bar', async () => {
@@ -54,20 +84,26 @@ describe('app', () => {
   });
 
   it('recalculates when a room changes, and undo restores it', async () => {
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     const before = plantTR();
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     await act(async () => setValue($('#r-area'), '240'));
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     expect(plantTR()).not.toBe(before);
     await act(async () => byText('button', '↶ Undo').click());
     expect(plantTR()).toBe(before);
   });
 
   it('applies the emirate code set', async () => {
+    await act(async () => $('.workflow-step[data-step="0"]').click());
     await act(async () => setValue($('#p-location'), 'abudhabi'));
+    await act(async () => $('.workflow-step[data-step="1"]').click());
     expect($<HTMLSelectElement>('#p-codeset').value).toBe('estidama');
     expect(host.textContent).toContain('Estidama and Barjeel publish no skylight SHGC');
   });
 
   it('adds a wall partition and uses its gain', async () => {
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     await act(async () => byText('button', '+ Add wall partition').click());
     const area = $$('input.expr').find(i => i.getAttribute('aria-label') === 'Area') as HTMLInputElement;
     await act(async () => setValue(area, '4*3'));

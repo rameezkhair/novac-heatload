@@ -91,6 +91,25 @@ body.app .in-u{border-radius:6px}
 body.app .ritem[aria-current="true"]{background:var(--accent-soft);box-shadow:none}
 body.app .rlist .add{border-radius:0 0 8px 8px}
 body.app input::placeholder{color:var(--muted)}
+.workflow{margin-top:18px}
+.workflow-stepper{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:hidden;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.workflow-step{display:flex;align-items:center;gap:10px;min-width:0;padding:12px 14px;border:0;border-right:1px solid var(--line);background:transparent;color:var(--fg);text-align:left}
+.workflow-step:last-child{border-right:0}
+.workflow-step:hover{background:var(--sel)}
+.workflow-step[aria-current="step"]{background:var(--sel);box-shadow:inset 0 -3px 0 var(--accent)}
+.workflow-marker{display:grid;place-items:center;flex:none;width:30px;height:30px;border:1px solid var(--line-strong);border-radius:50%;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.workflow-marker svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.workflow-step.is-complete .workflow-marker{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+.workflow-label{display:grid;gap:1px;min-width:0}
+.workflow-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:650}
+.workflow-status{font-size:11px;color:var(--muted)}
+.workflow-step.is-complete .workflow-status{color:var(--ok)}
+.workflow-caption{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px;margin:9px 2px 0;color:var(--muted);font-size:12px}
+.workflow-caption b{color:var(--fg);font-weight:600}
+.workflow-controls{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:24px;padding-top:14px;border-top:1px solid var(--line)}
+.workflow-controls>span{min-width:88px}
+.workflow-controls .btn.primary{background:#C9A24A;border-color:#C9A24A;color:#16130B;font-weight:600}
+.workflow-controls .btn.primary:hover{background:#D7B25C;border-color:#D7B25C}
 @media (max-width:1000px){
   .app-top{position:relative}
   .app-top .wrap{grid-template-columns:minmax(0,1fr)}
@@ -326,6 +345,12 @@ details .basis{margin-top:0}
   .psy-wrap{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:760px){
+  .workflow-stepper{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .workflow-step:nth-child(2){border-right:0}
+  .workflow-step:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .workflow-step{padding:10px}
+  .workflow-marker{width:28px;height:28px}
+  .workflow-title{font-size:12px}
   .workspace{grid-template-columns:minmax(0,1fr)}
   .totals{grid-template-columns:repeat(2,minmax(0,1fr))}
   .tot:nth-child(2){border-right:0}
