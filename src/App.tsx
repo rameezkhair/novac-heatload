@@ -73,8 +73,8 @@ export default function App() {
             <span>NOVAC</span>
           </a>
           <div className="app-heading">
-            <h1>Cooling load calculator</h1>
-            <p className="tag">Made in UAE · designed around local climate and codes</p>
+            <h1>Heat load calculator</h1>
+            <p className="tag">Calculates cooling demand · Made in UAE</p>
           </div>
         </div>
         <div className="actions app-actions">

@@ -1,6 +1,6 @@
-# NOVAC Simplified Thermal Load Calculator
+# NOVAC Heat Load Calculator
 
-A web app for peak cooling load calculations in the UAE, using the ASHRAE CLTD/CLF method. It checks the results against the Dubai Building Code (DBC), Al Sa'fat, Estidama, Barjeel and ASHRAE standards. It started as a single HTML file (kept in `tests/fixtures/original.html`).
+A web app for peak heat load calculations representing building cooling demand in the UAE, using the ASHRAE CLTD/CLF method. It checks the results against the Dubai Building Code (DBC), Al Sa'fat, Estidama, Barjeel and ASHRAE standards. It started as a single HTML file (kept in `tests/fixtures/original.html`).
 
 ## Run it
 
