@@ -6,10 +6,10 @@ import { ezOf, resolveProject, resolveRoom, setLocation, subOf } from '../engine
 import type { Mark, Num, Project } from '../engine/types';
 import { fmt, fmtIn, num } from '../engine/util';
 import type { Store } from '../state/store';
-import { CheckTable, CountPill, Field, SecHead, SelectField, useToast } from './ui';
+import { CheckTable, CountPill, Field, SecHead, SelectField, useCompliance, useToast } from './ui';
 
 export function ProjectSection({ store, d, marks }: { store: Store; d: Computed; marks: Record<string, Mark> }) {
-  const { update } = store, p = d.p, e = d.e, toast = useToast();
+  const { update } = store, p = d.p, e = d.e, toast = useToast(), showC = useCompliance();
   const setP = (k: keyof Project, v: unknown, after?: (p: Project) => void) => update(s => {
     (s.project as Record<string, unknown>)[k] = v; after?.(s.project as Project);
   }, 'p.' + k);
@@ -67,14 +67,14 @@ export function ProjectSection({ store, d, marks }: { store: Store; d: Computed;
     {pl.length > 0 && <div className={'remark' + (plBad ? '' : ' warn')} role="alert">
       <b>{plBad ? '✗ Remark: abnormal outdoor design condition' : '! Remark: unusual outdoor design condition'}</b>
       <ul>{pl.map((x, i) => <li key={i}>{x[2]}</li>)}</ul></div>}
-    <div className="chk2">
+    {showC && <div className="chk2">
       <div className="checks"><h3><span>Outdoor design basis checks</span><CountPill {...cnt(oRows)} /></h3>
         <p className="chk-sum">Design {fmt(e.To, 1)} °C DB / {fmt(wbOf(e.To, e.Wo, e.P), 1)} °C WB · W {fmt(e.Wo * 1000, 1)} g/kg · h {fmt(hOf(e.To, e.Wo), 1)} kJ/kg</p>
         <div className="tbl-wrap" style={{ border: 0 }}><CheckTable rows={oRows} /></div></div>
       <div className="checks"><h3><span>Indoor design basis checks</span><CountPill {...cnt(ic.rows)} /></h3>
         <p className="chk-sum">PMV {ic.pmv >= 0 ? '+' : ''}{fmt(ic.pmv, 2)} · PPD {fmt(ic.ppd, 0)}% · dew point {fmt(ic.dp, 1)} °C</p>
         <div className="tbl-wrap" style={{ border: 0 }}><CheckTable rows={ic.rows} /></div></div>
-    </div>
+    </div>}
     <div className="derived">
       <span>Outdoor W <b>{fmt(e.Wo * 1000, 1)}</b> g/kg</span><span>Fresh-air W <b>{fmt(e.Wv * 1000, 1)}</b> g/kg</span><span>Indoor W <b>{fmt(e.Wi * 1000, 1)}</b> g/kg</span>
       <span>CLTD correction <b>{e.corr >= 0 ? '+' : ''}{fmt(e.corr, 1)}</b> K</span><span>Pressure <b>{fmt(e.P, 1)}</b> kPa</span>

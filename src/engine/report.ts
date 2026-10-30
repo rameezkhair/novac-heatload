@@ -89,13 +89,15 @@ function surfaceRows(p: Project, d: Computed, r: Room) {
   return rows;
 }
 
-export function reportBody(s: AppState, today = new Date()) {
+/* compliance: include the compliance checks, Check columns and design basis checks */
+export function reportBody(s: AppState, compliance = false, today = new Date()) {
+  const c_ = compliance, tblC = (head: Head, rows: (string | number)[][]) => c_ ? tbl(head, rows) : tbl(head.slice(0, -1), rows.map(r => r.slice(0, -1)));
   const { project: p, rooms } = s, d = computeAll(p, rooms), { e, res, T } = d, ez = ezOf(p);
   const { marks: pc, limits: L } = projectChecks(p, T, rooms);
   const allC = allChecks(d, pc, L), checks = allC.filter(applicable), genC = allC.filter(c => c[3]);
   const date = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const loc = LOC[p.location] || { label: '' }, sub = subOf(p);
-  let h = `<h1>Heat Load Calculation Report</h1><p class="rsub">NOVAC Simplified Thermal Load Calculator · ${esc(p.name || 'Untitled project')} · ${esc(loc.label)} · ${date}</p><p class="small">Developed on ASHRAE's CLTD/CLF method, with checks against DBC, Al Sa'fat, Estidama and ASHRAE standards</p>`;
+  let h = `<h1>Heat Load Calculation Report</h1><p class="rsub">NOVAC Simplified Thermal Load Calculator · ${esc(p.name || 'Untitled project')} · ${esc(loc.label)} · ${date}</p><p class="small">Developed on ASHRAE's CLTD/CLF method${c_ ? ", with checks against DBC, Al Sa'fat, Estidama and ASHRAE standards" : ''}</p>`;
   const half = Math.ceil(ABBR.length / 2), ab: string[][] = [];
   for (let i = 0; i < half; i++) { const a = ABBR[i], b = ABBR[i + half] || ['', '']; ab.push([`<b>${esc(a[0])}</b>`, esc(a[1]), `<b>${esc(b[0])}</b>`, esc(b[1])]); }
   h += `<h2>Abbreviations and symbols</h2>` + tbl([['Term'], ['Meaning'], ['Term'], ['Meaning']], ab);
@@ -105,25 +107,25 @@ export function reportBody(s: AppState, today = new Date()) {
     ['Rooms', `${rooms.length} room types, ${T.q} rooms in total`], ['Conditioned floor area', `${fmt(T.a, 1)} m²`]]);
   h += `<div class="kpis"><div class="kpi"><div class="k">Room units</div><div class="v">${fmt(T.u / 3517, 1)} TR</div><div class="s">${fmt(T.u / 1000, 1)} kW</div></div><div class="kpi"><div class="k">Fresh air (FAHU)</div><div class="v">${p.fahu ? fmt(T.fahuW / 3517, 1) + ' TR' : 'In units'}</div><div class="s">${fmt(T.oaq, 0)} L/s</div></div><div class="kpi"><div class="k">Plant load</div><div class="v">${fmt(T.plant / 3517, 1)} TR</div><div class="s">${fmt(T.plant / 1000, 1)} kW at ${fmt(num(p.diversity), 0)}% diversity</div></div><div class="kpi"><div class="k">Overall density</div><div class="v">${T.plant ? fmt(T.a / (T.plant / 3517), 1) : '–'} m²/TR</div><div class="s">${fmt(T.a ? T.plant / T.a : 0, 0)} W/m²</div></div></div>`;
   const nBad = checks.filter(c => c[0] === 'bad').length;
-  h += `<p>${nBad ? `<span class="ck bad">✗</span> ${nBad} compliance item${nBad > 1 ? 's' : ''} failing. See section 6.` : '<span class="ck ok">✓</span> All checked design inputs comply with the selected standards. See section 6.'}</p>`;
+  if (c_) h += `<p>${nBad ? `<span class="ck bad">✗</span> ${nBad} compliance item${nBad > 1 ? 's' : ''} failing. See section 6.` : '<span class="ck ok">✓</span> All checked design inputs comply with the selected standards. See section 6.'}</p>`;
   const outMark: Mark = pc.toDB && pc.toWB ? (pc.toDB[0] !== 'ok' ? pc.toDB : pc.toWB) : null;
-  h += `<h2>2. Design conditions and psychrometrics</h2>` + tbl([['Parameter'], ['Value'], ['Source'], ['Check']], [
+  h += `<h2>2. Design conditions and psychrometrics</h2>` + tblC([['Parameter'], ['Value'], ['Source'], ['Check']], [
     ['Outdoor design, envelope', `${fmt(e.To, 1)} °C DB / ${num(p.toWB)} °C WB${e.lapse > 0 ? ` (code ${num(p.toDB)} °C, elevation-adjusted)` : ''}`, esc(outSrcLabel(p)), ck(outMark)],
     ['Outdoor air (FAHU) design', `${fmt(e.Tv, 1)} °C DB / ${num(p.vWB)} °C WB${e.lapse > 0 ? ` (code ${num(p.vDB)} °C, elevation-adjusted)` : ''}`, esc(ventSrcLabel(p)), ck(pc.vWB)],
     ['Sub-location, elevation, daily range', `${esc(sub ? sub.label : 'Custom')}: ${num(p.elev)} m (${fmt(e.P, 2)} kPa), ${num(p.dr)} K`, esc(sub ? sub.src : 'Custom values'), ck(null)],
     ['Indoor design', `${num(p.tiDB)} °C / ${num(p.tiRH)}% RH`, esc(p.src.indoor === 'custom' ? 'Custom value' : (INDOOR.find(i => i.id === p.src.indoor) || INDOOR[0]).src), ck(pc.tiDB && pc.tiDB[0] === 'ok' ? pc.tiRH : pc.tiDB)],
     ['Humidity ratio: outdoor / fresh air / indoor', `${fmt(e.Wo * 1000, 2)} / ${fmt(e.Wv * 1000, 2)} / ${fmt(e.Wi * 1000, 2)} g/kg`, 'Calculated', ck(null)],
     ['CLTD correction', `${e.corr >= 0 ? '+' : ''}${fmt(e.corr, 1)} K`, '(25.5 − Ti) + (To − DR/2 − 29.4)', ck(null)]]);
-  h += `<h3>Outdoor design basis checks</h3>` + tbl([['Standard / clause'], ['Requirement'], ['Design value'], ['Status']], outdoorChecks(p, e).map(r => [esc(r[0]), esc(r[1]), esc(r[2]), st(r[3][0], r[3][1])]));
+  if (c_) h += `<h3>Outdoor design basis checks</h3>` + tbl([['Standard / clause'], ['Requirement'], ['Design value'], ['Status']], outdoorChecks(p, e).map(r => [esc(r[0]), esc(r[1]), esc(r[2]), st(r[3][0], r[3][1])]));
   const dd = designDay(p, e);
   h += `<h3>Outdoor design day temperature profile</h3><p class="small">Design dry bulb ${fmt(e.To, 1)} °C, daily range ${fmt(num(p.dr), 1)} K (DBC Table H.1 typical ${DBC_DR} K), hourly fractions per ASHRAE Fundamentals Ch. 14.</p><div class="chart">${dayChartSVG(p, e, true)}</div>`;
   h += tbl([['Hour'], ['DB °C', true], ['WB °C', true], ['RH %', true], ['Hour'], ['DB °C', true], ['WB °C', true], ['RH %', true]], dd.slice(0, 12).map((x, i) => { const y = dd[i + 12]; return [String(x.h).padStart(2, '0') + ':00', fmt(x.db, 1), fmt(x.wb, 1), fmt(x.rh, 0), String(y.h).padStart(2, '0') + ':00', fmt(y.db, 1), fmt(y.wb, 1), fmt(y.rh, 0)]; }));
-  h += `<h3>Indoor design basis checks</h3>` + tbl([['Standard / clause'], ['Requirement'], ['Design value'], ['Status']], indoorChecks(p, e, rooms).rows.map(r => [esc(r[0]), esc(r[1]), esc(r[2]), st(r[3][0], r[3][1])]));
+  if (c_) h += `<h3>Indoor design basis checks</h3>` + tbl([['Standard / clause'], ['Requirement'], ['Design value'], ['Status']], indoorChecks(p, e, rooms).rows.map(r => [esc(r[0]), esc(r[1]), esc(r[2]), st(r[3][0], r[3][1])]));
   h += `<div class="chart">${psychroSVG(d, true, 'all')}</div>`;
   h += tbl([['Point'], ['DB °C', true], ['WB °C', true], ['RH %', true], ['W g/kg', true], ['h kJ/kg', true], ['DP °C', true]], stateRows(d).map(r => [`<b>${r.k}</b> ${esc(r.name)}`, r.db, r.wb, r.rh, r.w, r.h, r.dp]));
   if (stateTable(d).supersat) h += `<p><span class="ck bad">✗</span> The supply point is above saturation at ${num(p.tSupply)} °C: room latent load needs a lower supply temperature, more airflow or latent treatment in the FAHU.</p>`;
-  h += `<h2>3. Envelope and system inputs</h2><p class="small">Compliance checked against ${esc(L.name)}${L.band ? ' (' + esc(L.band) + ', project glazing ratio ' + fmt(T.wwr, 0) + '%)' : ''}.</p>`;
-  h += tbl([['Input'], ['Value', true], ['Source'], ['Check']], [
+  h += `<h2>3. Envelope and system inputs</h2>${c_ ? `<p class="small">Compliance checked against ${esc(L.name)}${L.band ? ' (' + esc(L.band) + ', project glazing ratio ' + fmt(T.wwr, 0) + '%)' : ''}.</p>` : ''}`;
+  h += tblC([['Input'], ['Value', true], ['Source'], ['Check']], [
     ...PPICKS.map(k => [PMETA[k][0], `${num(p[k])} ${PMETA[k][1]}`, esc(srcLabel(p, k)), ck(pc[k] ?? null)]),
     ['Glass conduction CLTD', `${num(p.cltd.G)} K`, 'ASHRAE Fundamentals CLTD/CLF', ck(null)],
     ['Wall partition U-value', `${num(p.uPart)} W/m²K`, 'Project value', ck(null)], ['Ceiling partition U-value', `${num(p.uCeil)} W/m²K`, 'Project value', ck(null)], ['Floor partition / exposed floor U-value', `${num(p.uFloor)} W/m²K`, 'Project value', ck(null)],
@@ -142,7 +144,7 @@ export function reportBody(s: AppState, today = new Date()) {
   rooms.forEach((r, i) => {
     const c = res[r.id], t = typeOf(r.type), ch = roomChecks(r, c, ez);
     h += `<div class="room"><h3>4.${i + 1} ${esc(r.name || 'Untitled')}${c.qty > 1 ? ` (× ${c.qty} identical rooms)` : ''}</h3>`;
-    h += tbl([['Input'], ['Value', true], ['Source'], ['Check']], [
+    h += tblC([['Input'], ['Value', true], ['Source'], ['Check']], [
       ['Room type', esc(t.label), '', ck(null)], ['Floor area / ceiling height', `${fmt(c.A, 1)} m² / ${num(r.height)} m`, 'Project value', ck(null)],
       ['People', fmt(c.n, 0), esc(roomSrcText(r, 'people', ez)), ck(ch.people)],
       ['Heat gain per person', `${num(r.ps)} W sens. / ${num(r.pl)} W lat.`, esc(r.src.act === 'custom' ? 'Custom value' : 'ASHRAE Fundamentals: ' + (ACT_BY[r.src.act]?.label || '')), ck(null)],
@@ -168,16 +170,16 @@ export function reportBody(s: AppState, today = new Date()) {
     ['Total (× qty)', T.q, fmt(T.a, 1), fmt(T.n, 0), fmt(T.s / 1000, 2), fmt(T.l / 1000, 2), fmt(T.oa / 1000, 2), fmt(T.u / 1000, 2), fmt(T.u / 3517, 2), fmt(T.sa, 0), fmt(T.oaq, 0)]);
   h += tbl([['Plant summary'], ['kW', true], ['TR', true]], [['Room units', fmt(T.u / 1000, 1), fmt(T.u / 3517, 1)], ['Fresh air (FAHU)' + (T.rec ? ', net of energy recovery' : ''), fmt(T.fahuW / 1000, 1), fmt(T.fahuW / 3517, 1)], ...(T.rec ? [['Energy recovered', fmt(T.rec / 1000, 1), fmt(T.rec / 3517, 1)]] : []), [`Plant load at ${fmt(num(p.diversity), 0)}% diversity`, `<b>${fmt(T.plant / 1000, 1)}</b>`, `<b>${fmt(T.plant / 3517, 1)}</b>`]]);
   const icon = (s: Check[0]) => s === 'ok' ? '✓' : s === 'bad' ? '✗' : '!';
-  h += `<h2>6. Compliance checks</h2><p class="small">Checks shown where the calculation applies or the feature is turned on.</p>` + tbl([['Result'], ['Criterion'], ['Detail']], checks.map(([s, c, t]) => [`<span class="ck ${s === 'req' ? 'warn' : s}">${icon(s)}</span> ${PILL[s]}`, esc(c), esc(t)]));
-  h += `<h3>General DBC design requirements</h3>` + tbl([['Clause'], ['Requirement']], genC.map(([, c, t]) => [esc(c), esc(t)]));
-  h += `<h2>7. Method and formulas</h2><ul>${METHOD_ITEMS.map(m => `<li>${m.replace(/<code>/g, '<b>').replace(/<\/code>/g, '</b>')}</li>`).join('')}</ul>`;
-  h += `<h2>8. References and limitations</h2><ul><li>Dubai Building Code 2021: Part B Table B.2 (occupant loads); Part H Indoor Environment, Tables H.1–H.4, H.4.6.2–H.4.6.7, H.4.7, H.4.8.1–H.4.8.4, H.4.9.1, H.4.10.2–H.4.10.4, H.4.12.1, H.4.12.2, H.4.12.6, H.4.12.15.3, H.4.14.2, H.5.2.4; ASHRAE 169:2013 Table A-6 (climate zone 0B).</li><li>${SAFAT} Dubai Green Building Evaluation System: 401.01, 402.01, 501.01, 501.03, 501.05.</li><li>ASHRAE 62.1-2022 Tables 6-1 and 6-4; ASHRAE 90.1-2022 Table 5.5-0 and space-by-space lighting allowances; ASHRAE Handbook Fundamentals (CLTD/CLF method, people heat gain).</li><li>DoE Abu Dhabi Cooling Load Manual for Abu Dhabi and Al Ain conditions. Estidama and Barjeel envelope values from a 2020 comparative study; confirm against current editions.</li><li>This is a simplified peak-load method for concept design and checking. DBC H.4.6.5 requires final calculations in software registered with the Authority.</li></ul>`;
+  if (c_) h += `<h2>6. Compliance checks</h2><p class="small">Checks shown where the calculation applies or the feature is turned on.</p>` + tbl([['Result'], ['Criterion'], ['Detail']], checks.map(([s, c, t]) => [`<span class="ck ${s === 'req' ? 'warn' : s}">${icon(s)}</span> ${PILL[s]}`, esc(c), esc(t)]));
+  if (c_) h += `<h3>General DBC design requirements</h3>` + tbl([['Clause'], ['Requirement']], genC.map(([, c, t]) => [esc(c), esc(t)]));
+  h += `<h2>${c_ ? 7 : 6}. Method and formulas</h2><ul>${METHOD_ITEMS.map(m => `<li>${m.replace(/<code>/g, '<b>').replace(/<\/code>/g, '</b>')}</li>`).join('')}</ul>`;
+  h += `<h2>${c_ ? 8 : 7}. References and limitations</h2><ul><li>Dubai Building Code 2021: Part B Table B.2 (occupant loads); Part H Indoor Environment, Tables H.1–H.4, H.4.6.2–H.4.6.7, H.4.7, H.4.8.1–H.4.8.4, H.4.9.1, H.4.10.2–H.4.10.4, H.4.12.1, H.4.12.2, H.4.12.6, H.4.12.15.3, H.4.14.2, H.5.2.4; ASHRAE 169:2013 Table A-6 (climate zone 0B).</li><li>${SAFAT} Dubai Green Building Evaluation System: 401.01, 402.01, 501.01, 501.03, 501.05.</li><li>ASHRAE 62.1-2022 Tables 6-1 and 6-4; ASHRAE 90.1-2022 Table 5.5-0 and space-by-space lighting allowances; ASHRAE Handbook Fundamentals (CLTD/CLF method, people heat gain).</li><li>DoE Abu Dhabi Cooling Load Manual for Abu Dhabi and Al Ain conditions. Estidama and Barjeel envelope values from a 2020 comparative study; confirm against current editions.</li><li>This is a simplified peak-load method for concept design and checking. DBC H.4.6.5 requires final calculations in software registered with the Authority.</li></ul>`;
   h += `<div class="sign"><div>Prepared by</div><div>Reviewed by</div><div>Date</div></div>`;
   return h;
 }
 
-export function reportDoc(s: AppState, css: string) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heat Load Report - ${esc(s.project.name || 'Project')}</title><style>@page{size:letter;margin:.5in}body{margin:0;background:#fff}${css}@media print{.rpt{padding:0}.rpt .room,.rpt table,.rpt .chart{break-inside:avoid}.rpt h2,.rpt h3{break-after:avoid}}</style></head><body><div class="rpt">${reportBody(s)}</div></body></html>`;
+export function reportDoc(s: AppState, css: string, compliance = false) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heat Load Report - ${esc(s.project.name || 'Project')}</title><style>@page{size:letter;margin:.5in}body{margin:0;background:#fff}${css}@media print{.rpt{padding:0}.rpt .room,.rpt table,.rpt .chart{break-inside:avoid}.rpt h2,.rpt h3{break-after:avoid}}</style></head><body><div class="rpt">${reportBody(s, compliance)}</div></body></html>`;
 }
 
 const SCHED_HEAD = ['Room', 'Type', 'Qty', 'Area m2', 'People', 'Room sensible kW', 'Room latent kW', 'Fresh air kW', 'Unit load kW', 'Unit TR', 'W/m2', 'Supply air L/s', 'Fresh air L/s'];
@@ -192,12 +194,12 @@ export function scheduleCSV(s: AppState) {
   const q = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`;
   return [SCHED_HEAD, ...scheduleRows(s)].map(r => r.map(q).join(',')).join('\r\n');
 }
-/* tab-separated block for pasting into Excel: basis, checks and schedule */
-export function scheduleTSV(s: AppState) {
+/* tab-separated block for pasting into Excel: schedule, with basis and checks when compliance is shown */
+export function scheduleTSV(s: AppState, compliance = false) {
   const d = computeAll(s.project, s.rooms), { marks, limits } = projectChecks(s.project, d.T, s.rooms);
   const checks = allChecks(d, marks, limits).filter(applicable);
   const lines: (string | number)[][] = [['NOVAC Simplified Thermal Load Calculator: load schedule'], [`Project: ${s.project.name || '-'}`], [],
-    ['Design basis', 'Value', 'Source'], ...basisRows(s.project, d), [], ['Compliance check', 'Criterion', 'Detail'], ...checks.map(([st, c, t]) => [PILL[st], c, t]), [], SCHED_HEAD, ...scheduleRows(s)];
+    ...(compliance ? [['Design basis', 'Value', 'Source'], ...basisRows(s.project, d), [], ['Compliance check', 'Criterion', 'Detail'], ...checks.map(([st, c, t]) => [PILL[st], c, t]), []] : []), SCHED_HEAD, ...scheduleRows(s)];
   return lines.map(l => l.join('\t')).join('\n');
 }
 export const fileBase = (name: string) => 'NOVAC_' + ((name || 'project').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'project') + '_' + new Date().toISOString().slice(0, 10);

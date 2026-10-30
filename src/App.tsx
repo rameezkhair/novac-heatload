@@ -11,11 +11,15 @@ import { PsychroSection } from './components/PsychroSection';
 import { ReportView } from './components/ReportView';
 import { RoomsSection } from './components/RoomsSection';
 import { ScheduleSection } from './components/ScheduleSection';
-import { ArmButton, useToast } from './components/ui';
+import { ArmButton, ComplianceProvider, useToast } from './components/ui';
+
+const SHOW_KEY = 'novac-show-compliance';
 
 export default function App() {
   const store = useStore(), { state, undo, redo } = store, toast = useToast();
   const [report, setReport] = useState(() => location.hash === '#report');
+  const [showC, setShowC] = useState(() => { try { return localStorage.getItem(SHOW_KEY) === '1'; } catch { return false; } });
+  const toggleC = () => { const v = !showC; setShowC(v); try { localStorage.setItem(SHOW_KEY, v ? '1' : '0'); } catch { /* not saved */ } };
   const d = useMemo(() => computeAll(state.project, state.rooms), [state]);
   const { marks, limits } = useMemo(() => projectChecks(d.p, d.T, d.rooms), [d]);
   const checks = useMemo(() => allChecks(d, marks, limits).filter(applicable), [d, marks, limits]);
@@ -38,7 +42,7 @@ export default function App() {
     addEventListener('keydown', onKey); return () => removeEventListener('keydown', onKey);
   }, [undo, redo, report]);
 
-  return <>
+  return <ComplianceProvider value={showC}>
     <header className="top">
       <div className="wrap">
         <div>
@@ -51,9 +55,10 @@ export default function App() {
             <button className="btn" type="button" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" disabled={!store.canRedo} onClick={redo}>↷ Redo</button>
           </span>
           <ProjectsMenu store={store} />
+          <button className="btn" type="button" aria-pressed={showC} title="Show or hide compliance checks and design basis, on screen and in the report" onClick={toggleC}>{showC ? 'Hide compliance' : 'Show compliance'}</button>
           <button className="btn" type="button" onClick={() => { store.replace(exampleState()); toast('Example loaded'); }}>Load example</button>
           <ArmButton className="btn danger" label="New project" armedLabel="Click again to clear all" onConfirm={() => { store.replace(newProjectState()); toast('New project started'); }} />
-          <button className="btn" type="button" onClick={() => copyText(scheduleTSV(state)).then(toast)}>Copy schedule for Excel</button>
+          <button className="btn" type="button" onClick={() => copyText(scheduleTSV(state, showC)).then(toast)}>Copy schedule for Excel</button>
           <button className="btn primary" type="button" onClick={() => showReport(true)}>Generate report</button>
         </div>
       </div>
@@ -69,7 +74,7 @@ export default function App() {
         <RoomsSection store={store} d={d} />
         <ScheduleSection d={d} checks={checks} />
       </main>}
-  </>;
+  </ComplianceProvider>;
 }
 
 /* save and open projects: in this browser, or as .json files to share */

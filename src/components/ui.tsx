@@ -14,8 +14,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 /* ---------- marks ---------- */
 const MARK_TEXT = { ok: 'Complies', warn: 'Check', bad: 'Fails' } as const;
+/* whether compliance badges, checks and design basis are shown */
+const ComplianceCtx = createContext(false);
+export const ComplianceProvider = ComplianceCtx.Provider;
+export const useCompliance = () => useContext(ComplianceCtx);
 export function Badge({ m }: { m: Mark | undefined }) {
-  if (!m) return null;
+  if (!useCompliance() || !m) return null;
   return <span className={'cmark ' + m[0]} title={m[1]} aria-label={m[1]}>{MK[m[0]]} {MARK_TEXT[m[0]]}</span>;
 }
 export function Pill({ s, children }: { s: string; children: ReactNode }) { return <span className={'pill ' + s}>{children}</span>; }

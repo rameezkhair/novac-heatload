@@ -4,15 +4,15 @@ import { PILL, type Check } from '../engine/checks';
 import { ROOMOPTS } from '../engine/project';
 import { DBC_CLAUSES, METHOD_ITEMS, basisRows } from '../engine/report';
 import { fmt, num } from '../engine/util';
-import { SecHead } from './ui';
+import { SecHead, useCompliance } from './ui';
 
 export function ScheduleSection({ d, checks }: { d: Computed; checks: Check[] }) {
-  const { p, res, T, rooms } = d;
+  const { p, res, T, rooms } = d, showC = useCompliance();
   const nBad = checks.filter(c => c[0] === 'bad').length, nOk = checks.filter(c => c[0] === 'ok').length;
   const scope = p.location === 'dubai' || p.location === 'custom' ? '' : ' DBC applies to Dubai; shown for reference.';
   const fa = p.fahu ? T.fahuW : T.oa;
   return <section>
-    <SecHead n={5} title="Load schedule & compliance" sub={(p.name ? p.name + ' · ' : '') + (LOC[p.location]?.label || '')} />
+    <SecHead n={5} title={showC ? 'Load schedule & compliance' : 'Load schedule'} sub={(p.name ? p.name + ' · ' : '') + (LOC[p.location]?.label || '')} />
     <div className="totals">
       <div className="tot"><div className="k">Room load (excl. fresh air)</div><div className="v">{fmt((T.s + T.l) / 3517, 1)}<small>TR</small></div><div className="s">{fmt((T.s + T.l) / 1000, 1)} kW{p.fahu ? '' : ' · room units ' + fmt(T.u / 3517, 1) + ' TR incl. fresh air'}</div></div>
       <div className="tot"><div className="k">Fresh air cooling load{p.fahu && T.rec ? ' (net of recovery)' : ''}</div><div className="v">{fmt(fa / 3517, 1)}<small>TR</small></div><div className="s">{fmt(fa / 1000, 1)} kW · {fmt(T.oaq, 0)} L/s · {p.fahu ? 'FAHU' : 'in room units'}{T.rec ? ' · ' + fmt(T.rec / 1000, 1) + ' kW recovered' : ''}</div></div>
@@ -25,7 +25,7 @@ export function ScheduleSection({ d, checks }: { d: Computed; checks: Check[] })
         : <tr><td colSpan={12} className="muted">No rooms yet.</td></tr>}</tbody>
       <tfoot><tr><td>Total (× qty)</td><td>{T.q}</td><td>{fmt(T.a, 1)}</td><td>{fmt(T.n, 0)}</td><td>{fmt(T.s / 1000, 2)}</td><td>{fmt(T.l / 1000, 2)}</td><td>{fmt(T.oa / 1000, 2)}</td><td>{fmt(T.u / 1000, 2)}</td><td>{fmt(T.u / 3517, 2)}</td><td>{fmt(T.a ? T.u / T.a : 0, 0)}</td><td>{fmt(T.sa, 0)}</td><td>{fmt(T.oaq, 0)}</td></tr></tfoot>
     </table></div>
-    <details><summary>Compliance checks: {nOk} complying · {nBad} failing</summary>
+    {showC && <><details><summary>Compliance checks: {nOk} complying · {nBad} failing</summary>
       <div className="chk-body">{scope && <p className="chk-sum">{scope.trim()}</p>}
         {checks.map(([s, c, t], i) => <div className="chk" key={i}><span className={'pill ' + s}>{s === 'ok' ? '✓ ' : s === 'bad' ? '✗ ' : ''}{PILL[s]}</span><span className="cl">{c}</span><span className="tx">{t}</span></div>)}
       </div></details>
@@ -33,7 +33,7 @@ export function ScheduleSection({ d, checks }: { d: Computed; checks: Check[] })
       <div className="body"><div className="tbl-wrap basis"><table>
         <thead><tr><th>Design basis</th><th>Value</th><th>Source</th></tr></thead>
         <tbody>{basisRows(p, d).map(([a, b, c]) => <tr key={a}><td>{a}</td><td>{b}</td><td>{c}</td></tr>)}</tbody>
-      </table></div></div></details>
+      </table></div></div></details></>}
     <details><summary>Method and formulas</summary>
       <div className="body method"><ul>{METHOD_ITEMS.map((m, i) => <li key={i} dangerouslySetInnerHTML={{ __html: m }} />)}</ul></div></details>
     <details><summary>Standards library: every selectable value and its source</summary>

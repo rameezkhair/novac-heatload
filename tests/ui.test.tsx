@@ -65,6 +65,18 @@ describe('app', () => {
     expect($('#calc')).not.toBeNull();
   });
 
+  it('hides compliance and design basis until switched on', async () => {
+    expect(host.textContent).not.toMatch(/Compliance checks|Design basis|Complies|Fails/);
+    await act(async () => byText('button', 'Generate report').click());
+    expect($('.rpt').textContent).not.toMatch(/Compliance checks|design basis checks|Check/);
+    await act(async () => byText('button', 'Back to calculator').click());
+    await act(async () => byText('button', 'Show compliance').click());
+    expect(host.textContent).toContain('Outdoor design basis checks');
+    expect(host.textContent).toMatch(/Compliance checks: \d+ complying/);
+    await act(async () => byText('button', 'Generate report').click());
+    expect($('.rpt').textContent).toContain('6. Compliance checks');
+  });
+
   it('saves and reopens a project in the browser', async () => {
     await act(async () => setValue($('#p-name'), 'Villa A'));
     await act(async () => byText('button', 'Projects ▾').click());
