@@ -99,7 +99,6 @@ export default function App() {
     </header>
     {report ? <ReportView state={state} onBack={() => showReport(false)} /> :
       <main className="wrap" id="calc">
-        {state.example && <div className="notice">Example data loaded: a small Dubai office. Replace the rooms and envelope values with your project's figures, or start a new project.</div>}
         <nav className="workflow" aria-label="Calculator steps">
           <div className="workflow-stepper" id="workflow-stepper">
             {steps.map((step, index) => {
