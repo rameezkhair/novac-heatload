@@ -24,6 +24,22 @@ img{max-width:100%}
   --accent:#C9A24A; --accent-soft:rgba(201,162,74,.12); --bar:#C9CED6; --bar-2:#5F6773; --lat:#6FA8DC; --sel:#232931; --warn:#F2A57E;
   --ok:#8FD19E; --ok-bg:#1C2F22; --req:#F0C66B; --req-bg:#33290F; --bad:#F59B8F; --bad-bg:#3A1C19; color-scheme:dark;
 }
+body.app{
+  --bg:#F7F5EF; --surface:#FFFFFF; --field:#FFFFFF; --fg:#1F2937; --muted:#5B6472;
+  --line:#E1E3E7; --line-strong:#C5C9D0; --band:#0F1216; --band-fg:#E6E8EB;
+  --accent:#C9A24A; --accent-soft:rgba(201,162,74,.12); --sel:#F2EFE8;
+  --font:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){body.app{
+  --bg:#111418; --surface:#181C21; --field:#1F242B; --fg:#E6E8EB; --muted:#9AA3AF;
+  --line:#2C323A; --line-strong:#3E454F; --band:#0F1216; --band-fg:#E6E8EB;
+  --accent:#C9A24A; --accent-soft:rgba(201,162,74,.12); --sel:#232931; color-scheme:dark;
+}}
+:root[data-theme="dark"] body.app{
+  --bg:#111418; --surface:#181C21; --field:#1F242B; --fg:#E6E8EB; --muted:#9AA3AF;
+  --line:#2C323A; --line-strong:#3E454F; --band:#0F1216; --band-fg:#E6E8EB;
+  --accent:#C9A24A; --accent-soft:rgba(201,162,74,.12); --sel:#232931; color-scheme:dark;
+}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.5}
 .wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -40,6 +56,37 @@ button{font:inherit;cursor:pointer}
 .btn.primary{background:var(--band);border-color:var(--band);color:var(--band-fg)}
 .btn.danger[data-armed="1"]{border-color:#B42318;color:#B42318}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app-top{position:sticky;top:0;z-index:20;background:rgba(15,18,22,.96)!important;color:#E6E8EB;border-bottom:1px solid rgba(255,255,255,.1)!important}
+.app-top .wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding-block:10px}
+.app-identity{display:flex;align-items:center;gap:14px;min-width:0}
+.app-brand{display:flex;align-items:center;gap:8px;color:#E6E8EB;text-decoration:none;font-weight:700;letter-spacing:.02em;flex:none}
+.app-brand .logo{display:grid;place-items:center;width:30px;height:30px;border-radius:6px;background:#C9A24A;color:#16130B;font-size:15px;font-weight:800}
+.app-heading{min-width:0}
+.app-heading h1{font-size:16px;line-height:1.3}
+.app-heading .tag{font-size:12px;margin:2px 0 0;color:#9AA3AF}
+.app-actions{align-items:center;justify-content:flex-end;gap:6px}
+.app-actions .btn{padding:7px 10px;border-radius:6px;background:transparent;border-color:rgba(230,232,235,.24);color:#E6E8EB;font-size:12.5px;white-space:nowrap}
+.app-actions .btn:hover{border-color:rgba(230,232,235,.6);background:rgba(255,255,255,.06)}
+.app-actions .btn.primary{background:#C9A24A;border-color:#C9A24A;color:#16130B;font-weight:600}
+.app-actions .btn.primary:hover{background:#D7B25C;border-color:#D7B25C}
+body.app main{padding-block:16px 64px}
+body.app section{margin-top:32px}
+body.app .sec-head{border-color:var(--line);padding-bottom:10px;margin-bottom:16px}
+body.app .sec-head .n{color:#8A6819}
+body.app .notice{border-color:rgba(201,162,74,.35);border-radius:8px}
+body.app fieldset,body.app details,body.app .rlist,body.app .editor,body.app .result,
+body.app .checks,body.app .psy-box,body.app .tbl-wrap,body.app .codebar{border-radius:8px}
+body.app fieldset{border-color:var(--line);padding:16px}
+body.app .btn{border-radius:6px}
+body.app .in-u{border-radius:6px}
+body.app .ritem[aria-current="true"]{background:var(--accent-soft);box-shadow:none}
+body.app .rlist .add{border-radius:0 0 8px 8px}
+body.app input::placeholder{color:var(--muted)}
+@media (max-width:1000px){
+  .app-top{position:relative}
+  .app-top .wrap{grid-template-columns:minmax(0,1fr)}
+  .app-actions{justify-content:flex-start}
+}
 .notice{margin-top:18px;padding:10px 14px;border:1px solid var(--line);background:var(--accent-soft);font-size:13px}
 main{padding-block:8px 64px}
 section{margin-top:34px}
