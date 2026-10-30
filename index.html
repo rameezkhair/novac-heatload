@@ -3,10 +3,100 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>NOVAC Simplified Thermal Load Calculator</title>
+    <title>NOVAC Thermal Load Calculator</title>
+    <meta name="description" content="Peak cooling load calculations for UAE buildings using the ASHRAE CLTD/CLF method, checked against the Dubai Building Code, Al Sa'fat, Estidama, Barjeel and ASHRAE standards." />
+    <meta property="og:title" content="NOVAC Thermal Load Calculator" />
+    <meta property="og:description" content="Room-by-room cooling loads for UAE buildings, with compliance checks and a printable report." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://rameezkhair.github.io/novac-heatload/screenshot.png" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/landing.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <header class="top">
+      <div class="wrap">
+        <div>
+          <h1>NOVAC <span>Simplified Thermal Load Calculator</span></h1>
+        </div>
+        <div class="actions">
+          <a class="btn primary" href="app.html">Open calculator</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">For HVAC and MEP engineers in the UAE</p>
+            <h2 class="hero-h">Peak cooling loads, room by room, checked against UAE codes</h2>
+            <p class="lead">Enter your project, envelope and rooms. The calculator works out sensible and latent loads with the ASHRAE CLTD/CLF method, sizes the plant, and flags anything outside the Dubai Building Code, Al Sa'fat, Estidama, Barjeel and ASHRAE limits.</p>
+            <div class="cta">
+              <a class="btn primary lg" href="app.html">Start a calculation</a>
+              <span class="muted">Free, no sign-up. A worked example opens first.</span>
+            </div>
+          </div>
+          <figure class="shot">
+            <img src="screenshot.png" alt="The calculator with the example Dubai office loaded, showing the project and design conditions step" width="1280" height="800" />
+          </figure>
+        </div>
+      </section>
+
+      <section class="wrap block">
+        <div class="sec-head"><h2><span class="n">01</span>What it does</h2></div>
+        <div class="features">
+          <div class="feat">
+            <h3>Room-by-room loads</h3>
+            <p>Walls, roof, glass, people, lighting, equipment and ventilation for every room, with sensible and latent gains and project totals in kW and TR.</p>
+          </div>
+          <div class="feat">
+            <h3>Compliance checks</h3>
+            <p>Envelope U-values, window-to-wall ratio, lighting power and outdoor air are checked against the code set you pick, with the clause cited.</p>
+          </div>
+          <div class="feat">
+            <h3>Psychrometrics</h3>
+            <p>Design conditions for Dubai, Abu Dhabi, Sharjah, Al Ain and more, a psychrometric chart, and PMV/PPD comfort figures.</p>
+          </div>
+          <div class="feat">
+            <h3>Report and exports</h3>
+            <p>A printable calculation report, plus the load schedule as CSV or copied straight into Excel.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="wrap block">
+        <div class="sec-head"><h2><span class="n">02</span>How it works</h2></div>
+        <ol class="how">
+          <li><b>Set up the project.</b> Choose the location and code set. Design conditions fill in from the standards library.</li>
+          <li><b>Describe the building.</b> Enter the envelope and system, then add each room with its areas, orientation and occupancy.</li>
+          <li><b>Get the results.</b> Review the load schedule and compliance checks, then print or download the report.</li>
+        </ol>
+      </section>
+
+      <section class="wrap block">
+        <div class="sec-head"><h2><span class="n">03</span>Standards covered</h2></div>
+        <ul class="stds">
+          <li>Dubai Building Code</li>
+          <li>Al Sa'fat</li>
+          <li>Estidama</li>
+          <li>Barjeel</li>
+          <li>ASHRAE 62.1</li>
+          <li>ASHRAE CLTD/CLF</li>
+        </ul>
+        <p class="muted note">Your projects stay in your browser. Nothing is uploaded; save them as files to share with colleagues.</p>
+      </section>
+
+      <section class="wrap block end">
+        <h2 class="hero-h sm">Ready to size a project?</h2>
+        <a class="btn primary lg" href="app.html">Start a calculation</a>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <span>NOVAC Simplified Thermal Load Calculator</span>
+        <span class="muted">Results are for design guidance. Check final figures against the governing code and your own engineering judgement.</span>
+      </div>
+    </footer>
   </body>
 </html>
