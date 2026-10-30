@@ -69,6 +69,15 @@ button{font:inherit;cursor:pointer}
 .app-actions .btn:hover{border-color:rgba(230,232,235,.6);background:rgba(255,255,255,.06)}
 .app-actions .btn.primary{background:#C9A24A;border-color:#C9A24A;color:#16130B;font-weight:600}
 .app-actions .btn.primary:hover{background:#D7B25C;border-color:#D7B25C}
+.app-actions .abbr-menu{margin-top:0;margin-left:auto;border:0;border-radius:0;background:transparent}
+.app-actions .abbr-trigger{list-style:none}
+.app-actions .abbr-trigger::-webkit-details-marker{display:none}
+.app-actions .abbr-trigger::after{content:"▾";margin-left:6px;color:#9AA3AF}
+.app-actions .abbr-menu[open] .abbr-trigger::after{content:"▴"}
+.abbr-menu .menu-pop{width:min(580px,calc(100vw - 32px));max-height:min(70vh,560px);overflow:auto;color:var(--fg)}
+.abbr-menu .menu-pop h4{margin:2px 4px 10px}
+.abbr-menu .abbr-grid{grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 18px;font-size:12px}
+.abbr-menu .abbr-grid div{grid-template-columns:64px minmax(0,1fr);gap:8px;padding:4px 0}
 body.app main{padding-block:16px 64px}
 body.app section{margin-top:32px}
 body.app .sec-head{border-color:var(--line);padding-bottom:10px;margin-bottom:16px}
@@ -190,7 +199,6 @@ table.tl .pill{white-space:nowrap;font-size:11.5px;padding:3px 10px}
 .day-tbl td:first-child,.day-tbl th:first-child{position:sticky;left:0;background:var(--surface);min-width:120px}
 .day-tbl thead th:first-child{background:var(--band)}
 /* abbreviations */
-.abbr{margin-top:22px}
 .abbr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 22px;margin:0;font-size:13px}
 .abbr-grid div{display:grid;grid-template-columns:64px minmax(0,1fr);gap:8px;min-width:0;padding:3px 0;border-bottom:1px dotted var(--line)}
 .abbr-grid dt{font-weight:bold}

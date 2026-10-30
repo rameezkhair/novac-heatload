@@ -81,13 +81,18 @@ export default function App() {
           <ArmButton className="btn danger" label="New project" armedLabel="Click again to clear all" onConfirm={() => { replace(newProjectState()); toast('New project started'); }} />
           <button className="btn" type="button" onClick={() => copyText(scheduleTSV(state, showC)).then(toast)}>Copy schedule for Excel</button>
           <button className="btn primary" type="button" onClick={() => showReport(true)}>Generate report</button>
+          <details className="menu abbr-menu">
+            <summary className="btn abbr-trigger">Abbreviations</summary>
+            <div className="menu-pop">
+              <h4>Abbreviations and symbols</h4>
+              <dl className="abbr-grid">{ABBR.map(([a, b]) => <div key={a}><dt>{a}</dt><dd>{b}</dd></div>)}</dl>
+            </div>
+          </details>
         </div>
       </div>
     </header>
     {report ? <ReportView state={state} onBack={() => showReport(false)} /> :
       <main className="wrap" id="calc">
-        <details className="abbr"><summary>Abbreviations and symbols</summary>
-          <div className="body"><dl className="abbr-grid">{ABBR.map(([a, b]) => <div key={a}><dt>{a}</dt><dd>{b}</dd></div>)}</dl></div></details>
         {state.example && <div className="notice">Example data loaded: a small Dubai office. Replace the rooms and envelope values with your project's figures, or start a new project.</div>}
         <ProjectSection store={store} d={d} marks={marks} />
         <PsychroSection d={d} />

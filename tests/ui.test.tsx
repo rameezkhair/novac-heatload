@@ -34,6 +34,16 @@ describe('app', () => {
     expect(host.textContent).not.toMatch(/NaN|undefined/);
   });
 
+  it('shows abbreviations in a dropdown in the top bar', async () => {
+    const dropdown = $<HTMLDetailsElement>('details.abbr-menu');
+    expect(dropdown).not.toBeNull();
+    expect(dropdown.open).toBe(false);
+    await act(async () => dropdown.querySelector('summary')!.click());
+    expect(dropdown.open).toBe(true);
+    expect(dropdown.textContent).toContain('ASHRAE');
+    expect(dropdown.textContent).toContain('American Society of Heating, Refrigerating and Air-Conditioning Engineers');
+  });
+
   it('recalculates when a room changes, and undo restores it', async () => {
     const before = plantTR();
     await act(async () => setValue($('#r-area'), '240'));
