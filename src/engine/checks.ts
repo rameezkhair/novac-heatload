@@ -139,6 +139,8 @@ export function projectChecks(p: Project, T: Totals, rooms: Room[]): { marks: Re
   }
   out.sfS = num(p.sfS) <= 10 ? ['ok', '≤ 10%, DBC H.4.6.3'] : ['bad', 'exceeds 10%, DBC H.4.6.3'];
   out.sfL = num(p.sfL) <= 5 ? ['ok', '≤ 5%, DBC H.4.6.3'] : ['bad', 'exceeds 5%, DBC H.4.6.3'];
+  if (num(p.dr) >= 5 && num(p.dr) <= 18) out.dr = ['ok', 'Within the typical UAE daily range of 5–18 K', 'In range'];
+  if (num(p.elev) >= -5 && num(p.elev) <= 1950) out.elev = ['ok', 'Within the typical UAE site elevation range of −5–1,950 m', 'In range'];
   if (p.erv) { out.ervS = num(p.ervS) >= 70 ? ['ok', '≥ 70%, DBC H.4.8.2'] : ['bad', 'below 70%, DBC H.4.8.2']; out.ervShare = num(p.ervShare) >= 50 ? ['ok', '≥ 50%, DBC H.4.8.2'] : ['bad', 'below 50%, DBC H.4.8.2']; }
   /* plausibility marks override the basis marks on the same field when worse */
   const worst: Record<string, Mark> = {};

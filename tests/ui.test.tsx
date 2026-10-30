@@ -44,6 +44,15 @@ describe('app', () => {
     expect(dropdown.textContent).toContain('American Society of Heating, Refrigerating and Air-Conditioning Engineers');
   });
 
+  it('shows an in-range badge for plausible daily range and elevation values', async () => {
+    expect($('#p-dr').closest('.fld')!.querySelector('.cmark')!.textContent).toContain('In range');
+    expect($('#p-elev').closest('.fld')!.querySelector('.cmark')!.textContent).toContain('In range');
+    await act(async () => setValue($('#p-dr'), '2'));
+    expect($('#p-dr').closest('.fld')!.querySelector('.cmark')!.textContent).toContain('Fails');
+    await act(async () => setValue($('#p-elev'), '2100'));
+    expect($('#p-elev').closest('.fld')!.querySelector('.cmark')!.textContent).toContain('Fails');
+  });
+
   it('recalculates when a room changes, and undo restores it', async () => {
     const before = plantTR();
     await act(async () => setValue($('#r-area'), '240'));
@@ -75,16 +84,12 @@ describe('app', () => {
     expect($('#calc')).not.toBeNull();
   });
 
-  it('hides compliance and design basis until switched on', async () => {
-    expect(host.textContent).not.toMatch(/Compliance checks|Design basis|Complies|Fails/);
+  it('shows compliance badges at inputs but hides checks and design basis', async () => {
+    expect(host.textContent).not.toMatch(/Compliance checks|Design basis/);
+    expect($$('.cmark').length).toBeGreaterThan(0);
+    expect(host.textContent).not.toContain('Show compliance');
     await act(async () => byText('button', 'Generate report').click());
     expect($('.rpt').textContent).not.toMatch(/Compliance checks|design basis checks|Check/);
-    await act(async () => byText('button', 'Back to calculator').click());
-    await act(async () => byText('button', 'Show compliance').click());
-    expect(host.textContent).toContain('Outdoor design basis checks');
-    expect(host.textContent).toMatch(/Compliance checks: \d+ complying/);
-    await act(async () => byText('button', 'Generate report').click());
-    expect($('.rpt').textContent).toContain('6. Compliance checks');
   });
 
   it('saves and reopens a project in the browser', async () => {

@@ -4,7 +4,7 @@ import { applyCodeset, ezOf, resolveProject, resolveRoom } from '../engine/proje
 import type { Mark, Num, Orient, Project } from '../engine/types';
 import { fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
-import { Field, NumInput, PickField, SecHead, useCompliance, useToast } from './ui';
+import { Field, NumInput, PickField, SecHead, useToast } from './ui';
 
 export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; d: Computed; marks: Record<string, Mark>; limits: Limits }) {
   const { update } = store, p = d.p, T = d.T, toast = useToast();
@@ -20,7 +20,7 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
   const setSolar = (k: Orient | 'H', v: Num) => update(s => { s.project.solar[k] = num(v); }, 'solar.' + k);
 
   return <section>
-    <SecHead n={3} title="Envelope & system" sub={'Pick a code value or choose Custom.' + (useCompliance() ? ' Badges show whether each value meets the standard selected for compliance.' : '')} />
+    <SecHead n={3} title="Envelope & system" sub="Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance." />
     <div className="codebar">
       <label className="fld" htmlFor="p-codeset"><span className="fl">Envelope code · fills all values and sets the compliance basis</span>
         <span className="in-u"><select id="p-codeset" value={p.codeset} onChange={e => { const v = e.target.value; let lbl = ''; update(s => { lbl = applyCodeset(s.project as Project, v)?.[1] || ''; }); toast('Applied: ' + lbl); }}>

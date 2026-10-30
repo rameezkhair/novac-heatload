@@ -1,8 +1,8 @@
 /* A numeric input may be blank while the user is typing; the engine reads blanks as 0 via num(). */
 export type Num = number | '';
 export type Orient = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
-/* a check result: [status, explanation] */
-export type Mark = ['ok' | 'bad' | 'warn', string] | null;
+/* a check result: [status, explanation, optional badge label] */
+export type Mark = ['ok' | 'bad' | 'warn', string, string?] | null;
 
 export interface WallEntry { w: Num; g: Num }
 /* a surface next to another space: area, adjacent space type, its temperature (custom only) and a U-value override */

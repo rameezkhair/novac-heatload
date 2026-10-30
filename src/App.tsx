@@ -13,13 +13,11 @@ import { RoomsSection } from './components/RoomsSection';
 import { ScheduleSection } from './components/ScheduleSection';
 import { ArmButton, ComplianceProvider, useToast } from './components/ui';
 
-const SHOW_KEY = 'novac-show-compliance';
-
 export default function App() {
   const store = useStore(), { state, undo, redo } = store, toast = useToast();
   const [report, setReport] = useState(() => location.hash === '#report');
-  const [showC, setShowC] = useState(() => { try { return localStorage.getItem(SHOW_KEY) === '1'; } catch { return false; } });
-  const toggleC = () => { const v = !showC; setShowC(v); try { localStorage.setItem(SHOW_KEY, v ? '1' : '0'); } catch { /* not saved */ } };
+  /* compliance checks and design basis stay hidden; per-input badges always show */
+  const showC = false;
   const d = useMemo(() => computeAll(state.project, state.rooms), [state]);
   const { marks, limits } = useMemo(() => projectChecks(d.p, d.T, d.rooms), [d]);
   const checks = useMemo(() => allChecks(d, marks, limits).filter(applicable), [d, marks, limits]);
@@ -76,7 +74,6 @@ export default function App() {
             <button className="btn" type="button" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" disabled={!store.canRedo} onClick={redo}>↷ Redo</button>
           </span>
           <ProjectsMenu store={store} file={file} save={save} replace={replace} />
-          <button className="btn" type="button" aria-pressed={showC} title="Show or hide compliance checks and design basis, on screen and in the report" onClick={toggleC}>{showC ? 'Hide compliance' : 'Show compliance'}</button>
           <button className="btn" type="button" onClick={() => { replace(exampleState()); toast('Example loaded'); }}>Load example</button>
           <ArmButton className="btn danger" label="New project" armedLabel="Click again to clear all" onConfirm={() => { replace(newProjectState()); toast('New project started'); }} />
           <button className="btn" type="button" onClick={() => copyText(scheduleTSV(state, showC)).then(toast)}>Copy schedule for Excel</button>
