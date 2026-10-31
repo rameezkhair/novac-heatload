@@ -1,0 +1,194 @@
+{
+  "title": "Choose NOVAC's visual direction",
+  "question": "Which direction should guide the landing page and calculator? All keep NOVAC's UAE HVAC purpose and calculator features.",
+  "options": [
+    {
+      "id": "assigned",
+      "kind": "assigned",
+      "label": "UAE Climate Atlas",
+      "kicker": "THE ROLL",
+      "lineage": "UAE climate atlases and municipal planning maps",
+      "thesis": "Local design conditions lead, with every load traceable to its emirate and code basis.",
+      "palette": ["#5880DA", "#C9F17E", "#BCDBFA", "#F7F9F5"],
+      "materials": ["pale map-grid ground", "crisp data panels"],
+      "viewport": "A calm project header, selected emirate and design conditions, then familiar calculation sections.",
+      "risk": "Map cues must stay subtle so the engineering inputs remain the focus.",
+      "raised": [
+        {
+          "from": "challenger-crouwel",
+          "raise": "A disciplined visible grid ties local conditions, charts and input groups together."
+        }
+      ],
+      "html": ".impeccable/mocks/decision/assigned.html"
+    },
+    {
+      "id": "model-pick",
+      "kind": "pick",
+      "label": "Urbanist Dashboard",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Contemporary civic service dashboards",
+      "thesis": "A familiar, soft dashboard makes a complex engineering worksheet feel approachable.",
+      "palette": ["#5880DA", "#C9F17E", "#BCDBFA", "#F7F9F5"],
+      "materials": ["paper-white panels", "quiet blue-gray borders"],
+      "viewport": "Landing promise and live example lead into a modular project and load workspace.",
+      "risk": "A familiar dashboard can feel generic unless UAE climate data stays visible.",
+      "html": ".impeccable/mocks/decision/model-pick.html"
+    },
+    {
+      "id": "challenger-crouwel",
+      "kind": "challenger",
+      "catalogId": "crouwel-grid-specimen",
+      "label": "Construction Grid",
+      "verdict": "competitive",
+      "lineage": "Wim Crouwel grid-built type specimens",
+      "thesis": "A measured grid makes the engineering worksheet feel precise and intentional.",
+      "palette": ["#5880DA", "#C9F17E", "#BCDBFA", "#F7F9F5"],
+      "materials": ["construction grid", "neutral grotesk"],
+      "viewport": "Project inputs align to a quiet cell grid; charts and tables share its rhythm.",
+      "case": "Strong precision signal, but weaker UAE-local recognition than the atlas.",
+      "risk": "A visible grid can become visual noise if it competes with form fields.",
+      "html": ".impeccable/mocks/decision/challenger-crouwel.html"
+    },
+    {
+      "id": "challenger-timetable",
+      "kind": "challenger",
+      "catalogId": "rw-timetable-slide-rack",
+      "label": "Climate Timetable",
+      "verdict": "declined",
+      "lineage": "Pocket airline timetable columns",
+      "thesis": "A strict table rhythm makes design states and room schedules easy to compare.",
+      "palette": ["#C69A37", "#26313C", "#F4EEDD", "#42735B"],
+      "materials": ["printed columns", "fixed state marks"],
+      "viewport": "The room schedule leads, with each design condition set in a fixed comparison column.",
+      "case": "A timetable helps schedule scanning but is too narrow for the full calculator workflow.",
+      "kept": "Dense tables should remain aligned and easy to scan.",
+      "risk": "Angled panels and one-size typography would make engineering forms harder to read.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          {"label": "NOVAC header", "x": 0, "y": 0, "w": 12, "h": 1},
+          {"label": "Room schedule", "x": 0, "y": 1, "w": 12, "h": 6, "accent": true},
+          {"label": "Design basis", "x": 0, "y": 7, "w": 12, "h": 3}
+        ]
+      }
+    },
+    {
+      "id": "challenger-catalog",
+      "kind": "challenger",
+      "catalogId": "brand-identity-canon-saville-catalog-sleeve",
+      "label": "Coded Climate Index",
+      "verdict": "declined",
+      "lineage": "Factory Records catalog sleeves",
+      "thesis": "Color-coded markers give every climate state a compact signature.",
+      "palette": ["#101418", "#F7F9F5", "#5880DA", "#C9F17E"],
+      "materials": ["matte black", "coded color strips"],
+      "viewport": "A climate-condition key labels the states used throughout the calculation.",
+      "case": "A strong state key, but coded navigation reduces clarity for unfamiliar standards.",
+      "kept": "Give each plotted climate state a consistent color and readable label.",
+      "risk": "Encoded color cannot replace explicit engineering labels.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          {"label": "State key", "x": 0, "y": 0, "w": 12, "h": 1, "accent": true},
+          {"label": "Climate plot", "x": 0, "y": 1, "w": 12, "h": 6},
+          {"label": "Project content", "x": 0, "y": 7, "w": 12, "h": 3}
+        ]
+      }
+    },
+    {
+      "id": "challenger-video",
+      "kind": "challenger",
+      "catalogId": "pop-culture-shelf-vertical-video-feed-surface",
+      "label": "Climate Story Feed",
+      "verdict": "declined",
+      "lineage": "Full-screen vertical media feeds",
+      "thesis": "One result at a time fills the screen for focused review.",
+      "palette": ["#101418", "#FFFFFF"],
+      "materials": ["full-bleed media", "single-item panels"],
+      "viewport": "A single room result fills the screen with a vertical next-room gesture.",
+      "case": "The single-item sequence conflicts with simultaneous room comparison and form entry.",
+      "kept": "Use clear focus states for the currently selected room.",
+      "risk": "Hidden adjacent data slows engineering work.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          {"label": "Selected room result", "x": 0, "y": 0, "w": 12, "h": 9, "accent": true},
+          {"label": "Room navigation", "x": 0, "y": 9, "w": 12, "h": 1}
+        ]
+      }
+    },
+    {
+      "id": "challenger-metro",
+      "kind": "challenger",
+      "catalogId": "digital-design-canon-metro-typographic-tiles",
+      "label": "Climate Data Tiles",
+      "verdict": "declined",
+      "lineage": "Metro typographic tile interfaces",
+      "thesis": "Large color fields make key climate values visible at a glance.",
+      "palette": ["#101418", "#5880DA", "#C9F17E", "#BCDBFA"],
+      "materials": ["flat color tiles", "oversized type"],
+      "viewport": "Climate and load summary values lead in a tile panorama.",
+      "case": "Color is memorable, but tile-only navigation weakens explicit workflow wayfinding.",
+      "kept": "Use restrained color blocks to surface primary load results.",
+      "risk": "Cropped display type can obscure long technical labels.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          {"label": "Header", "x": 0, "y": 0, "w": 12, "h": 1},
+          {"label": "Climate and load tiles", "x": 0, "y": 1, "w": 12, "h": 4, "accent": true},
+          {"label": "Project details", "x": 0, "y": 5, "w": 12, "h": 5}
+        ]
+      }
+    },
+    {
+      "id": "challenger-variable",
+      "kind": "challenger",
+      "catalogId": "variable-font-specimen",
+      "label": "Variable Type Specimen",
+      "verdict": "declined",
+      "lineage": "Interactive variable-font specimens",
+      "thesis": "Typography shifts live to make hierarchy feel tactile.",
+      "palette": ["#F7F9F5", "#16191E", "#5880DA"],
+      "materials": ["typographic specimen", "live font axes"],
+      "viewport": "A specimen-style headline sits above a compact load summary and controls.",
+      "case": "A type axis is expressive but does not improve the calculation workflow.",
+      "kept": "Keep data labels and values distinct through a clear type scale.",
+      "risk": "A live type control would distract from engineering decisions.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          {"label": "Project title", "x": 0, "y": 0, "w": 12, "h": 2, "accent": true},
+          {"label": "Design data", "x": 0, "y": 2, "w": 8, "h": 5},
+          {"label": "Load summary", "x": 8, "y": 2, "w": 4, "h": 5},
+          {"label": "Input controls", "x": 0, "y": 7, "w": 12, "h": 3}
+        ]
+      }
+    }
+  ],
+  "reroll": {"registers": ["safer", "bolder"]},
+  "buildPath": {"value": "code", "toggle": false},
+  "canon": true,
+  "canonCard": {
+    "kind": "canon",
+    "label": "The standard calculator",
+    "thesis": "A familiar dashboard, executed with polished spacing and readable data.",
+    "palette": ["#FFFFFF", "#1F2937", "#2563EB"],
+    "materials": ["clean panels", "standard controls"],
+    "viewport": "A conventional project form above a room list and load schedule.",
+    "risk": "Reliable, but visually less distinct from other calculators.",
+    "wireframe": {
+      "cols": 12,
+      "rows": 10,
+      "regions": [
+        {"label": "Header", "x": 0, "y": 0, "w": 12, "h": 1},
+        {"label": "Project inputs", "x": 0, "y": 1, "w": 12, "h": 4, "accent": true},
+        {"label": "Room list and totals", "x": 0, "y": 5, "w": 12, "h": 5}
+      ]
+    }
+  }
+}

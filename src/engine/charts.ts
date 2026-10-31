@@ -45,7 +45,7 @@ export function psychroSVG(d: Computed, print: boolean, mode: Mode = 'all') {
   }
   for (let rh = 10; rh < 100; rh += 10) s += `<path d="${curve(rh)}" fill="none" stroke="${C('bar-2', '#A3A9B3')}" stroke-width="0.9"/>`;
   for (let wb = Math.ceil(x0 / 5) * 5; wb <= x1; wb += 5) {
-    const ws = W_rh(wb, 100, P), tEnd = wb + (2501 - 2.326 * wb) * ws / 1.006; let dd = '';
+    const ws = W_rh(wb, 100, P), tEnd = Math.min(200, wb + (2501 - 2.326 * wb) * ws / 1.006); let dd = '';
     for (let i = 0; i <= 20; i++) { const t = wb + (tEnd - wb) * i / 20; dd += (dd ? 'L' : 'M') + X(t).toFixed(1) + ' ' + Y(Math.max(0, W_wb(t, wb, P)) * 1000).toFixed(1); }
     s += `<path d="${dd}" fill="none" stroke="${C('bar-2', '#A3A9B3')}" stroke-width="0.8" stroke-dasharray="4 3"/>`;
   }
@@ -75,7 +75,7 @@ export function psychroSVG(d: Computed, print: boolean, mode: Mode = 'all') {
   else { if (P_('M')) s += line(P_('R'), P_('M'), true) + line(P_('M'), P_('S')); s += line(P_('R'), P_('S')); }
   const col = { bad: C('bad', '#B42318'), warn: C('req', '#7A4E00'), ok: C('ok', '#2F6B3B'), acc: C('accent', '#B08A2E'), mid: C('bar', '#374151') };
   if (mode === 'all') {
-    const lg: [string, string][] = [[C('bad', '#B42318'), 'Outdoor air: O envelope, V fresh air'], [C('ok', '#2F6B3B'), 'Indoor air: R room, S supply' + (P_('M') ? ', M mixed' : '')]];
+    const lg: [string, string][] = [[C('bad', '#B42318'), 'Outdoor air: O ambient, V fresh air'], [C('ok', '#2F6B3B'), 'Indoor air: R room, S supply' + (P_('M') ? ', M mixed' : '')]];
     let lx = ml;
     lg.forEach(([c, t]) => { s += `<circle cx="${lx + 6}" cy="${mt - 14}" r="5" fill="${c}"/><text x="${lx + 15}" y="${mt - 10}" font-size="11.5" font-family="Arial" fill="${C('fg', '#1F2937')}">${t}</text>`; lx += t.length * 6.2 + 40; });
     s += `<line x1="${lx}" y1="${mt - 14}" x2="${lx + 22}" y2="${mt - 14}" stroke="${C('accent', '#B08A2E')}" stroke-width="1.8" stroke-dasharray="6 4"/><text x="${lx + 28}" y="${mt - 10}" font-size="11.5" font-family="Arial" fill="${C('fg', '#1F2937')}">Fresh-air treatment</text>`;

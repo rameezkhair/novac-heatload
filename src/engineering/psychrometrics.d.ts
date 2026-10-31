@@ -1,0 +1,12 @@
+export function humidityRatioFromDryBulbAndRelativeHumidity(dryBulbC: number, rhPercent: number, pressurePa: number): number;
+export function humidityRatioFromDryAndWetBulb(dryBulbC: number, wetBulbC: number, pressurePa: number): number;
+export function dewPointTemperature(dryBulbC: number, rhPercent: number): number;
+export function dewPointFromHumidityRatio(dryBulbC: number, humidityRatioKgKg: number, pressurePa: number): number;
+export function wetBulbTemperature(dryBulbC: number, rhPercent: number, pressurePa: number): number;
+export function wetBulbFromHumidityRatio(dryBulbC: number, humidityRatioKgKg: number, pressurePa: number): number;
+export function moistAirEnthalpy(dryBulbC: number, humidityRatioKgKg: number): number;
+export function specificVolume(dryBulbC: number, humidityRatioKgKg: number, pressurePa: number): number;
+export function moistAirDensity(dryBulbC: number, humidityRatioKgKg: number, pressurePa: number): number;
+export function vapourPressure(dryBulbC: number, rhPercent: number): number;
+export function saturationVapourPressure(dryBulbC: number): number;
+export function relativeHumidityFromHumidityRatio(dryBulbC: number, humidityRatioKgKg: number, pressurePa: number): number;

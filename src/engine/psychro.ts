@@ -1,22 +1,37 @@
-/* Psychrometrics, pressure in kPa, humidity ratio in kg/kg dry air. */
-export const pws = (T: number) => 0.61094 * Math.exp(17.625 * T / (T + 243.04));
-export function W_rh(T: number, RH: number, P: number) { const pw = RH / 100 * pws(T); return 0.621945 * pw / (P - pw); }
-export function W_wb(T: number, Twb: number, P: number) {
-  const ps = pws(Twb), Ws = 0.621945 * ps / (P - ps);
-  return ((2501 - 2.326 * Twb) * Ws - 1.006 * (T - Twb)) / (2501 + 1.86 * T - 4.186 * Twb);
+import {
+  dewPointFromHumidityRatio,
+  humidityRatioFromDryAndWetBulb,
+  humidityRatioFromDryBulbAndRelativeHumidity,
+  moistAirEnthalpy,
+  relativeHumidityFromHumidityRatio,
+  saturationVapourPressure,
+  wetBulbFromHumidityRatio,
+} from '../engineering/psychrometrics.js';
+
+/* Backwards-compatible engine helpers. The original engine stores pressure in
+ * kPa; the NOVAC engineering interface and PsychroLib use Pa. */
+export const pws = (T: number) => saturationVapourPressure(T) / 1000;
+export function W_rh(T: number, RH: number, PkPa: number) {
+  return humidityRatioFromDryBulbAndRelativeHumidity(T, RH, PkPa * 1000);
 }
-export const hOf = (T: number, W: number) => 1.006 * T + W * (2501 + 1.86 * T);
-export function rhOf(T: number, W: number, P: number) { const pw = W * P / (0.621945 + W); return pw / pws(T) * 100; }
-export function wbOf(T: number, W: number, P: number) {
-  let lo = -20, hi = T;
-  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (W_wb(T, m, P) > W) hi = m; else lo = m; }
-  return (lo + hi) / 2;
+export function W_wb(T: number, Twb: number, PkPa: number) {
+  // The legacy engine clamps derived states to saturation after this call and
+  // transient form edits can temporarily place WB above DB. Keep that UI path
+  // stable while the public engineering API continues to reject it.
+  if (T < Twb) return W_rh(T, 100, PkPa);
+  return humidityRatioFromDryAndWetBulb(T, Twb, PkPa * 1000);
 }
-export function dpOf(W: number, P: number) {
-  const pw = Math.max(1e-6, W * P / (0.621945 + W)), a = Math.log(pw / 0.61094);
-  return 243.04 * a / (17.625 - a);
+export const hOf = (T: number, W: number) => moistAirEnthalpy(T, W);
+export function rhOf(T: number, W: number, PkPa: number) {
+  return relativeHumidityFromHumidityRatio(T, W, PkPa * 1000);
 }
-/* ASHRAE Fundamentals standard atmosphere, elevation in m */
+export function wbOf(T: number, W: number, PkPa: number) {
+  return wetBulbFromHumidityRatio(T, W, PkPa * 1000);
+}
+export function dpOf(W: number, PkPa: number) {
+  return dewPointFromHumidityRatio(200, W, PkPa * 1000);
+}
+/* ASHRAE standard atmosphere, elevation in m; pressure in kPa. */
 export const pressureAt = (z: number) => 101.325 * Math.pow(1 - 2.25577e-5 * z, 5.2559);
 
 /* ASHRAE 55 PMV / PPD, ISO 7730 algorithm */

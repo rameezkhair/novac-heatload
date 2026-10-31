@@ -4,6 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import App from '../src/App';
 import { ToastProvider } from '../src/components/ui';
+import { num } from '../src/engine/util';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 /* Node 26 defines its own localStorage global, which hides jsdom's */
@@ -37,9 +38,9 @@ describe('app', () => {
   });
 
   it('navigates through the calculator steps and counts valid defaults as complete', async () => {
-    expect($$('.workflow-step')).toHaveLength(6);
+    expect($$('.workflow-step')).toHaveLength(7);
     expect($('.workflow-step[data-step="0"]').getAttribute('aria-current')).toBe('step');
-    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete']);
+    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete']);
     expect($('#p-name')).not.toBeNull();
     expect($('#p-toDB')).toBeNull();
     await act(async () => byText('button', 'Continue').click());
@@ -106,33 +107,42 @@ describe('app', () => {
     await act(async () => setValue($('#assembly-surface'), 'Above-grade wall'));
 
     expect($$('.assembly-library tbody tr')).toHaveLength(4);
-    expect(host.textContent).toContain('Above-grade wall · Mass0.857R-1.0 ciNot specified');
+    expect(host.textContent).toContain('Above-grade wall · MassR-1.3 ci45 mm ci0.698 W/m²K');
+    expect(host.textContent).not.toContain('Not specified');
     expect($<HTMLInputElement>('#p-uWall').value).toBe(projectUWall);
-    expect(host.textContent).toContain('Historical US reference only—not a UAE code limit.');
-    expect(host.textContent).toContain('the source does not provide material conductivity or insulation thickness.');
+    expect(host.textContent).toContain('converted from the I-P edition');
 
     await act(async () => setValue($('#assembly-use'), 'residential'));
-    expect(host.textContent).toContain('Above-grade wall · Mass0.701R-1.3 ciNot specified');
+    expect(host.textContent).toContain('Above-grade wall · MassR-1.7 ci60 mm ci0.591 W/m²K');
     expect($<HTMLInputElement>('#p-uWall').value).toBe(projectUWall);
   });
 
-  it('shows Dubai Municipality element limits and searches its certified material directory', async () => {
+  it('adds ASHRAE assemblies as a wall type and applies roof and floor values', async () => {
     await act(async () => $('.workflow-step[data-step="3"]').click());
-    const library = $<HTMLDetailsElement>('.dm-material-library');
-    expect(library).not.toBeNull();
-    await act(async () => library.querySelector('summary')!.click());
+    expect($<HTMLSelectElement>('#assembly-zone').value).toBe('0');
+    await act(async () => $('button[aria-label="Add as wall type: Above-grade wall Steel-framed"]').click());
+    expect($<HTMLInputElement>('input[aria-label="external wall type 1 name"]').value).toBe('ASHRAE 90.1-2022 CZ0 steel-framed (nonresidential), 80 mm Extruded polystyrene');
+    /* thickness follows the chosen insulation: R-2.3 with EPS (λ 0.038) needs 90 mm */
+    await act(async () => setValue($('#assembly-ins'), 'eps'));
+    expect(host.textContent).toContain('Above-grade wall · Steel-framedR-2.390 mm0.704 W/m²K');
+    expect($<HTMLInputElement>('input[aria-label="external wall type 1 U-value"]').value).toBe('0.704');
+    await act(async () => $('button[aria-label="Use as roof U: Roof Attic and other"]').click());
+    expect($<HTMLInputElement>('#p-uRoof').value).toBe('0.153');
+    await act(async () => $('button[aria-label="Use as floor U: Floor Mass"]').click());
+    expect($<HTMLInputElement>('#p-uFloor').value).toBe('1.828');
+    /* glazing rows set both U and SHGC; an opaque door is added as a wall type */
+    await act(async () => $('button[aria-label="Use for glazing: Vertical fenestration Fixed"]').click());
+    expect($<HTMLInputElement>('#p-uGlass').value).toBe('2.839');
+    expect($<HTMLInputElement>('#p-shgc').value).toBe('0.22');
+    await act(async () => $('button[aria-label="Add as wall type: Opaque door Swinging"]').click());
+    expect($<HTMLInputElement>('input[aria-label="external wall type 2 U-value"]').value).toBe('2.101');
+    expect(host.textContent).toContain('Slab-on-grade floor · HeatedR-1.3 for 300 mm');
+  });
 
-    expect(library.textContent).toContain('External wall and exposed floor0.57 W/m²K0.42 W/m²K');
-    expect(library.textContent).toContain('Product U-value and conductivity are not published');
-    expect(library.textContent).toContain('Showing 127 of 127 directory entries.');
-    expect(library.textContent).toContain('National Polystyrene Packaging Factory');
-    expect(library.textContent).toContain('CL05020001');
-    expect(library.textContent).toContain('Not provided');
-
-    await act(async () => setValue($('#dm-material-search'), 'CL05020001'));
-    expect($$('.dm-material-directory tbody tr')).toHaveLength(1);
-    expect(library.textContent).toContain('Showing 1 of 127 directory entries.');
-    expect(library.querySelector('a[href^="https://www.dm.gov.ae"]')).not.toBeNull();
+  it('has no Dubai Municipality material directory on the envelope step', async () => {
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    expect($('#p-codeset')).not.toBeNull();
+    expect(host.textContent).not.toContain('Dubai Municipality materials');
   });
 
   it('shows an in-range badge for plausible daily range and elevation values', async () => {
@@ -172,11 +182,163 @@ describe('app', () => {
     expect($$('.bar-row').find(r => r.textContent!.startsWith('Wall partitions'))!.querySelector('.v')!.textContent).not.toBe('0.00 kW');
   });
 
+  it('adds external wall and partition types and uses them in a space', async () => {
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    const before = plantTR();
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => byText('button', '+ Add external wall type').click());
+    await act(async () => setValue($('input[aria-label="external wall type 1 name"]'), 'Curtain wall spandrel'));
+    await act(async () => setValue($('input[aria-label="external wall type 1 U-value"]'), '2.5'));
+    expect($('input[aria-label="external wall type 1 U-value"]').closest('td')!.querySelector('.cmark')!.textContent).toContain('Fails');
+    await act(async () => byText('button', '+ Add partition type').click());
+    await act(async () => setValue($('input[aria-label="partition type 1 name"]'), 'Glass partition'));
+    await act(async () => setValue($('input[aria-label="partition type 1 U-value"]'), '5.7'));
+
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    const walls = $$('select').filter(s => / wall type$/.test(s.getAttribute('aria-label') || ''));
+    expect(walls).toHaveLength(8);
+    /* the first facing with wall area in the example room */
+    const wt = walls.find(s => num(s.closest('tr')!.querySelector('input')!.value) > 0) as HTMLSelectElement;
+    await act(async () => setValue(wt, wt.querySelectorAll('option')[1].getAttribute('value')!));
+    await act(async () => byText('button', '+ Add wall partition').click());
+    const area = $$('input.expr').find(i => i.getAttribute('aria-label') === 'Area') as HTMLInputElement;
+    await act(async () => setValue(area, '10'));
+    const pt = $<HTMLSelectElement>('select[aria-label="Partition 1 type"]');
+    await act(async () => setValue(pt, pt.querySelectorAll('option')[1].getAttribute('value')!));
+    expect(pt.closest('tr')!.querySelector<HTMLInputElement>('input[aria-label="U-value"]')!.value).toBe('5.7');
+
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    expect(plantTR()).not.toBe(before);
+    await act(async () => byText('button', 'Generate report').click());
+    expect($('.rpt').textContent).toContain('External wall type: Curtain wall spandrel');
+    expect($('.rpt').textContent).toContain('Wall partition 1 (Glass partition)');
+  });
+
+  it('works out wall and glass areas in the pop-up calculator', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $$('button').filter(b => b.textContent === 'L × H')[0].click());
+    const dlg = document.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dlg.getAttribute('aria-label')).toBe('Area calculator · N wall');
+    const field = (l: string) => dlg.querySelector(`input[aria-label="N ${l}"]`) as HTMLInputElement;
+    await act(async () => setValue(field('Wall length'), '5'));
+    await act(async () => setValue(field('Wall height'), '3'));
+    await act(async () => setValue(field('Window width'), '2'));
+    await act(async () => setValue(field('Window height'), '1.5'));
+    expect(dlg.textContent).toContain('Wall 15.00 m² gross · glass 3.00 m²');
+    await act(async () => (Array.from(dlg.querySelectorAll('button')).find(b => b.textContent === 'Apply to N') as HTMLElement).click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect($<HTMLInputElement>('input[aria-label="N wall gross area"]').value).toBe('15');
+    expect($<HTMLInputElement>('input[aria-label="N glass area"]').value).toBe('3');
+  });
+
+  it('has an area calculator on floor area and partitions', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    const dialog = () => document.querySelector('[role="dialog"]') as HTMLElement;
+    const fill = async (what: string, vals: Record<string, string>) => {
+      for (const [k, v] of Object.entries(vals)) await act(async () => setValue(dialog().querySelector(`input[aria-label="${what} ${k}"]`) as HTMLInputElement, v));
+      await act(async () => (Array.from(dialog().querySelectorAll('button')).find(b => b.textContent === 'Apply') as HTMLElement).click());
+    };
+    await act(async () => $('button[title="Floor area area calculator"]').click());
+    await fill('Floor area', { Length: '12', Width: '10', 'Shafts / voids': '4' });
+    expect(dialog()).toBeNull();
+    expect($<HTMLInputElement>('#r-area').value).toBe('116');
+
+    await act(async () => byText('button', '+ Add wall partition').click());
+    await act(async () => $('button[title="Partition 1 area calculator"]').click());
+    expect(dialog().textContent).toContain('Height');
+    await fill('Partition 1', { Length: '4', Height: '3', 'Doors / openings': '2' });
+    expect(($$('input.expr').find(i => i.getAttribute('aria-label') === 'Area' && i.closest('tr')!.querySelector('select[aria-label="Partition 1 type"]')) as HTMLInputElement).value).toBe('10');
+  });
+
+  it('converts feet to metres in the area calculators', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    const dialog = () => document.querySelector('[role="dialog"]') as HTMLElement;
+    const btn = (t: string) => Array.from(dialog().querySelectorAll('button')).find(b => b.textContent === t) as HTMLElement;
+    const inp = (l: string) => dialog().querySelector(`input[aria-label="${l}"]`) as HTMLInputElement;
+    await act(async () => $('button[title="Floor area area calculator"]').click());
+    await act(async () => btn('Feet (ft)').click());
+    await act(async () => setValue(inp('Floor area Length'), '20'));
+    await act(async () => setValue(inp('Floor area Width'), '10'));
+    expect(dialog().textContent).toContain('= 18.58 m² (200.0 ft²)');
+    await act(async () => btn('Metres (m)').click());
+    expect(inp('Floor area Length').value).toBe('6.096');
+    await act(async () => btn('Feet (ft)').click());
+    await act(async () => btn('Apply').click());
+    expect($<HTMLInputElement>('#r-area').value).toBe('18.58');
+
+    /* the wall calculator opens in the unit chosen last */
+    await act(async () => $$('button').filter(b => b.textContent === 'L × H')[0].click());
+    expect(btn('Feet (ft)').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('builds an assembly from UAE materials and saves it as a wall type', async () => {
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => setValue($('#uvb-preset'), 'w-aac'));
+    expect($('.uvb-u').textContent).toContain('0.68 W/m²K');
+    await act(async () => byText('button', '+ Add layer').click());
+    await act(async () => setValue($('select[aria-label="Layer 4 material"]'), 'eps'));
+    await act(async () => setValue($('input[aria-label="Layer 4 thickness"]'), '25'));
+    const u = $('.uvb-u').textContent!.match(/\d+\.\d+/)![0];
+    await act(async () => byText('button', 'Save as external wall type').click());
+    expect($<HTMLInputElement>('input[aria-label="external wall type 1 name"]').value).toBe('200 mm AAC block, plastered both sides');
+    expect($<HTMLInputElement>('input[aria-label="external wall type 1 U-value"]').value).toBe(u);
+  });
+
+  it('calculates with the heat balance method by default and can switch to CLTD', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    expect(host.textContent).toMatch(/Peak on [A-Z][a-z]{2} 21 at \d\d:00/);
+    expect($('.hb-chart svg')).not.toBeNull();
+    await act(async () => setValue($('#r-sched'), 'day'));
+    expect($<HTMLSelectElement>('#r-sched').value).toBe('day');
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    const hb = plantTR();
+    expect(host.textContent).toContain('Coincident block load');
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    expect(host.textContent).not.toContain('Orientation factors');
+    expect($('#p-aWall')).not.toBeNull();
+    await act(async () => setValue($('#p-method'), 'cltd'));
+    expect(host.textContent).toContain('Orientation factors');
+    expect($('#p-aWall')).toBeNull();
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    expect($('#r-sched')).toBeNull();
+    expect($('.hb-chart')).toBeNull();
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    expect(plantTR()).not.toBe(hb);
+    expect($$('.workflow-step .workflow-status').every(e => e.textContent === 'Complete')).toBe(true);
+  });
+
+  it('shows hourly loads by component for the building, a room and any month', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    expect($$('.hr-hours tbody tr')).toHaveLength(24);
+    expect($$('.hr-hours tr.pk')).toHaveLength(1);
+    expect($$('.hr-legend li')).toHaveLength(8);
+    expect($('.hr-req .pill.ok').textContent).toBe('Recommended');
+    await act(async () => setValue($('#el-sys'), 'split'));
+    expect($<HTMLSelectElement>('#el-eff').selectedOptions[0].textContent).toContain('ESMA 5 stars');
+    await act(async () => setValue($('#el-eff'), 'custom'));
+    await act(async () => setValue($('#el-cop'), '3.5'));
+    expect(host.textContent).toContain('3.50COP');
+    expect($<HTMLSelectElement>('#hr-month').selectedOptions[0].textContent).toContain('(peak month)');
+    await act(async () => setValue($('#hr-scope'), $$('#hr-scope option')[2].getAttribute('value')!));
+    await act(async () => setValue($('#hr-month'), '0'));
+    expect($('.hr-card h3').textContent).toContain('Jan 21');
+    await act(async () => byText('.hr-mon-l', 'Oct').closest('button')!.click());
+    expect($<HTMLSelectElement>('#hr-month').value).toBe('9');
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => setValue($('#p-method'), 'cltd'));
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    expect(host.textContent).toContain('Hourly analysis needs the heat balance method');
+  });
+
   it('renders the report', async () => {
     await act(async () => byText('button', 'Generate report').click());
     const rpt = $('.rpt');
     expect(rpt.textContent).toContain('Heat Load Calculation Report');
     expect(rpt.textContent).toContain('4.5 Corridor');
+    expect(rpt.textContent).toContain('Developed on the ASHRAE heat balance method');
+    expect(rpt.textContent).toContain('Monthly design days');
+    expect(rpt.textContent).toMatch(/Design hour \(room peak\)[A-Z][a-z]{2} 21, \d\d:00/);
     expect(rpt.textContent).not.toContain('Abbreviations and symbols');
     expect(rpt.textContent).not.toMatch(/NaN|undefined/);
     await act(async () => byText('button', 'Back to calculator').click());

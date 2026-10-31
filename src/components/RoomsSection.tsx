@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Draft } from 'immer';
-import { ABOVE, ACT, ADJ, ADJ_EDIT, BELOW, ORIENTS, PXDEF, TYPES, typeOf } from '../engine/data';
-import { adjTemp, dcvNeeded, type Computed } from '../engine/calc';
+import { ABOVE, ACT, ADJ, ADJ_EDIT, BELOW, ORIENTS, PXDEF, SCHEDULES, TYPES, typeOf } from '../engine/data';
+import { adjTemp, dcvNeeded, type Computed, type RoomLoad } from '../engine/calc';
+import { MONTHS, stationOf } from '../engine/climate';
 import { roomChecks } from '../engine/checks';
-import { ROOMOPTS, RMETA, SHOWV, changeType, ezOf, newId, newRoom, pxU, resolveRoom, type RoomPick } from '../engine/project';
-import type { Adjacent, AppState, Mark, Num, Orient, Room } from '../engine/types';
+import { ROOMOPTS, RMETA, SHOWV, changeType, ezOf, newId, newRoom, partU, pxU, resolveRoom, type RoomPick } from '../engine/project';
+import type { Adjacent, AppState, Mark, Num, Orient, PartType, Project, Room } from '../engine/types';
 import { blank, evalArea, fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { ArmButton, Badge, ExprInput, Field, NumInput, PickField, SecHead, useToast } from './ui';
@@ -60,7 +62,8 @@ function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: 
       <label className="fld" htmlFor="r-type" style={{ gridColumn: 'span 2' }}><span className="fl">Room type</span><span className="in-u"><select id="r-type" value={r.type} onChange={e => { const v = e.target.value; edit(x => changeType(x as Room, v, ez)); }}>
         {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></span></label>
       <Field id="r-height" label="Ceiling height" unit="m" step={0.1} value={r.height} onChange={set('height')} />
-      <Field id="r-area" label="Floor area" unit="m²" step={0.5} value={r.area} onChange={set('area')} />
+      <Field id="r-area" label="Floor area" unit="m²" step={0.5} value={r.area} onChange={set('area')}
+        after={<AreaCalc what="Floor area" dims={['Length', 'Width']} less="Shafts / voids" onApply={set('area')} />} />
     </div>
     <div className="ed-sec"><h4>Internal loads</h4>
       <div className="fgrid">
@@ -75,35 +78,42 @@ function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: 
           </span>
         </div>
         {pick('light')}{pick('equip')}
+        {d.p.method !== 'cltd' && <label className="fld" htmlFor="r-sched"><span className="fl">Operating hours · people, lighting, equipment</span>
+          <span className="in-u"><select id="r-sched" value={r.sched || '24h'} onChange={e => { const v = e.target.value; edit(x => { if (v === '24h') delete x.sched; else x.sched = v; }); }}>
+            {SCHEDULES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></span></label>}
       </div>
     </div>
     <div className="ed-sec"><h4>Air</h4><div className="fgrid">{pick('oa')}{pick('ach')}</div></div>
     <div className="ed-sec"><h4>External walls and glazing</h4>
-      <div className="tbl-wrap"><table className="exp"><thead><tr><th>Facing</th><th>Wall, gross (m²)</th><th>Glass (m²)</th><th></th></tr></thead>
-        <tbody>{ORIENTS.map(o => <WallRow key={o} o={o} r={r} edit={edit} />)}</tbody></table></div>
-      <p className="hint">Type a number or a sum such as 6*3.2 + 2.5*3.2, or use L × H to work out wall and window areas.</p>
+      <div className="tbl-wrap"><table className="exp wtbl"><colgroup><col style={{ width: 52 }} /><col style={{ width: 96 }} /><col style={{ width: 96 }} /><col /><col style={{ width: 64 }} /></colgroup>
+        <thead><tr><th>Facing</th><th>Gross (m²)</th><th>Glass (m²)</th><th>Wall type</th><th></th></tr></thead>
+        <tbody>{ORIENTS.map(o => <WallRow key={o} o={o} r={r} p={d.p} edit={edit} />)}</tbody></table></div>
+      <p className="hint">Type a number or a sum such as 6*3.2 + 2.5*3.2, or use L × H to work out wall and window areas. {d.p.wallTypes.length ? 'Wall type sets the U-value used for that facing.' : 'To use more than one wall construction, add external wall types in step 4, Building envelope.'}</p>
     </div>
     <div className="ed-sec"><h4>Roof, ceiling and floor</h4>
       <div className="tbl-wrap"><table className="exp ptbl">
         <colgroup><col style={{ width: '27%' }} /><col style={{ width: '11%' }} /><col style={{ width: '29%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /></colgroup>
-        <thead><tr><th>Element</th><th>Area (m²)</th><th>Adjacent space (tb)</th><th>tb / CLTD</th><th>U-value (W/m²K)</th></tr></thead>
+        <thead><tr><th>Element</th><th>Area (m²)</th><th>Adjacent space (tb)</th><th>{d.p.method === 'cltd' ? 'tb / CLTD' : 'tb (°C)'}</th><th>U-value (W/m²K)</th></tr></thead>
         <tbody>
           <SurfaceRow r={r} d={d} w="a" edit={edit} />
-          {r.above === 'roof' && <tr><td className="sub">Skylight in roof</td><td><NumInput label="Skylight area" min={0} step={0.5} value={r.sky} onChange={set('sky')} /></td><td className="muted" colSpan={3}>Solar and conduction, skylight SHGC and U from section 3</td></tr>}
+          {r.above === 'roof' && <tr><td className="sub">Skylight in roof</td><td><span className="calc-in"><NumInput label="Skylight area" min={0} step={0.5} value={r.sky} onChange={set('sky')} /><AreaCalc what="Skylight" dims={['Length', 'Width']} qty="No. of skylights" onApply={set('sky')} /></span></td><td className="muted" colSpan={3}>Solar and conduction, skylight SHGC and U from the envelope step</td></tr>}
           <SurfaceRow r={r} d={d} w="b" edit={edit} />
         </tbody></table></div>
       <h4 style={{ marginTop: 16 }}>Wall partitions</h4>
       <div className="tbl-wrap"><table className="exp ptbl">
         <colgroup><col style={{ width: '27%' }} /><col style={{ width: '11%' }} /><col style={{ width: '29%' }} /><col style={{ width: '13%' }} /><col style={{ width: '14%' }} /><col style={{ width: '6%' }} /></colgroup>
-        <thead><tr><th>Partition</th><th>Area (m²)</th><th>Adjacent space (tb)</th><th>tb (°C)</th><th>U-value (W/m²K)</th><th></th></tr></thead>
+        <thead><tr><th>Partition type</th><th>Area (m²)</th><th>Adjacent space (tb)</th><th>tb (°C)</th><th>U-value (W/m²K)</th><th></th></tr></thead>
         <tbody>
-          {r.px.length ? r.px.map((x, i) => <AdjRow key={i} label={`Wall partition ${i + 1}`} x={x} U={num(pxU(d.p, 'wall'))} d={d}
+          {r.px.length ? r.px.map((x, i) => <AdjRow key={i} what={`Partition ${i + 1}`} wall x={x} U={num(partU(d.p, x))} d={d}
+            label={<TypeSelect label={`Partition ${i + 1} type`} types={d.p.partTypes} def={d.p.uPart} value={x.pt} onChange={v => edit(y => { if (v) y.px[i].pt = v; else delete y.px[i].pt; })} />}
             change={fn => edit(y => fn(y.px[i]), 'px.' + i)}
             extra={<td className="n"><button className="btn sm" type="button" aria-label={`Delete partition ${i + 1}`} title="Delete" onClick={() => edit(y => { y.px.splice(i, 1); })}>×</button></td>} />)
             : <tr className="dis"><td colSpan={6}>No wall partitions.</td></tr>}
           <tr className="addrow"><td colSpan={6}><button className="btn sm" type="button" onClick={() => edit(y => { y.px.push({ type: 'wall', a: '', adj: PXDEF.wall, t: '', u: '' }); })}>+ Add wall partition</button></td></tr>
         </tbody></table></div>
-      <p className="hint">ASHRAE CLTD/CLF method: roof q = U × A × CLTD (corrected); ceilings, floors and partitions q = U × A × (tb − ti); tb for an unconditioned space, when unknown, = outdoor − 2.8 K; conditioned space at the same temperature and slab on grade: no cooling gain.</p>
+      <p className="hint">{d.p.partTypes.length ? 'Partition type sets the U-value; type over it for a one-off value. ' : 'To use more than one partition construction, add partition types in step 4, Building envelope. '}{d.p.method === 'cltd'
+        ? 'ASHRAE CLTD/CLF method: roof q = U × A × CLTD (corrected); ceilings, floors and partitions q = U × A × (tb − ti); tb for an unconditioned space, when unknown, = outdoor − 2.8 K; conditioned space at the same temperature and slab on grade: no cooling gain.'
+        : 'Heat balance method: every surface is solved hour by hour with its thermal mass. An unconditioned space defined from the outdoor temperature (outdoor − 2.8 K, ventilated spaces) follows the hourly outdoor profile; walls and slabs shared with conditioned space at the room temperature pass no net heat but store it; a slab on grade sits on 2 m of soil at the annual mean temperature.'}</p>
     </div>
     <div className="ed-actions">
       <button className="btn" type="button" onClick={onDup}>Duplicate room</button>
@@ -113,26 +123,122 @@ function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: 
 }
 
 /* one orientation, with an optional length × height calculator */
-function WallRow({ o, r, edit }: { o: Orient; r: Room; edit: (fn: RoomFn, group?: string) => void }) {
+function WallRow({ o, r, p, edit }: { o: Orient; r: Room; p: Project; edit: (fn: RoomFn, group?: string) => void }) {
   const [open, setOpen] = useState(false), toast = useToast();
-  const [f, setF] = useState({ L: '', H: String(num(r.height) || 3), ww: '', wh: '', wn: '1', dd: '0' });
-  const g = (k: keyof typeof f) => { const v = evalArea(f[k]); return typeof v === 'number' ? v : 0; };
-  const wall = Math.round(g('L') * g('H') * 100) / 100, glass = Math.round(g('ww') * g('wh') * g('wn') * 100) / 100, dd = g('dd');
-  const inp = (k: keyof typeof f, lab: string, ph: string) => <label className="wcf"><span>{lab}</span><input type="text" inputMode="decimal" placeholder={ph} value={f[k]} aria-label={`${o} ${lab}`} onChange={e => setF({ ...f, [k]: e.target.value })} /></label>;
+  const c = useCalcFields({ L: '', H: String(num(r.height) || 3), ww: '', wh: '', wn: '1', dd: '0' }, ['L', 'H', 'ww', 'wh'], ['dd']), { f, g, k } = c;
+  /* areas in m², whatever unit the dimensions were typed in */
+  const wall = Math.round(g('L') * g('H') * k * k * 100) / 100, glass = Math.round(g('ww') * g('wh') * g('wn') * k * k * 100) / 100, dd = g('dd') * k * k;
+  const inp = (key: keyof typeof f, lab: string, area?: boolean) => <label className="wcf"><span>{lab}</span><input type="text" inputMode="decimal" placeholder={key === 'wn' ? 'qty' : c.unit + (area ? '²' : '')} value={f[key]} aria-label={`${o} ${lab}`} onChange={e => c.set(key, e.target.value)} /></label>;
   return <>
     <tr><td>{o}</td>
       <td><ExprInput label={`${o} wall gross area`} value={r.walls[o].w} onChange={v => edit(x => { x.walls[o].w = v; }, 'w.' + o)} /></td>
       <td><ExprInput label={`${o} glass area`} value={r.walls[o].g} onChange={v => edit(x => { x.walls[o].g = v; }, 'g.' + o)} /></td>
-      <td className="wcb"><button className="btn sm" type="button" aria-expanded={open} title="Area calculator" onClick={() => setOpen(!open)}>L × H</button></td></tr>
-    {open && <tr className="wcalc"><td colSpan={4}>
-      <div className="wcgrid">{inp('L', 'Wall length', 'm')}{inp('H', 'Wall height', 'm')}{inp('ww', 'Window width', 'm')}{inp('wh', 'Window height', 'm')}{inp('wn', 'No. of windows', 'qty')}{inp('dd', 'Doors / other openings', 'm²')}</div>
-      <div className="wcres"><span>{wall > 0 ? `Wall ${fmt(wall, 2)} m² gross · glass ${fmt(glass, 2)} m² · opaque ${fmt(Math.max(0, wall - glass - dd), 2)} m²${glass + dd > wall ? ' · openings exceed the wall' : ''}` : 'Enter wall length and height.'}</span>
-        <button className="btn sm primary" type="button" onClick={() => {
+      <td><TypeSelect label={`${o} wall type`} types={p.wallTypes} def={p.uWall} value={r.walls[o].t} onChange={v => edit(x => { if (v) x.walls[o].t = v; else delete x.walls[o].t; })} /></td>
+      <td className="wcb"><button className="btn sm" type="button" aria-haspopup="dialog" title="Area calculator" onClick={() => { c.sync(); setOpen(true); }}>L × H</button></td></tr>
+    {open && <Modal title={`Area calculator · ${o} wall`} onClose={() => setOpen(false)}>
+      <UnitSwitch unit={c.unit} onChange={c.switchTo} />
+      <div className="wcgrid">{inp('L', 'Wall length')}{inp('H', 'Wall height')}{inp('ww', 'Window width')}{inp('wh', 'Window height')}{inp('wn', 'No. of windows')}{inp('dd', 'Doors / other openings', true)}</div>
+      <p className="wcres">{wall > 0 ? `Wall ${m2(wall, c.unit)} gross · glass ${m2(glass, c.unit)} · opaque ${m2(Math.max(0, wall - glass - dd), c.unit)}${glass + dd > wall ? ' · openings exceed the wall' : ''}` : 'Enter wall length and height.'}</p>
+      <div className="modal-actions">
+        <button className="btn" type="button" onClick={() => setOpen(false)}>Cancel</button>
+        <button className="btn primary" type="button" onClick={() => {
           if (!(wall > 0)) { toast('Enter wall length and height'); return; }
-          edit(x => { x.walls[o] = { w: wall, g: glass || '' }; }); setOpen(false); toast(`${o}: wall ${fmt(wall, 2)} m², glass ${fmt(glass, 2)} m²`);
-        }}>Apply to {o}</button></div>
-    </td></tr>}
+          edit(x => { x.walls[o].w = wall; x.walls[o].g = glass || ''; }); setOpen(false); toast(`${o}: wall ${fmt(wall, 2)} m², glass ${fmt(glass, 2)} m²`);
+        }}>Apply to {o}</button>
+      </div>
+    </Modal>}
   </>;
+}
+
+/* pick a named wall type from the envelope step; blank is the default U-value. The list shows names only;
+   the description with its U-value pops up on hover */
+function TypeSelect({ label, types, def, value, onChange }: { label: string; types: PartType[]; def: Num; value?: string; onChange: (v: string) => void }) {
+  const cur = types.find(t => t.id === value), desc = (name: string, u: Num) => `${name}: U-value ${num(u)} W/m²K`;
+  return <select aria-label={label} title={cur ? desc(cur.name || 'Unnamed', cur.u) : desc('Default (from the envelope step)', def)}
+    value={cur ? value : ''} onChange={e => onChange(e.target.value)}>
+    <option value="" title={desc('Default (from the envelope step)', def)}>Default</option>
+    {types.map(t => <option key={t.id} value={t.id} title={desc(t.name || 'Unnamed', t.u)}>{t.name || 'Unnamed'}</option>)}
+  </select>;
+}
+
+/* ---------- length unit for the area calculators: metres or feet; results are always m² ---------- */
+type LenUnit = 'm' | 'ft';
+const FT = 0.3048, UNIT_KEY = 'novac-len-unit';
+const readUnit = (): LenUnit => { try { return localStorage.getItem(UNIT_KEY) === 'ft' ? 'ft' : 'm'; } catch { return 'm'; } };
+const saveUnit = (u: LenUnit) => { try { localStorage.setItem(UNIT_KEY, u); } catch { /* the choice is just not remembered */ } };
+/* a plain number keeps full precision so unit round trips are exact; sums go through evalArea */
+const calcNum = (s: string) => { const n = Number(s); return s.trim() !== '' && isFinite(n) && n >= 0 ? n : evalArea(s); };
+/* an area in m², with the ft² equivalent when working in feet */
+const m2 = (v: number, u: LenUnit) => `${fmt(v, 2)} m²` + (u === 'ft' ? ` (${fmt(v / FT / FT, 1)} ft²)` : '');
+
+/* calculator fields typed in m or ft; switching unit converts the lengths and areas already entered */
+function useCalcFields<T extends Record<string, string>>(init: T, lens: (keyof T)[], areas: (keyof T)[]) {
+  const [s, setS] = useState(() => ({ f: init, unit: readUnit() }));
+  const g = (key: keyof T) => { const v = calcNum(s.f[key]); return typeof v === 'number' ? v : 0; };
+  const convert = (to: LenUnit) => setS(cur => {
+    if (cur.unit === to) return cur;
+    const r = to === 'ft' ? 1 / FT : FT, f = { ...cur.f };
+    const conv = (key: keyof T, x: number) => { const v = calcNum(f[key]); if (typeof v === 'number' && v) f[key] = String(Math.round(v * x * 1000) / 1000) as T[keyof T]; };
+    lens.forEach(key => conv(key, r)); areas.forEach(key => conv(key, r * r));
+    return { f, unit: to };
+  });
+  return {
+    f: s.f, unit: s.unit, g, k: s.unit === 'ft' ? FT : 1,
+    set: (key: keyof T, v: string) => setS(cur => ({ ...cur, f: { ...cur.f, [key]: v } })),
+    switchTo: (to: LenUnit) => { saveUnit(to); convert(to); },
+    /* pick up a unit chosen in another calculator */
+    sync: () => convert(readUnit()),
+  };
+}
+
+function UnitSwitch({ unit, onChange }: { unit: LenUnit; onChange: (u: LenUnit) => void }) {
+  return <div className="unit-sw" role="group" aria-label="Length unit">
+    <span className="muted">Dimensions in</span>
+    {(['m', 'ft'] as const).map(u => <button key={u} type="button" className={'btn sm' + (unit === u ? ' primary' : '')} aria-pressed={unit === u} onClick={() => onChange(u)}>{u === 'm' ? 'Metres (m)' : 'Feet (ft)'}</button>)}
+  </div>;
+}
+
+/* pop-up area calculator for any area input: dimension × dimension × quantity, less any deduction */
+function AreaCalc({ what, dims, qty = 'Quantity', less, onApply }: { what: string; dims: [string, string]; qty?: string; less?: string; onApply: (v: number) => void }) {
+  const [open, setOpen] = useState(false), toast = useToast();
+  const c = useCalcFields({ a: '', b: '', n: '1', x: '0' }, ['a', 'b'], ['x']), { f, g, k } = c, u = c.unit;
+  /* typed in the chosen unit; net is always m² */
+  const gross = g('a') * g('b') * (g('n') || 1), net = Math.round(Math.max(0, gross - g('x')) * k * k * 100) / 100;
+  const sym = dims[1] === 'Height' ? 'L × H' : 'L × W';
+  const inp = (key: keyof typeof f, lab: string, ph: string) => <label className="wcf"><span>{lab}</span><input type="text" inputMode="decimal" placeholder={ph} value={f[key]} aria-label={`${what} ${lab}`} onChange={e => c.set(key, e.target.value)} /></label>;
+  return <>
+    <button className="btn sm calc-btn" type="button" aria-haspopup="dialog" title={`${what} area calculator`} onClick={() => { c.sync(); setOpen(true); }}>{sym}</button>
+    {open && <Modal title={`Area calculator · ${what}`} onClose={() => setOpen(false)}>
+      <UnitSwitch unit={u} onChange={c.switchTo} />
+      <div className="wcgrid">{inp('a', dims[0], u)}{inp('b', dims[1], u)}{inp('n', qty, 'qty')}{less && inp('x', less, u + '²')}</div>
+      <p className="wcres">{gross > 0 ? `${fmt(g('a'), 2)} × ${fmt(g('b'), 2)} ${u}${g('n') > 1 ? ` × ${fmt(g('n'), 0)}` : ''}${less && g('x') ? ` − ${fmt(g('x'), 2)} ${u}²` : ''} = ${m2(net, u)}` : `Enter ${dims[0].toLowerCase()} and ${dims[1].toLowerCase()}.`}</p>
+      <div className="modal-actions">
+        <button className="btn" type="button" onClick={() => setOpen(false)}>Cancel</button>
+        <button className="btn primary" type="button" onClick={() => {
+          if (!(gross > 0)) { toast(`Enter ${dims[0].toLowerCase()} and ${dims[1].toLowerCase()}`); return; }
+          onApply(net); setOpen(false); toast(`${what}: ${fmt(net, 2)} m²`);
+        }}>Apply</button>
+      </div>
+    </Modal>}
+  </>;
+}
+
+/* a centred dialog over the page; Escape or the backdrop closes it */
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const back = document.activeElement as HTMLElement | null;
+    box.current?.querySelector('input')?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    addEventListener('keydown', onKey);
+    return () => { removeEventListener('keydown', onKey); back?.focus?.(); };
+  }, [onClose]);
+  return createPortal(<div className="modal-back" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal" role="dialog" aria-modal="true" aria-label={title} ref={box}>
+      <div className="modal-head"><h3>{title}</h3><button className="btn sm" type="button" aria-label="Close" onClick={onClose}>×</button></div>
+      {children}
+    </div>
+  </div>, document.body);
 }
 
 function adjOptions() {
@@ -145,12 +251,13 @@ function adjOptions() {
 }
 
 /* a surface next to another space: area, adjacent space, its temperature and U-value */
-function AdjRow({ label, x, U, d, change, outdoor, extra }: {
-  label: ReactNode; x: Adjacent; U: number; d: Computed; change: (fn: (x: Draft<Adjacent>) => void) => void; outdoor?: boolean; extra?: ReactNode;
+function AdjRow({ label, x, U, d, change, outdoor, extra, what = 'Surface', wall }: {
+  label: ReactNode; x: Adjacent; U: number; d: Computed; change: (fn: (x: Draft<Adjacent>) => void) => void; outdoor?: boolean; extra?: ReactNode; what?: string; wall?: boolean;
 }) {
   const p = d.p, id = x.adj || 'project', T = outdoor ? d.e.To : adjTemp(p, d.e, id, x.t), cust = !blank(x.u), editable = !outdoor && ADJ_EDIT(id);
   return <tr><td>{label}</td>
-    <td><ExprInput label="Area" title="Number or sum, e.g. 4*3.2" value={x.a} onChange={v => change(y => { y.a = v; })} /></td>
+    <td><span className="calc-in"><ExprInput label="Area" title="Number or sum, e.g. 4*3.2" value={x.a} onChange={v => change(y => { y.a = v; })} />
+      <AreaCalc what={what} dims={wall ? ['Length', 'Height'] : ['Length', 'Width']} less={wall ? 'Doors / openings' : undefined} onApply={v => change(y => { y.a = v; })} /></span></td>
     <td>{outdoor ? <span className="muted">Outdoor air</span> : <select aria-label="Adjacent space" value={id} onChange={e => {
       const v = e.target.value;
       change(y => { y.adj = v; if (v === 'custom' && blank(y.t)) y.t = adjTemp(p, d.e, 'project'); if (v === 'cond2' && blank(y.t)) y.t = num(p.tiDB) + 2; });
@@ -159,8 +266,8 @@ function AdjRow({ label, x, U, d, change, outdoor, extra }: {
       title={editable ? 'Edit the adjacent space temperature' : 'Set by the space type; choose Custom or a different set-point to edit'}
       onChange={editable ? v => change(y => { y.t = v; }) : undefined} /></td>
     <td><span className={'ucell' + (cust ? ' cust' : '')}><NumInput label="U-value" min={0} step={0.01} value={cust ? x.u : U} onChange={v => change(y => { y.u = v; })} />
-      {cust && <button className="btn sm" type="button" title="Back to section 3 value" onClick={() => change(y => { y.u = ''; })}>↺</button>}</span>
-      <span className="usrc">{cust ? 'Custom' : 'Section 3'}</span></td>
+      {cust && <button className="btn sm" type="button" title="Back to the envelope step value" onClick={() => change(y => { y.u = ''; })}>↺</button>}</span>
+      <span className="usrc">{cust ? 'Custom' : 'Envelope'}</span></td>
     {extra}
   </tr>;
 }
@@ -175,12 +282,12 @@ function SurfaceRow({ r, d, w, edit }: { r: Room; d: Computed; w: 'a' | 'b'; edi
     });
   }}>{L.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>;
   if (w === 'a' && sel === 'roof') return <tr><td>{pickEl}</td>
-    <td><NumInput label="Roof area" min={0} step={0.5} value={r.roof} onChange={v => edit(x => { x.roof = v; }, 'r.roof')} /></td>
-    <td className="muted">Outdoor, sun on roof</td><td className="n">{fmt(num(p.cltd.R) + d.e.corr, 1)} K</td><td className="n">{num(p.uRoof)} <span className="usrc">Section 3 roof</span></td></tr>;
+    <td><span className="calc-in"><NumInput label="Roof area" min={0} step={0.5} value={r.roof} onChange={v => edit(x => { x.roof = v; }, 'r.roof')} /><AreaCalc what="Roof" dims={['Length', 'Width']} onApply={v => edit(x => { x.roof = v; })} /></span></td>
+    <td className="muted">Outdoor, sun on roof</td><td className="n">{p.method === 'cltd' ? `${fmt(num(p.cltd.R) + d.e.corr, 1)} K` : 'Hourly'}</td><td className="n">{num(p.uRoof)} <span className="usrc">Envelope roof</span></td></tr>;
   if (sel === 'cond') return <tr><td>{pickEl}</td><td className="muted">–</td><td className="muted">Conditioned at room temperature</td><td className="n">{num(p.tiDB)} °C</td><td className="muted">No transfer</td></tr>;
-  if (sel === 'ground') return <tr><td>{pickEl}</td><td className="muted">–</td><td className="muted">Ground</td><td className="muted">–</td><td className="muted">Neglected for cooling</td></tr>;
+  if (sel === 'ground') return <tr><td>{pickEl}</td><td className="muted">–</td><td className="muted">Ground</td><td className="muted">–</td><td className="muted">{p.method === 'cltd' ? 'Neglected for cooling' : `Soil at ${stationOf(p.location).tavg} °C`}</td></tr>;
   const k = w === 'a' ? 'ce' : 'fl';
-  return <AdjRow label={pickEl} x={r[k]} U={num(pxU(p, w === 'a' ? 'ceiling' : 'floor'))} d={d} outdoor={sel === 'outdoor'} change={fn => edit(x => fn(x[k]), k)} />;
+  return <AdjRow label={pickEl} what={w === 'a' ? 'Ceiling' : 'Floor'} x={r[k]} U={num(pxU(p, w === 'a' ? 'ceiling' : 'floor'))} d={d} outdoor={sel === 'outdoor'} change={fn => edit(x => fn(x[k]), k)} />;
 }
 
 function RoomResult({ r, d }: { r: Room; d: Computed }) {
@@ -193,6 +300,7 @@ function RoomResult({ r, d }: { r: Room; d: Computed }) {
     <h3>{r.name || 'Untitled'}</h3>
     <div className="big"><span className="big-num">{fmt(tr, 2)}</span><span className="big-unit">TR</span></div>
     <div className="sub">{fmt(rm / 1000, 2)} kW room load, excluding fresh air{c.qty > 1 ? ` · ${c.qty} rooms = ${fmt(tr * c.qty, 2)} TR` : ''}</div>
+    {c.pkM != null && <div className="sub">Peak on {MONTHS[c.pkM]} 21 at {String(c.pkH).padStart(2, '0')}:00 · heat balance method</div>}
     <dl className="kv">
       <dt>Sensible / latent</dt><dd>{fmt(c.roomS / 1000, 2)} / {fmt(c.roomL / 1000, 2)} kW</dd>
       <dt>Sensible heat ratio</dt><dd>{fmt(c.roomS / (rm || 1), 2)}</dd>
@@ -220,5 +328,26 @@ function RoomResult({ r, d }: { r: Room; d: Computed }) {
       <div className="bar-row tot-row"><span><b>Room total</b></span><span className="muted" style={{ fontSize: 11 }}>{fmt(c.roomS / 1000, 2)} sensible + {fmt(c.roomL / 1000, 2)} latent</span><span className="v"><b>{fmt(rm / 1000, 2)} kW</b></span></div>
       <div className="legend"><span><i style={{ background: 'var(--bar)' }} />Sensible load</span><span><i style={{ background: 'var(--lat)' }} />Latent load</span></div>
     </div>
+    <HourlyChart c={c} />
   </>;
+}
+
+/* heat balance: room load in each hour of the peak month, and the peak of each month */
+function HourlyChart({ c }: { c: RoomLoad }) {
+  if (!c.profS || !c.profL || c.pkM == null) return null;
+  const tot = (m: number, i: number) => (c.profS![m * 24 + i] + c.profL![m * 24 + i]) / 1000;
+  const day = Array.from({ length: 24 }, (_, i) => tot(c.pkM!, i));
+  const mon = MONTHS.map((_, m) => Math.max(...Array.from({ length: 24 }, (_, i) => tot(m, i))));
+  const max = Math.max(...day, ...mon, 0.001), H = 56;
+  const bars = (v: number[], w: number, hi: number, label: (i: number) => string, every: number) => <svg viewBox={`0 0 ${v.length * w} ${H + 13}`} className="hb-svg" role="img"
+    aria-label={v.map((x, i) => `${label(i)} ${fmt(x, 2)} kW`).join(', ')}>
+    {v.map((x, i) => { const h = Math.max(0, x / max * H); return <rect key={i} x={i * w + 1} y={H - h} width={w - 2} height={h} rx={1} fill={i === hi ? 'var(--accent)' : 'var(--bar)'} />; })}
+    {v.map((_, i) => (i + 1) % every === 0 || every === 1 ? <text key={i} x={i * w + w / 2} y={H + 11} textAnchor="middle" fontSize={9} fill="var(--muted)">{label(i)}</text> : null)}
+  </svg>;
+  return <div className="hb-chart">
+    <div className="eyebrow">Room load by hour · {MONTHS[c.pkM]} 21 · peak {fmt(day[c.pkH! - 1], 2)} kW at {String(c.pkH).padStart(2, '0')}:00</div>
+    {bars(day, 10, c.pkH! - 1, i => String(i + 1), 6)}
+    <div className="eyebrow">Peak room load by month</div>
+    {bars(mon, 20, c.pkM, i => MONTHS[i][0], 1)}
+  </div>;
 }

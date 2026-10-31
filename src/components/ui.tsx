@@ -50,12 +50,13 @@ export function ExprInput({ value, onChange, label, title }: { value: Num; onCha
     onChange={e => { setText(e.target.value); const v = evalArea(e.target.value); if (v !== null) onChange(v); }} />;
 }
 
-export function Field({ id, label, unit, mark, value, onChange, step = 0.1, disabled, title, wide }: {
-  id: string; label: string; unit?: string; mark?: Mark; value: Num | number; onChange?: (v: Num) => void; step?: number; disabled?: boolean; title?: string; wide?: boolean;
+export function Field({ id, label, unit, mark, value, onChange, step = 0.1, disabled, title, wide, after }: {
+  id: string; label: string; unit?: string; mark?: Mark; value: Num | number; onChange?: (v: Num) => void; step?: number; disabled?: boolean; title?: string; wide?: boolean; after?: ReactNode;
 }) {
   return <div className={'fld' + (wide ? ' wide' : '')}>
     <div className="flrow"><label className="fl" htmlFor={id}>{label}</label><Badge m={mark} /></div>
-    <span className="in-u"><NumInput id={id} value={value} onChange={onChange} step={step} disabled={disabled} title={title} />{unit ? <span className="u">{unit}</span> : null}</span>
+    {after ? <span className="calc-in"><span className="in-u"><NumInput id={id} value={value} onChange={onChange} step={step} disabled={disabled} title={title} />{unit ? <span className="u">{unit}</span> : null}</span>{after}</span>
+      : <span className="in-u"><NumInput id={id} value={value} onChange={onChange} step={step} disabled={disabled} title={title} />{unit ? <span className="u">{unit}</span> : null}</span>}
   </div>;
 }
 

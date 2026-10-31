@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 96" role="img" aria-labelledby="title desc">
+  <title id="title">NOVAC</title>
+  <desc id="desc">NOVAC — Engineered for high-ambient cooling.</desc>
+  <g transform="translate(2 2) scale(1.4375)">
+    <rect width="64" height="64" rx="13" fill="#C9A34A"/>
+    <path d="M15 48V16h7l20 22V16h7v32h-7L22 26v22z" fill="#17191D"/>
+  </g>
+  <text x="108" y="54" fill="#FFFDF7" font-family="Arial, Helvetica, sans-serif" font-size="51" font-weight="700" letter-spacing="1.5">NOVAC</text>
+  <text x="111" y="78" fill="#D5D7DA" font-family="Arial, Helvetica, sans-serif" font-size="12.5" font-weight="500" letter-spacing="1.8">ENGINEERED FOR HIGH-AMBIENT COOLING</text>
+</svg>

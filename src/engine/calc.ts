@@ -1,7 +1,10 @@
-/* ASHRAE CLTD/CLF peak cooling load, room by room. All loads in W. */
-import { ADJ, DRF, ORIENTS } from './data';
+/* Room-by-room cooling load. All loads in W.
+   Heat balance method (default): hourly ASHRAE heat balance on the design day of every month, peak taken over all hours
+   and months (engine in ./hbm). CLTD/CLF method: the original single-peak calculation, kept for comparison. */
+import { ADJ, DRF, ORIENTS, SCHEDULES } from './data';
+import { climateOf, roomLoads, COMPONENTS, type MonthLoads } from './hbm/room';
 import { W_rh, W_wb, hOf, pressureAt, wbOf, rhOf } from './psychro';
-import { pxU, refElevOf } from './project';
+import { partU, pxU, refElevOf, wallU } from './project';
 import type { Adjacent, Project, Room } from './types';
 import { num } from './util';
 
@@ -31,15 +34,75 @@ export function adjTemp(p: Project, e: Env, id: string, custom?: unknown) {
 }
 const adjGain = (p: Project, e: Env, x: Adjacent, U: unknown) => uEff(x.u, U) * num(x.a) * (adjTemp(p, e, x.adj || 'project', x.t) - num(p.tiDB));
 
-export interface RoomLoad {
-  n: number; oaQ: number; infQ: number; walls: number; roof: number; gSol: number; gCond: number;
-  part: number; partW: number; partC: number; partF: number; pS: number; pL: number; light: number; equip: number;
-  infS: number; infL: number; oaS: number; oaL: number; mS: number; mL: number; roomS: number; roomL: number;
-  unitS: number; unitL: number; unit: number; oa: number; sa: number; A: number; wallG: number; glassA: number; sky: number; roofA: number; qty: number;
+/* load components of one unit at the design hour */
+interface Parts {
+  n: number; walls: number; roof: number; gSol: number; gCond: number; partW: number; partC: number; partF: number;
+  pS: number; pL: number; light: number; equip: number; infQ: number; infS: number; infL: number; wallG: number; glassA: number; sky: number;
+}
+export interface RoomLoad extends Parts {
+  oaQ: number; part: number; oaS: number; oaL: number; mS: number; mL: number; roomS: number; roomL: number;
+  unitS: number; unitL: number; unit: number; oa: number; sa: number; A: number; roofA: number; qty: number;
+  method: 'hbm' | 'cltd';
+  /* heat balance: design month (0–11) and hour (1–24) of the room peak, and room sensible / latent load
+     (with margins, one unit) for every hour of every month, index month × 24 + hour − 1 */
+  pkM?: number; pkH?: number; profS?: number[]; profL?: number[];
+  /* hourly load components and latent load of every month, one unit, before margins */
+  hb?: MonthLoads[];
 }
 
+/* fresh air, margins, unit totals and supply air from the room components */
+function finish(p: Project, r: Room, e: Env, x: Parts, extra: Pick<RoomLoad, 'method' | 'pkM' | 'pkH' | 'profS' | 'profL' | 'hb'>): RoomLoad {
+  const A = num(r.area), Ti = num(p.tiDB), ks = 1.23 * e.k, kl = 3010 * e.k;
+  const part = x.partW + x.partC + x.partF;
+  const oaQ = num(r.oa), oaS = ks * oaQ * (e.Tv - Ti), oaL = kl * oaQ * Math.max(0, e.Wv - e.Wi);
+  const s0 = x.walls + x.roof + x.gSol + x.gCond + part + x.pS + x.light + x.equip + x.infS, l0 = x.pL + x.infL;
+  const mS = s0 * num(p.sfS) / 100, mL = l0 * num(p.sfL) / 100;
+  const roomS = s0 + mS, roomL = l0 + mL, toUnit = !p.fahu;
+  const unitS = roomS + (toUnit ? oaS : 0), unitL = roomL + (toUnit ? oaL : 0), unit = unitS + unitL;
+  const sa = roomS / (ks * Math.max(1, Ti - num(p.tSupply)));
+  return {
+    ...x, oaQ, part, oaS, oaL, mS, mL, roomS, roomL, unitS, unitL, unit, oa: oaS + oaL, sa, A,
+    roofA: r.above === 'roof' ? num(r.roof) : 0, qty: Math.max(1, Math.round(num(r.qty)) || 1), ...extra,
+  };
+}
+
+/* heat balance: run every month, take the hour and month with the highest room load */
+function calcHbm(p: Project, r: Room, e: Env): RoomLoad {
+  const A = num(r.area), ks = 1.23 * e.k, kl = 3010 * e.k;
+  const n = num(r.people), infQ = num(r.ach) * A * num(r.height) / 3.6, infL = kl * infQ * Math.max(0, e.Wo - e.Wi);
+  const sched = r.sched || '24h', sch = SCHEDULES.find(s => s.id === sched) || SCHEDULES[0];
+  const months = roomLoads(p, r, climateOf(p, e), { n, ps: num(r.ps), pl: num(r.pl), light: A * num(r.light), equip: A * num(r.equip), infK: ks * infQ, infL, sched });
+  const fS = 1 + num(p.sfS) / 100, fL = 1 + num(p.sfL) / 100, profS: number[] = [], profL: number[] = [];
+  let best = -Infinity, bm = 0, bh = 0;
+  months.forEach((ml, m) => {
+    for (let i = 0; i < 24; i++) {
+      const s = COMPONENTS.reduce((a, k) => a + ml.c[k][i], 0) * fS, l = ml.lat[i] * fL;
+      profS.push(s); profL.push(l);
+      if (s + l > best + 1e-9) { best = s + l; bm = m; bh = i; }
+    }
+  });
+  const c = months[bm].c, at = (k: typeof COMPONENTS[number]) => c[k][bh];
+  let wallG = 0, glassA = 0;
+  for (const o of ORIENTS) { const w = num(r.walls[o]?.w), g = num(r.walls[o]?.g); glassA += g; wallG += Math.max(w, g); }
+  const sky = r.above === 'roof' ? num(r.sky) : 0;
+  return finish(p, r, e, {
+    n, walls: at('walls'), roof: at('roof'), gSol: at('gSol'), gCond: at('gCond'), partW: at('partW'), partC: at('partC'), partF: at('partF'),
+    pS: at('pS'), pL: n * num(r.pl) * sch.people[bh], light: at('light'), equip: at('equip'), infQ, infS: at('infS'), infL, wallG, glassA, sky,
+  }, { method: 'hbm', pkM: bm, pkH: bh + 1, profS, profL, hb: months });
+}
+
+/* results are kept per room and project, so editing one room recalculates only that room */
+const memo = new WeakMap<Room, { p: Project; c: RoomLoad }>();
 /* load for one unit of a room */
 export function calc(p: Project, r: Room, e: Env): RoomLoad {
+  const m = memo.get(r);
+  if (m && m.p === p) return m.c;
+  const c = p.method === 'cltd' ? calcCltd(p, r, e) : calcHbm(p, r, e);
+  memo.set(r, { p, c }); return c;
+}
+
+/* ASHRAE CLTD/CLF single-peak method */
+function calcCltd(p: Project, r: Room, e: Env): RoomLoad {
   const A = num(r.area), H = num(r.height), Ti = num(p.tiDB), dT = e.To - Ti, ks = 1.23 * e.k, kl = 3010 * e.k;
   /* Glass conduction uses the ASHRAE glass CLTD, corrected like walls and roof. The original tool used
      the full outdoor-indoor difference, which overstates glass conduction by about 2-3 K at UAE conditions. */
@@ -47,7 +110,7 @@ export function calc(p: Project, r: Room, e: Env): RoomLoad {
   let walls = 0, gSol = 0, gCond = 0, wallG = 0, glassA = 0;
   for (const o of ORIENTS) {
     const w = num(r.walls[o]?.w), g = num(r.walls[o]?.g); glassA += g; wallG += Math.max(w, g);
-    walls += num(p.uWall) * Math.max(0, w - g) * Math.max(0, num(p.cltd[o]) + e.corr);
+    walls += num(wallU(p, r.walls[o]?.t)) * Math.max(0, w - g) * Math.max(0, num(p.cltd[o]) + e.corr);
     gCond += num(p.uGlass) * g * glassCltd;
     gSol += g * num(p.solar[o]) * num(p.shgc) * num(p.shade);
   }
@@ -55,24 +118,13 @@ export function calc(p: Project, r: Room, e: Env): RoomLoad {
   const roof = isRoof ? num(p.uRoof) * Math.max(0, num(r.roof) - sky) * Math.max(0, num(p.cltd.R) + e.corr) : 0;
   gCond += num(p.uSky) * sky * glassCltd;
   gSol += sky * num(p.solar.H) * num(p.shgcSky) * num(p.shade);
-  const partW = r.px.reduce((a, x) => a + adjGain(p, e, x, pxU(p, 'wall')), 0);
+  const partW = r.px.reduce((a, x) => a + adjGain(p, e, x, partU(p, x)), 0);
   const partC = r.above === 'uncond' ? adjGain(p, e, r.ce, pxU(p, 'ceiling')) : 0;
   const partF = r.below === 'uncond' ? adjGain(p, e, r.fl, p.uFloor)
     : r.below === 'outdoor' ? uEff(r.fl.u, p.uFloor) * num(r.fl.a) * Math.max(0, dT) : 0;
-  const part = partW + partC + partF;
   const n = num(r.people), pS = n * num(r.ps), pL = n * num(r.pl), light = A * num(r.light), equip = A * num(r.equip);
   const infQ = num(r.ach) * A * H / 3.6, infS = ks * infQ * dT, infL = kl * infQ * Math.max(0, e.Wo - e.Wi);
-  const oaQ = num(r.oa), oaS = ks * oaQ * (e.Tv - Ti), oaL = kl * oaQ * Math.max(0, e.Wv - e.Wi);
-  const s0 = walls + roof + gSol + gCond + part + pS + light + equip + infS, l0 = pL + infL;
-  const mS = s0 * num(p.sfS) / 100, mL = l0 * num(p.sfL) / 100;
-  const roomS = s0 + mS, roomL = l0 + mL, toUnit = !p.fahu;
-  const unitS = roomS + (toUnit ? oaS : 0), unitL = roomL + (toUnit ? oaL : 0), unit = unitS + unitL;
-  const sa = roomS / (ks * Math.max(1, Ti - num(p.tSupply)));
-  return {
-    n, oaQ, infQ, walls, roof, gSol, gCond, part, partW, partC, partF, pS, pL, light, equip, infS, infL, oaS, oaL, mS, mL,
-    roomS, roomL, unitS, unitL, unit, oa: oaS + oaL, sa, A, wallG, glassA, sky, roofA: isRoof ? num(r.roof) : 0,
-    qty: Math.max(1, Math.round(num(r.qty)) || 1),
-  };
+  return finish(p, r, e, { n, walls, roof, gSol, gCond, partW, partC, partF, pS, pL, light, equip, infQ, infS, infL, wallG, glassA, sky }, { method: 'cltd' });
 }
 
 /* DBC H.4.8.3: DCV in spaces over 100 m² with design occupancy of 25 people per 100 m² or more */
@@ -81,6 +133,8 @@ export const dcvNeeded = (c: RoomLoad) => c.A > 100 && c.n / c.A * 100 >= 25;
 export interface Totals {
   a: number; n: number; s: number; l: number; oa: number; oaS: number; oaL: number; u: number; sa: number; q: number; oaq: number;
   wallG: number; glass: number; roof: number; sky: number; dcv: string[]; rec: number; fahuW: number; plant: number; wwr: number; skyPct: number;
+  /* heat balance: coincident peak of all room loads (× qty, with margins), its month (0–11) and hour (1–24) */
+  blk?: { s: number; l: number; m: number; h: number };
 }
 export interface Computed { p: Project; rooms: Room[]; e: Env; res: Record<string, RoomLoad>; T: Totals }
 
@@ -99,6 +153,12 @@ export function computeAll(p: Project, rooms: Room[]): Computed {
   T.fahuW = p.fahu ? Math.max(0, T.oa - T.rec) : 0;
   T.plant = (T.u + T.fahuW) * num(p.diversity) / 100;
   T.wwr = T.wallG ? T.glass / T.wallG * 100 : 0; T.skyPct = T.roof ? T.sky / T.roof * 100 : 0;
+  if (rooms.length && rooms.every(r => res[r.id].profS)) {
+    const S = new Array(288).fill(0), L = new Array(288).fill(0);
+    rooms.forEach(r => { const c = res[r.id]; for (let i = 0; i < 288; i++) { S[i] += c.profS![i] * c.qty; L[i] += c.profL![i] * c.qty; } });
+    let k = 0; for (let i = 1; i < 288; i++) if (S[i] + L[i] > S[k] + L[k]) k = i;
+    T.blk = { s: S[k], l: L[k], m: Math.floor(k / 24), h: k % 24 + 1 };
+  }
   return { p, rooms, e, res, T };
 }
 
@@ -113,7 +173,7 @@ export function stateTable(d: Computed) {
   const { p, e, T } = d, P = e.P, Ti = num(p.tiDB), Ts = num(p.tSupply);
   const Wsup = T.sa > 0 ? Math.max(0.0005, e.Wi - T.l / (3010 * e.k * T.sa)) : e.Wi;
   const pts: StatePoint[] = [
-    { k: 'O', name: 'Outdoor (envelope)', t: e.To, w: e.Wo, c: 'bad' }, { k: 'V', name: 'Outdoor (fresh air)', t: e.Tv, w: e.Wv, c: 'warn' },
+    { k: 'O', name: 'Outdoor (ambient)', t: e.To, w: e.Wo, c: 'bad' }, { k: 'V', name: 'Outdoor (fresh air)', t: e.Tv, w: e.Wv, c: 'warn' },
     { k: 'R', name: 'Room design', t: Ti, w: e.Wi, c: 'ok' }, { k: 'S', name: 'Supply air', t: Ts, w: Wsup, c: 'acc' }];
   if (!p.fahu && T.sa > 0) { const x = Math.min(1, T.oaq / T.sa); pts.push({ k: 'M', name: `Mixed air (${Math.round(x * 100)}% fresh air)`, t: x * e.Tv + (1 - x) * Ti, w: x * e.Wv + (1 - x) * e.Wi, c: 'mid' }); }
   if (Math.abs(e.Tv - e.To) < 0.05 && Math.abs(e.Wv - e.Wo) < 1e-5) pts.splice(1, 1);

@@ -41,7 +41,7 @@ export function roomChecks(r: Room, c: RoomLoad, ez: number): RoomChecks {
   const req = oaRequired(r, ez);
   const oa: Mark = c.oaQ >= req.q - 0.05 ? ['ok', `≥ ${fmt(req.q, 1)} L/s, ${req.ref} (DBC H.4.10.2)`] : ['bad', `below ${fmt(req.q, 1)} L/s required by ${req.ref} (DBC H.4.10.2)`];
   const bam = String(r.src.light || '').startsWith('bam-') ? LPD_BAM.find(x => 'bam-' + x[0] === r.src.light) : undefined;
-  const lim = bam ? bamWm2(bam[2]) : t.a901, lref = bam ? `ASHRAE 90.1-2019 Building Area Method, ${bam[1]}` : 'ASHRAE 90.1-2022 Space-by-Space Method';
+  const lim = bam ? bamWm2(bam[2]) : t.a901, lref = bam ? `ASHRAE 90.1-2022 Building Area Method, ${bam[1]}` : 'ASHRAE 90.1-2022 Space-by-Space Method';
   const light: Mark = lim ? (num(r.light) <= lim + 1e-9 ? ['ok', `≤ ${lim} W/m², ${lref} (DBC H.4.6.7.2)`] : ['bad', `exceeds ${lim} W/m², ${lref} (DBC H.4.6.7.2)`]) : null;
   return { people, oa, light };
 }
@@ -60,8 +60,8 @@ export function outdoorPlaus(p: Project, e: Env): Plaus[] {
   };
   chk('toDB', 'Outdoor dry bulb', num(p.toDB), '°C', 35, 42, 49, 52, 'Code values are 46 °C (Dubai), 46.1 °C (Abu Dhabi) and 48.8 °C (Al Ain).');
   chk('toWB', 'Outdoor wet bulb', num(p.toWB), '°C', 18, 22, 31, 32, 'Code values are 28.3–29.4 °C.');
-  chk('vDB', 'Outdoor air (FAHU) dry bulb', num(p.vDB), '°C', 28, 32, 49, 52, 'DBC H.4.6.4 uses 34 °C; DoE Table 2 uses 35.3–35.8 °C.');
-  chk('vWB', 'Outdoor air (FAHU) wet bulb', num(p.vWB), '°C', 20, 26, 32, 33, 'DBC H.4.6.4 uses 32 °C; DoE Table 2 uses 28.8–30.6 °C.');
+  chk('vDB', 'Outdoor air (FAHU) dry bulb', num(p.vDB), '°C', 28, 32, 49, 52, 'DBC H.4.6.4 uses 34 °C; DOE Table 2 uses 35.3–35.8 °C.');
+  chk('vWB', 'Outdoor air (FAHU) wet bulb', num(p.vWB), '°C', 20, 26, 32, 33, 'DBC H.4.6.4 uses 32 °C; DOE Table 2 uses 28.8–30.6 °C.');
   chk('dr', 'Daily range', num(p.dr), 'K', 3, 5, 18, 22, 'Published UAE July ranges are about 6–15 K.');
   chk('elev', 'Elevation', num(p.elev), 'm', -10, -5, 1950, 2000, 'UAE ground ranges from sea level to about 1,934 m.');
   if (num(p.toWB) >= num(p.toDB)) out.push(['toWB', 'bad', 'Outdoor wet bulb must be lower than dry bulb.']);
@@ -84,14 +84,14 @@ export function outdoorChecks(p: Project, e: Env): CheckRow[] {
   rows.push([ob.std ? ob.o.src : 'Custom value', 'Cooling design condition (envelope, infiltration)', val(tD, tW), ob.std ? ['ok', 'Complies'] : ['warn', 'Subject to Authority approval']]);
   rows.push([vb.std ? vb.o.src : vb.same ? 'Same as cooling' : 'Custom value', 'Outdoor air system design condition (peak humidity)', val(vD, vW), vb.std ? ['ok', 'Complies'] : vb.same ? ['warn', 'Deviates from standard practice'] : ['warn', 'Subject to Authority approval']]);
   const ad = loc === 'abudhabi' || loc === 'alain';
-  rows.push([ad ? 'DoE CLM §5.2 / DBC H.4.6.4' : 'DBC H.4.6.4', 'Outdoor air system for fully air-conditioned buildings; treated outdoor air ≥ 95% of the year', p.fahu ? 'FAHU / DOAS' : 'Mixed at room units', p.fahu ? ['ok', 'Provided'] : ['warn', 'Verify outdoor air system']]);
+  rows.push([ad ? 'DOE CLM §5.2 / DBC H.4.6.4' : 'DBC H.4.6.4', 'Outdoor air system for fully air-conditioned buildings; treated outdoor air ≥ 95% of the year', p.fahu ? 'FAHU / DOAS' : 'Mixed at room units', p.fahu ? ['ok', 'Provided'] : ['warn', 'Verify outdoor air system']]);
   const a = ASH04[loc];
   if (a) rows.push(['ASHRAE Fundamentals 2021', `0.4% cooling design DB / MCWB, ${a.st}: ${a.db} / ${a.wb} °C`, `${fmt(tD, 1)} °C DB`,
     tD >= a.db - 0.05 ? ['ok', tD > a.db + 0.05 ? `Conservative, +${fmt(tD - a.db, 1)} K` : 'Complies'] : (ob.std ? ['ok', 'Recognised basis selected'] : ['warn', 'Below 0.4% DB, subject to Authority approval'])]);
   const rh = rhOf(e.To, e.Wo, e.P);
   rows.push(['Psychrometrics', 'Valid air state: WB < DB, RH ≤ 100%', `RH ${fmt(Math.min(rh, 100), 0)}%, DP ${fmt(dpOf(e.Wo, e.P), 1)} °C`, tW < tD && rh <= 100.5 ? ['ok', 'Valid'] : ['bad', 'Invalid state']]);
   const Wv = W_wb(vD, vW, e.P), Wc = W_wb(tD, tW, e.P);
-  rows.push([ad ? 'DoE CLM §2.2 / ASHRAE 62.1' : 'ASHRAE 62.1-2022', 'Ventilation design humidity ratio ≥ cooling design humidity ratio', `${fmt(Wv * 1000, 1)} / ${fmt(Wc * 1000, 1)} g/kg`, (Wv >= Wc - 1e-5 || vb.std) ? ['ok', 'Complies'] : ['warn', 'Latent load may be understated']]);
+  rows.push([ad ? 'DOE CLM §2.2 / ASHRAE 62.1' : 'ASHRAE 62.1-2022', 'Ventilation design humidity ratio ≥ cooling design humidity ratio', `${fmt(Wv * 1000, 1)} / ${fmt(Wc * 1000, 1)} g/kg`, (Wv >= Wc - 1e-5 || vb.std) ? ['ok', 'Complies'] : ['warn', 'Latent load may be understated']]);
   return rows;
 }
 
@@ -124,7 +124,7 @@ export function projectChecks(p: Project, T: Totals, rooms: Room[]): { marks: Re
   const ee = envOf(p), lap = ee.lapse > 0 ? `; calculation uses ${fmt(ee.To, 1)} °C after −${fmt(ee.lapse, 1)} K elevation adjustment` : '';
   const ob = outBasis(p), vb = ventBasis(p);
   out.toDB = out.toWB = ob.std ? ['ok', `${ob.o.src}${lap}`] : ['warn', 'Non-standard design condition. Technical justification required for Authority approval'];
-  out.vDB = out.vWB = vb.std ? ['ok', vb.o.src] : vb.same ? ['warn', 'Cooling condition used for outdoor air: not standard practice (DBC H.4.6.4, DoE CLM Table 2)'] : ['warn', 'Non-standard outdoor air condition. Technical justification required for Authority approval'];
+  out.vDB = out.vWB = vb.std ? ['ok', vb.o.src] : vb.same ? ['warn', 'Cooling condition used for outdoor air: not standard practice (DBC H.4.6.4, DOE CLM Table 2)'] : ['warn', 'Non-standard outdoor air condition. Technical justification required for Authority approval'];
   const ti = num(p.tiDB), rh = num(p.tiRH), ib = p.src.indoor === 'custom' ? 'dbc' : p.src.indoor;
   if (ib === 'ashrae') {
     const ic = indoorChecks(p, ee, rooms), pm = ic.rows[3][3];
@@ -156,6 +156,17 @@ export function allChecks(d: Computed, marks: Record<string, Mark>, L: Limits): 
   const rows: Check[] = [], add = (s: Status, c: string, t: string) => rows.push([s, c, t]), gen = (c: string, t: string) => rows.push(['req', c, t, true]);
   const envBad = ENVK.filter(k => marks[k] && marks[k]![0] === 'bad');
   add(envBad.length ? 'bad' : 'ok', 'Envelope', envBad.length ? `${envBad.map(k => PMETA[k][0]).join(', ')} exceed${envBad.length === 1 ? 's' : ''} the ${L.name} limits${L.band ? ' (' + L.band + ')' : ''}.` : `All U-values and SHGC meet ${L.name}${L.band ? ' (' + L.band + ')' : ''}.`);
+  /* ASHRAE 90.1-2022 prescriptive envelope path (§5.5) conditions the heat-load model can check */
+  if (p.cbasis === 'a901') {
+    add(T.wwr <= 40 ? 'ok' : 'warn', 'ASHRAE 90.1-2022 §5.5.4.2.1', T.wwr <= 40 ? `Vertical fenestration ${fmt(T.wwr, 1)}% of gross wall area, within the 40% prescriptive maximum.`
+      : `Vertical fenestration ${fmt(T.wwr, 1)}% of gross wall area exceeds the 40% prescriptive maximum. Use the envelope trade-off path (§5.6, Appendix C) or Appendix G.`);
+    if (T.sky > 0) add(T.skyPct <= 3 ? 'ok' : 'warn', 'ASHRAE 90.1-2022 §5.5.4.2.2', T.skyPct <= 3 ? `Skylights ${fmt(T.skyPct, 1)}% of gross roof area, within the 3% maximum.`
+      : `Skylights ${fmt(T.skyPct, 1)}% of gross roof area exceed 3%. Up to 6% is allowed with diffusing glazing (haze > 90%), VT > 0.40 and daylight controls (§5.5.4.2.2 exception).`);
+    gen('ASHRAE 90.1-2022 §5.5.3.1.4', 'Zones 0–3 roofs: 3-year aged solar reflectance ≥ 0.55 and thermal emittance ≥ 0.75 (CRRC S100), or SRI ≥ 64; otherwise roof insulation to Table 5.5.3.1.4 (above deck U ≤ 0.153 W/m²K, R-6.3 ci, in zone 0).');
+    gen('ASHRAE 90.1-2022 §5.5.3.2.2', 'Zone 0 east, south and west walls: at least 75% of opaque wall area with initial solar reflectance ≥ 0.30 and emittance ≥ 0.75, or at least 30% of the wall shaded.');
+    gen('ASHRAE 90.1-2022 §5.5.4.5', 'Fenestration orientation: west and east glazing area each ≤ 25% of total vertical fenestration, or west/east area × SHGC each ≤ total area × SHGC limit ÷ 4.');
+    gen('ASHRAE 90.1-2022 §5.4.3', 'Continuous air barrier. Whole-building air leakage ≤ 1.8 L/s·m² of envelope area at 75 Pa (0.35 cfm/ft², ASTM E3158), mandatory testing below 929 m² gross conditioned floor area; above that, testing or a third-party air barrier verification program (§5.9.1.2). Zone 1–2 entrances need no vestibule (§5.4.3.4).');
+  }
   {
     const ob = outBasis(p), adj = e.lapse > 0 ? ` Elevation adjustment −${fmt(e.lapse, 1)} K applied (${fmt(e.To, 1)} °C).` : '';
     add(ob.std ? 'ok' : 'warn', 'Outdoor design basis', (ob.std ? `${num(p.toDB)} °C DB / ${num(p.toWB)} °C WB to ${ob.o.src}.` : `${num(p.toDB)} °C DB / ${num(p.toWB)} °C WB is not a recognised design basis. Technical justification required for Authority approval.`) + adj);

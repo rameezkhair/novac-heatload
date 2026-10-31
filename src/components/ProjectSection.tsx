@@ -1,4 +1,5 @@
 import { INDOOR, LOC, OUT_OPTS, SUBLOC, VENT_OPTS } from '../engine/data';
+import { stationOf } from '../engine/climate';
 import { hOf, oaPer100, type Computed } from '../engine/calc';
 import { W_wb, wbOf } from '../engine/psychro';
 import { indoorChecks, outdoorChecks, outdoorPlaus, ventBasis } from '../engine/checks';
@@ -99,7 +100,7 @@ export function DesignConditionsSection({ store, d, marks }: { store: Store; d: 
     </div>}
     <div className="derived">
       <span>Outdoor W <b>{fmt(e.Wo * 1000, 1)}</b> g/kg</span><span>Fresh-air W <b>{fmt(e.Wv * 1000, 1)}</b> g/kg</span><span>Indoor W <b>{fmt(e.Wi * 1000, 1)}</b> g/kg</span>
-      <span>CLTD correction <b>{e.corr >= 0 ? '+' : ''}{fmt(e.corr, 1)}</b> K</span><span>Pressure <b>{fmt(e.P, 1)}</b> kPa</span>
+      {p.method === 'cltd' ? <span>CLTD correction <b>{e.corr >= 0 ? '+' : ''}{fmt(e.corr, 1)}</b> K</span> : <span>Solar and monthly weather <b>{stationOf(p.location).name}</b></span>}<span>Pressure <b>{fmt(e.P, 1)}</b> kPa</span>
     </div>
   </section>;
 }
@@ -112,7 +113,7 @@ function VentRemark({ store, d }: { store: Store; d: Computed }) {
     const Wd = W_wb(34, 32, e.P), qd = oaPer100(e, Ti, 34, Wd), hd = hOf(34, Wd), qc = oaPer100(e, Ti, e.Tv, e.Wv), short = qd > qc ? (1 - qc / qd) * 100 : 0;
     return <div className="remark warn">
       <b>Outdoor air design {fmt(num(p.vDB), 1)} °C DB / {num(p.vWB)} °C WB is {p.src.vent === 'same' ? 'the cooling condition, not standard practice for outdoor air systems' : 'not a recognised design basis'}</b>
-      Adopt a recognised basis ({ad ? 'DoE CLM Table 2' : 'DBC H.4.6.4'}) or submit technical justification for Authority approval. DBC H.4.6.4 designs the outdoor air system at 34 °C DB / 32 °C WB (W {fmt(Wd * 1000, 1)} g/kg, h {fmt(hd, 1)} kJ/kg, {fmt(qd, 2)} kW per 100 L/s).
+      Adopt a recognised basis ({ad ? 'DOE CLM Table 2' : 'DBC H.4.6.4'}) or submit technical justification for Authority approval. DBC H.4.6.4 designs the outdoor air system at 34 °C DB / 32 °C WB (W {fmt(Wd * 1000, 1)} g/kg, h {fmt(hd, 1)} kJ/kg, {fmt(qd, 2)} kW per 100 L/s).
       The current values give {fmt(qc, 2)} kW per 100 L/s{short > 0 ? `, so the FAHU would be undersized by about ${fmt(short, 0)}%, mostly in dehumidification` : ''}.
       <br /><button className="btn" type="button" style={{ marginTop: 8 }} onClick={() => { store.update(s => { s.project.src.vent = 'dbc'; resolveProject(s.project as Project); }); toast('Applied DBC H.4.6.4: 34 °C DB / 32 °C WB'); }}>Apply 34 °C DB / 32 °C WB</button>
     </div>;

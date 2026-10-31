@@ -6,6 +6,7 @@ import { ABBR, fileBase, scheduleTSV } from './engine/report';
 import { canSaveInPlace, copyText, openProjectFile, saveProjectFile, type FileHandle } from './files';
 import { deleteSaved, listSaved, saveToLibrary, useStore, type SavedProject, type Store } from './state/store';
 import { EnvelopeSection } from './components/EnvelopeSection';
+import { HourlySection } from './components/HourlySection';
 import { DesignConditionsSection, ProjectDetailsSection } from './components/ProjectSection';
 import { PsychroSection } from './components/PsychroSection';
 import { ReportView } from './components/ReportView';
@@ -30,6 +31,7 @@ export default function App() {
     { title: 'Building envelope', description: 'Review envelope properties and cooling-system assumptions.' },
     { title: 'Spaces', description: 'Enter space areas, loads and surface details.' },
     { title: 'Heat load summary', description: 'Review the load schedule and generate a report.' },
+    { title: 'Hourly analysis', description: 'See the heat balance loads hour by hour and month by month.' },
   ];
 
   /* the project file on disk that Save writes back to, if any */
@@ -80,7 +82,7 @@ export default function App() {
       <div className="wrap">
         <div className="app-identity">
           <a className="app-brand" href="./" aria-label="NOVAC home">
-            <span className="logo" aria-hidden="true">N</span>
+            <img className="logo" src="novac-thermal-mark.svg" alt="" aria-hidden="true" />
             <span>NOVAC</span>
           </a>
           <div className="app-heading">
@@ -141,7 +143,8 @@ export default function App() {
         {activeStep === 2 && <PsychroSection d={d} />}
         {activeStep === 3 && <EnvelopeSection store={store} d={d} marks={marks} limits={limits} />}
         {activeStep === 4 && <RoomsSection store={store} d={d} />}
-        {activeStep === 5 && <ScheduleSection d={d} checks={checks} />}
+        {activeStep === 5 && <ScheduleSection d={d} checks={checks} store={store} />}
+        {activeStep === 6 && <HourlySection d={d} store={store} />}
         <div className="workflow-controls" aria-label="Step navigation">
           {activeStep > 0
             ? <button className="btn" type="button" onClick={() => navigateStep(activeStep - 1)}>Previous</button>
@@ -167,13 +170,14 @@ function workflowCompletion(state: Store['state']): boolean[] {
   const envelope = !!p.codeset && [
     p.uPart, p.uCeil, p.uFloor, p.shade, p.tAdj, p.tSupply, p.sfS, p.sfL, p.diversity,
     p.uWall, p.uRoof, p.uGlass, p.shgc, p.uSky, p.shgcSky, p.ez, p.ervS, p.ervL, p.ervShare,
-    ...Object.values(p.cltd), ...Object.values(p.solar),
+    ...(p.method === 'cltd' ? [...Object.values(p.cltd), ...Object.values(p.solar)] : [p.aWall, p.aRoof, p.gRefl, p.frP, p.frL, p.frE]),
   ].every(hasNumber) && positive(p.ez);
   const rooms = state.rooms.length > 0 && state.rooms.every(room =>
     room.name.trim() !== '' && !!room.type
     && positive(room.qty) && positive(room.area) && positive(room.height)
     && [room.people, room.light, room.equip, room.oa, room.ach, room.ps, room.pl].every(value => hasNumber(value) && Number(value) >= 0));
-  return [details, climate, climate, envelope, rooms, details && climate && envelope && rooms];
+  const all = details && climate && envelope && rooms;
+  return [details, climate, climate, envelope, rooms, all, all];
 }
 
 /* save and open projects: in this browser, or as .json files to share */

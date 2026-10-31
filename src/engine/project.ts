@@ -5,7 +5,7 @@ import {
   A170, ACT_BY, AUTO, CODESETS, INDOOR, LIB, LOC, LOC_SRC, LPD_BAM, ORIENTS, OUT_OPTS, PPICKS, SUBLOC, TYPES, VENT, VENT_ALIAS,
   VENT_BY, VENT_OPTS, bamWm2, typeOf, ENVK, PXDEF, type RoomType,
 } from './data';
-import type { AppState, Num, Orient, Project, Room, RoomSrc, WallEntry, Adjacent } from './types';
+import type { AppState, Num, Orient, PartType, Partition, Project, Room, RoomSrc, WallEntry, Adjacent } from './types';
 import { fmtM2, num } from './util';
 
 export interface RoomOpt { id: string; label: string; v: number; cat?: string }
@@ -32,14 +32,14 @@ export const ROOMOPTS: Record<RoomPick, (r: Room | null, t: RoomType, ez: number
   },
   light: (_r, t) => {
     const o: RoomOpt[] = [{ id: 'typ', cat: 'DBC H.4.6.7.2', label: 'Project-specific lighting design', v: t.light }];
-    if (t.a901) o.push({ id: 'a901', cat: 'ASHRAE 90.1-2022 Table 9.6.1 · Space-by-Space Method (DBC H.4.6.7.2)', label: t.label, v: t.a901 });
-    LPD_BAM.forEach(([id, l, w]) => o.push({ id: 'bam-' + id, cat: 'ASHRAE 90.1-2019 Table 9.5.1 · Building Area Method (DBC H.4.6.7.2)', label: `${l} (${w} W/ft²)`, v: bamWm2(w) }));
+    if (t.a901) o.push({ id: 'a901', cat: 'ASHRAE 90.1-2022 Tables 9.5.2.1-1/-2 · Space-by-Space Method (DBC H.4.6.7.2)', label: t.label, v: t.a901 });
+    LPD_BAM.forEach(([id, l, w]) => o.push({ id: 'bam-' + id, cat: 'ASHRAE 90.1-2022 Table 9.5.1 · Building Area Method (DBC H.4.6.7.2)', label: `${l} (${w} W/ft²)`, v: bamWm2(w) }));
     o.push({ id: 'est-g', cat: 'Estidama PBRS baseline', label: 'General', v: 8.7 }, { id: 'est-r', cat: 'Estidama PBRS baseline', label: 'Residential', v: 6.8 });
     return o;
   },
   equip: (_r, t) => [
     { id: 'typ', cat: 'DBC H.4.6.7.3', label: 'Project-specific equipment load', v: t.equip },
-    { id: 'cibse', cat: 'CIBSE TM37 (cited in DoE Cooling Load Manual)', label: 'Office allowance', v: 15 },
+    { id: 'cibse', cat: 'CIBSE TM37 (cited in DOE Cooling Load Manual)', label: 'Office allowance', v: 15 },
     { id: 'est-g', cat: 'Estidama PBRS baseline', label: 'General', v: 8.1 },
     { id: 'est-r', cat: 'Estidama PBRS baseline', label: 'Residential', v: 2.7 }],
   oa: (r, _t, ez) => {
@@ -69,7 +69,7 @@ export const ROOMOPTS: Record<RoomPick, (r: Room | null, t: RoomType, ez: number
 
 export function defaultSrc(t: RoomType): RoomSrc {
   const vr = VENT_BY[t.vent];
-  return { people: t.dbc ? 'dbc' : (vr && vr.dens > 0 ? 'a621' : 'typ'), light: t.a901 ? 'a901' : 'typ', equip: 'typ', oa: t.oaDef || t.vent, ach: 'tight', act: t.act };
+  return { people: t.dbc ? 'dbc' : (vr && vr.dens > 0 ? 'a621' : 'typ'), light: t.a901 && t.lightDef !== 'typ' ? 'a901' : 'typ', equip: 'typ', oa: t.oaDef || t.vent, ach: 'tight', act: t.act };
 }
 export const ezOf = (p: Project) => num(p.ez) || 1;
 
@@ -99,6 +99,13 @@ export function newRoom(name: string, type: string, ez: number): Room {
   };
   resolveRoom(r, ez); return r;
 }
+/* named wall types: a wall or partition with no type, or a deleted one, uses the default U-value */
+const consType = (list: PartType[] | undefined, id: string | undefined) => id ? list?.find(t => t.id === id) : undefined;
+export const wallU = (p: Project, id?: string): Num => consType(p.wallTypes, id)?.u ?? p.uWall;
+export const wallName = (p: Project, id?: string) => consType(p.wallTypes, id)?.name || 'Default';
+export const partU = (p: Project, x: Partition): Num => consType(p.partTypes, x.pt)?.u ?? p.uPart;
+export const partName = (p: Project, x: Partition) => consType(p.partTypes, x.pt)?.name || 'Default';
+export const newTypeId = () => 't' + newId().slice(1);
 export const pxU = (p: Project, t: string): Num => t === 'wall' ? p.uPart : t === 'ceiling' ? (p.uCeil !== '' && p.uCeil != null ? p.uCeil : p.uFloor) : p.uFloor;
 
 /* ---------- project ---------- */
@@ -147,9 +154,12 @@ export function defaultProject(): Project {
     name: '', client: '', consultant: '', contractor: '', location: 'dubai', cbasis: 'safat-s', codeset: 'safat-s-40',
   }, presetVals('dubai'), {
     autoBand: true, tiDB: 24, tiRH: 50, met: 1.1, clo: 0.61, vel: 0.2,
-    uPart: 1.8, uCeil: 0.6, uFloor: 0.6, shade: 1, tAdj: 35, tSupply: 13, sfS: 10, sfL: 5, fahu: true, diversity: 100,
+    uPart: 1.8, partTypes: [], uCeil: 0.6, uFloor: 0.6, shade: 1, tAdj: 35, tSupply: 13, sfS: 10, sfL: 5, fahu: true, diversity: 100,
+    acType: 'split', ratedEer: '', ratedSeer: '', fanSfp: 1.8,
     erv: false, ervS: 70, ervL: 0, ervShare: 50,
-    uWall: 0, uRoof: 0, uGlass: 0, shgc: 0, uSky: 0, shgcSky: 0, ez: 1,
+    uWall: 0, wallTypes: [], uRoof: 0, uGlass: 0, shgc: 0, uSky: 0, shgcSky: 0, ez: 1,
+    /* heat balance: medium-colour surfaces (ASHRAE Ch. 18), ASHRAE typical ground reflectance, typical radiant fractions */
+    method: 'hbm', aWall: 0.7, aRoof: 0.7, gRefl: 0.2, frP: 0.6, frL: 0.5, frE: 0.3, ceil: 'susp', floorFin: 'tile', sys: 'ducted', effOpt: '', effCop: '', aux: 0,
     /* G: glass conduction CLTD, ASHRAE Fundamentals CLTD/CLF table for glass, 8 K at the 15:00 peak */
     cltd: { N: 10, NE: 13, E: 18, SE: 17, S: 14, SW: 21, W: 23, NW: 18, R: 28, G: 8 },
     solar: { N: 130, NE: 430, E: 570, SE: 300, S: 95, SW: 300, W: 570, NW: 430, H: 720 },
@@ -208,14 +218,15 @@ function migrateRoom(r: any, ez: number): Room {
       : { a: r.floor ?? '', adj: r.bAdj || PXDEF.floor, t: r.tB ?? '', u: r.uF ?? '' };
   };
   const ce = cf('a'), fl = cf('b');
-  px = px.filter(x => x.type === 'wall').map(x => ({ type: 'wall', ...adj(x, PXDEF.wall) }));
+  px = px.filter(x => x.type === 'wall').map(x => ({ type: 'wall', ...adj(x, PXDEF.wall), ...(x.pt ? { pt: x.pt } : {}) }));
   const walls = emptyWalls();
-  ORIENTS.forEach(o => { if (r.walls?.[o]) walls[o] = { w: r.walls[o].w ?? '', g: r.walls[o].g ?? '' }; });
+  ORIENTS.forEach(o => { if (r.walls?.[o]) walls[o] = { w: r.walls[o].w ?? '', g: r.walls[o].g ?? '', ...(r.walls[o].t ? { t: String(r.walls[o].t) } : {}) }; });
   const out: Room = {
     id: r.id || newId(), name: r.name ?? 'Room', type: TYPES[r.type] ? r.type : 'office', qty: r.qty ?? 1, area: r.area ?? 0, height: r.height ?? 3,
     walls, above, below, roof: above === 'roof' ? r.roof ?? '' : '', sky: above === 'roof' ? r.sky ?? '' : '', ce, fl, px,
     people: r.people ?? 0, light: r.light ?? 0, equip: r.equip ?? 0, oa: r.oa ?? 0, ach: r.ach ?? 0, ps: r.ps ?? 0, pl: r.pl ?? 0,
     src: Object.assign(defaultSrc(t), r.src || {}),
+    ...(typeof r.sched === 'string' ? { sched: r.sched } : {}),
   };
   if (!r.src) {
     out.src.people = 'typ';
@@ -249,6 +260,8 @@ export function migrate(s: any): AppState {
     src: Object.assign({}, d.src, sp.src),
   });
   /* code sets with no skylight SHGC used to inherit the previous pick; give them the ASHRAE value */
+  const types = (l: any): PartType[] => Array.isArray(l) ? l.map((t: any) => ({ id: String(t.id), name: String(t.name ?? ''), u: t.u ?? '', ...(Array.isArray(t.layers) ? { layers: t.layers } : {}) })) : [];
+  p.partTypes = types(sp.partTypes); p.wallTypes = types(sp.wallTypes);
   if (['estidama', 'barjeel'].includes(p.cbasis) && (p.src.shgcSky || '').startsWith('safat')) p.src.shgcSky = 'a901';
   resolveProject(p);
   const ez = ezOf(p);
