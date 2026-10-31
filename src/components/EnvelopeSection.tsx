@@ -41,7 +41,7 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
         <span className="in-u"><select id="p-codeset" value={p.codeset} onChange={e => { const v = e.target.value; let lbl = ''; update(s => { lbl = applyCodeset(s.project as Project, v)?.[1] || ''; }); toast('Applied: ' + lbl); }}>
           {groups.map(g => <optgroup key={g} label={g}>{CODESETS.filter(c => c[4] === g).map(([id, l]) => <option key={id} value={id}>{l}</option>)}</optgroup>)}
         </select></span></label>
-      <p>Limits used: wall {L.uWall}, roof {L.uRoof}, glazing {L.uGlass} W/m²K, SHGC {L.shgc}{L.band ? ` (${L.band}, from the project glazing ratio)` : ''}, skylight {L.uSky} W/m²K{L.shgcSky != null ? ', skylight SHGC ' + L.shgcSky : ''}. Hover a badge to see the limit.</p>
+      <p>{L.uWall == null ? <>No authority limits apply; the envelope values are project inputs. Pick a reference-only code above to compare against one.</> : <>Limits used: wall {L.uWall}, roof {L.uRoof}, glazing {L.uGlass} W/m²K, SHGC {L.shgc}{L.band ? ` (${L.band}, from the project glazing ratio)` : ''}, skylight {L.uSky} W/m²K{L.shgcSky != null ? ', skylight SHGC ' + L.shgcSky : ''}. Hover a badge to see the limit.</>}</p>
     </div>
     <fieldset className="method-box"><legend>Heat balance method</legend>
       <div className="fgrid4">
@@ -64,7 +64,7 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
     <div className="env-pair">
       <fieldset><legend>External walls &amp; roof · U-values</legend>
         <div className="fgrid">{pick('uWall')}{pick('uRoof')}</div>
-        <TypeList store={store} kind="wallTypes" noun="external wall type" def={p.uWall} limit={L.uWall} limitName={L.name} />
+        <TypeList store={store} kind="wallTypes" noun="external wall type" def={p.uWall} limit={L.uWall ?? undefined} limitName={L.name} />
       </fieldset>
       <fieldset><legend>Partitions &amp; adjacent spaces · U-values</legend>
         <div className="fgrid">

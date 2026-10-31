@@ -31,7 +31,7 @@ afterEach(async () => { await act(async () => root.unmount()); host.remove(); })
 describe('app', () => {
   it('renders the example project', async () => {
     await act(async () => $('.workflow-step[data-step="4"]').click());
-    expect($$('.ritem').map(e => e.querySelector('.nm')!.textContent)).toEqual(['Open office', 'Meeting room', 'Manager office ×2', 'Reception', 'Corridor']);
+    expect($$('.ritem').map(e => e.querySelector('.nm')!.textContent)).toEqual(['Open plan office', 'Boardroom', 'Manager office ×2', 'Reception and waiting', 'Corridor']);
     await act(async () => $('.workflow-step[data-step="5"]').click());
     expect(plantTR()).toMatch(/^\d+\.\dTR$/);
     expect(host.textContent).not.toMatch(/NaN|undefined/);
@@ -171,7 +171,12 @@ describe('app', () => {
     await act(async () => $('.workflow-step[data-step="1"]').click());
     await act(async () => setValue($('#p-location'), 'abudhabi'));
     await act(async () => $('.workflow-step[data-step="3"]').click());
-    expect($<HTMLSelectElement>('#p-codeset').value).toBe('estidama');
+    /* outside Dubai no primary-source authority limits are catalogued, so the envelope becomes project inputs */
+    expect($<HTMLSelectElement>('#p-codeset').value).toBe('custom');
+    expect(host.textContent).toContain('No authority limits apply');
+    expect(host.textContent).not.toMatch(/null|NaN|undefined/);
+    /* a reference-only code can still be chosen to compare against */
+    await act(async () => setValue($('#p-codeset'), 'estidama'));
     expect(host.textContent).toContain('Estidama and Barjeel publish no skylight SHGC');
   });
 

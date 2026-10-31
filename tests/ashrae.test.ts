@@ -16,11 +16,11 @@ describe('ASHRAE 90.1-2022 envelope tables', () => {
 
   it('converts zone 0 to the SI limits used for compliance', () => {
     const L = limitsFor('a901', 30, 0);
-    expect(getRequirement(find(0, 'Above-grade wall', 'Steel-framed'), 'nonresidential').max).toBeCloseTo(L.uWall, 2);
-    expect(getRequirement(find(0, 'Roof', 'Insulation entirely above deck'), 'nonresidential').max).toBeCloseTo(L.uRoof, 2);
-    expect(getRequirement(find(0, 'Vertical fenestration', 'Fixed'), 'nonresidential').max).toBeCloseTo(L.uGlass, 2);
+    expect(getRequirement(find(0, 'Above-grade wall', 'Steel-framed'), 'nonresidential').max).toBeCloseTo(L.uWall!, 2);
+    expect(getRequirement(find(0, 'Roof', 'Insulation entirely above deck'), 'nonresidential').max).toBeCloseTo(L.uRoof!, 2);
+    expect(getRequirement(find(0, 'Vertical fenestration', 'Fixed'), 'nonresidential').max).toBeCloseTo(L.uGlass!, 2);
     expect(getRequirement(find(0, 'Vertical fenestration', 'Fixed'), 'nonresidential').shgc).toBe(L.shgc);
-    expect(getRequirement(find(0, 'Skylight', 'All types, 0–3% of roof'), 'nonresidential').max).toBeCloseTo(L.uSky, 2);
+    expect(getRequirement(find(0, 'Skylight', 'All types, 0–3% of roof'), 'nonresidential').max).toBeCloseTo(L.uSky!, 2);
     expect(getRequirement(find(0, 'Above-grade wall', 'Mass'), 'nonresidential').max).toBeCloseTo(LIB.uWall.find(o => o.id === 'a901-mass')!.v, 3);
   });
 

@@ -174,13 +174,18 @@ function exampleRoom(name: string, type: string, area: number, walls: Partial<Re
   resolveRoom(r, ez); return r;
 }
 export function exampleState(): AppState {
-  const p = defaultProject(); p.name = 'Example: G+1 office, Dubai (first floor)';
+  /* a fictional Dubai project: the names are invented words, checked to match no company found online */
+  const p = defaultProject();
+  p.name = 'Example: Zarvela Business Centre, Business Bay, Dubai (G+1, first floor offices)';
+  p.client = 'Zarvela Properties LLC (fictional)';
+  p.consultant = 'Qalvoro Engineering Consultants (fictional)';
+  p.contractor = 'Mirzane MEP Contracting LLC (fictional)';
   const ez = ezOf(p);
   const rooms = [
-    exampleRoom('Open office', 'office', 120, { W: [36, 14], S: [24, 6] }, { roof: 120 }, ez),
-    exampleRoom('Meeting room', 'meeting', 24, { N: [15, 4] }, { roof: 24 }, ez),
+    exampleRoom('Open plan office', 'office', 120, { W: [36, 14], S: [24, 6] }, { roof: 120 }, ez),
+    exampleRoom('Boardroom', 'meeting', 24, { N: [15, 4] }, { roof: 24 }, ez),
     exampleRoom('Manager office', 'privoffice', 20, { E: [12, 4] }, { roof: 20, qty: 2 }, ez),
-    exampleRoom('Reception', 'lobby', 40, { E: [18, 10] }, { roof: 40, ach: 'door' }, ez),
+    exampleRoom('Reception and waiting', 'lobby', 40, { E: [18, 10] }, { roof: 40, ach: 'door' }, ez),
     exampleRoom('Corridor', 'corridor', 30, {}, { roof: 30, ach: 'press' }, ez),
   ];
   return { version: 2, project: p, rooms, sel: rooms[0].id, example: true };

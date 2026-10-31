@@ -89,14 +89,14 @@ export const authLine = (k: string) => {
 };
 /* codes applied automatically when the emirate changes */
 export const AUTO: Record<string, { codeset: string; indoor: string; why: string }> = {
-  dubai: { codeset: 'safat-s-40', indoor: 'dbc', why: "Dubai: Al Sa'fat envelope, DBC indoor basis" },
-  abudhabi: { codeset: 'estidama', indoor: 'ashrae', why: 'Abu Dhabi: Estidama envelope, ASHRAE indoor basis (DOE CLM)' },
-  alain: { codeset: 'estidama-aa', indoor: 'ashrae', why: 'Al Ain: Estidama envelope, ASHRAE indoor basis (DOE CLM)' },
-  sharjah: { codeset: 'shj', indoor: 'ashrae', why: 'Sharjah: ASHRAE 90.1 envelope, ASHRAE indoor basis' },
-  ajman: { codeset: 'ajm', indoor: 'ashrae', why: 'Ajman: ASHRAE 90.1 envelope, ASHRAE indoor basis' },
-  uaq: { codeset: 'uaq', indoor: 'ashrae', why: 'Umm Al Quwain: ASHRAE 90.1 envelope, ASHRAE indoor basis' },
-  rak: { codeset: 'barjeel', indoor: 'ashrae', why: 'Ras Al Khaimah: Barjeel envelope, ASHRAE indoor basis' },
-  fujairah: { codeset: 'fuj', indoor: 'ashrae', why: 'Fujairah: ASHRAE 90.1 envelope, ASHRAE indoor basis' },
+  dubai: { codeset: 'safat-s-40', indoor: 'dbc', why: "Dubai: Al Sa'fat envelope and DBC indoor basis" },
+  abudhabi: { codeset: 'custom', indoor: 'custom', why: 'Abu Dhabi: DOE Cooling Load Manual design conditions; no primary-source envelope or indoor limits are catalogued.' },
+  alain: { codeset: 'custom', indoor: 'custom', why: 'Al Ain: DOE Cooling Load Manual design conditions; no primary-source envelope or indoor limits are catalogued.' },
+  sharjah: { codeset: 'custom', indoor: 'custom', why: 'No local authority envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
+  ajman: { codeset: 'custom', indoor: 'custom', why: 'No local authority envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
+  uaq: { codeset: 'custom', indoor: 'custom', why: 'No local authority envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
+  rak: { codeset: 'custom', indoor: 'custom', why: 'No primary-source Barjeel envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
+  fujairah: { codeset: 'custom', indoor: 'custom', why: 'No local authority envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
 };
 
 /* ---------- envelope and distribution library ---------- */
@@ -140,26 +140,28 @@ export const CODESETS: CodeSet[] = [
   ['fz-trakhees', 'Trakhees (PCFC) free zones: ' + SAFAT + ' envelope, glazing ≤40%', SAF40, 'safat-s', 'Dubai · free zones'],
   ['fz-dda', 'DDA free zones: ' + SAFAT + ' envelope, glazing ≤40%', SAF40, 'safat-s', 'Dubai · free zones'],
   ['fz-dso', 'Dubai South / DSO / DIFC: ' + SAFAT + ' envelope, glazing ≤40%', SAF40, 'safat-s', 'Dubai · free zones'],
-  ['estidama', 'Estidama Pearl (DMT), Abu Dhabi and Al Dhafra', { uWall: 'estidama', uRoof: 'estidama', uGlass: 'estidama', shgc: 'estidama', uSky: 'estidama', shgcSky: 'a901' }, 'estidama', 'Abu Dhabi · DMT'],
-  ['estidama-aa', 'Estidama Pearl (DMT), Al Ain', { uWall: 'estidama', uRoof: 'estidama', uGlass: 'estidama', shgc: 'estidama', uSky: 'estidama', shgcSky: 'a901' }, 'estidama', 'Abu Dhabi · DMT'],
-  ['barjeel', 'Barjeel Green Building Regulations (RAK Municipality)', { uWall: 'barjeel', uRoof: 'barjeel', uGlass: 'barjeel', shgc: 'barjeel', uSky: 'barjeel', shgcSky: 'a901' }, 'barjeel', 'Ras Al Khaimah · RAK Municipality'],
-  ['shj', 'Sharjah (Sharjah Municipality, SEWA): ASHRAE 90.1-2022 CZ0 envelope', A901S, 'a901', 'Northern emirates'],
-  ['ajm', 'Ajman (AMPD): ASHRAE 90.1-2022 CZ0 envelope', A901S, 'a901', 'Northern emirates'],
-  ['uaq', 'Umm Al Quwain (UAQ Municipality): ASHRAE 90.1-2022 CZ0 envelope', A901S, 'a901', 'Northern emirates'],
-  ['fuj', 'Fujairah (Fujairah Municipality): ASHRAE 90.1-2022 CZ0 envelope', A901S, 'a901', 'Northern emirates'],
-  ['moei', 'MOEI UAE Green Building Codes (federal projects): ASHRAE 90.1-2022 CZ0 envelope', A901S, 'a901', 'Federal'],
-  ['a901', 'ASHRAE 90.1-2022 CZ0: steel-framed wall, roof above deck, fixed glazing', A901S, 'a901', 'ASHRAE 90.1-2022, climate zone 0'],
-  ['a901-mb', 'ASHRAE 90.1-2022 CZ0: metal building wall and roof (warehouse, industrial)', { uWall: 'a901-metal', uRoof: 'a901-metal', uGlass: 'a901-fixed', shgc: 'a901-fixed', uSky: 'a901', shgcSky: 'a901' }, 'a901', 'ASHRAE 90.1-2022, climate zone 0'],
-  ['a901-op', 'ASHRAE 90.1-2022 CZ0: steel-framed wall, attic roof, operable glazing', { uWall: 'a901-steel', uRoof: 'a901-attic', uGlass: 'a901-oper', shgc: 'a901-oper', uSky: 'a901', shgcSky: 'a901' }, 'a901', 'ASHRAE 90.1-2022, climate zone 0'],
+  ['estidama', 'Reference only · Estidama Pearl values (verify current DMT edition)', { uWall: 'estidama', uRoof: 'estidama', uGlass: 'estidama', shgc: 'estidama', uSky: 'estidama', shgcSky: 'a901' }, 'estidama', 'Reference only · secondary source'],
+  ['estidama-aa', 'Reference only · Estidama Pearl values for Al Ain (verify current DMT edition)', { uWall: 'estidama', uRoof: 'estidama', uGlass: 'estidama', shgc: 'estidama', uSky: 'estidama', shgcSky: 'a901' }, 'estidama', 'Reference only · secondary source'],
+  ['barjeel', 'Reference only · Barjeel values (verify current RAK Municipality edition)', { uWall: 'barjeel', uRoof: 'barjeel', uGlass: 'barjeel', shgc: 'barjeel', uSky: 'barjeel', shgcSky: 'a901' }, 'barjeel', 'Reference only · source edition unverified'],
+  ['shj', 'Reference only · ASHRAE 90.1-2022 CZ0 envelope (verify local adoption)', A901S, 'a901', 'Reference only · international standard'],
+  ['ajm', 'Reference only · ASHRAE 90.1-2022 CZ0 envelope (verify local adoption)', A901S, 'a901', 'Reference only · international standard'],
+  ['uaq', 'Reference only · ASHRAE 90.1-2022 CZ0 envelope (verify local adoption)', A901S, 'a901', 'Reference only · international standard'],
+  ['fuj', 'Reference only · ASHRAE 90.1-2022 CZ0 envelope (verify local adoption)', A901S, 'a901', 'Reference only · international standard'],
+  ['moei', 'Reference only · ASHRAE 90.1-2022 CZ0 envelope (verify MOEI project adoption)', A901S, 'a901', 'Reference only · international standard'],
+  ['a901', 'Reference only · ASHRAE 90.1-2022 CZ0: steel-framed wall, roof above deck, fixed glazing', A901S, 'a901', 'Reference only · international standard'],
+  ['a901-mb', 'Reference only · ASHRAE 90.1-2022 CZ0: metal building wall and roof', { uWall: 'a901-metal', uRoof: 'a901-metal', uGlass: 'a901-fixed', shgc: 'a901-fixed', uSky: 'a901', shgcSky: 'a901' }, 'a901', 'Reference only · international standard'],
+  ['a901-op', 'Reference only · ASHRAE 90.1-2022 CZ0: steel-framed wall, attic roof, operable glazing', { uWall: 'a901-steel', uRoof: 'a901-attic', uGlass: 'a901-oper', shgc: 'a901-oper', uSky: 'a901', shgcSky: 'a901' }, 'a901', 'Reference only · international standard'],
+  ['custom', 'Custom: no published UAE authority limit (enter project values)', {}, 'custom', 'Custom'],
 ];
 export const CBASIS = [
   { id: 'safat-s', label: SAFAT + ' Bronze/Silver (501.01)' }, { id: 'safat-g', label: SAFAT + ' Golden/Platinum (501.01)' },
-  { id: 'estidama', label: 'Estidama Pearl (Abu Dhabi, Al Ain)' }, { id: 'barjeel', label: 'Barjeel (Ras Al Khaimah)' },
-  { id: 'a901', label: 'ASHRAE 90.1-2022 climate zone 0 (Sharjah, Ajman, UAQ, Fujairah, MOEI)' },
+  { id: 'estidama', label: 'Reference only: Estidama Pearl (verify official edition)' }, { id: 'barjeel', label: 'Reference only: Barjeel (verify official edition)' },
+  { id: 'a901', label: 'Reference only: ASHRAE 90.1-2022 climate zone 0' }, { id: 'custom', label: 'Custom; no published UAE limit selected' },
 ];
-export interface Limits { name: string; uWall: number; uRoof: number; uGlass: number; shgc: number; uSky: number; shgcSky: number | null; band?: string; ez?: undefined }
+export interface Limits { name: string; uWall: number | null; uRoof: number | null; uGlass: number | null; shgc: number | null; uSky: number | null; shgcSky: number | null; band?: string; ez?: undefined }
 /* maximum permitted values for the compliance basis; glazing limits follow the project glazing ratio */
 export function limitsFor(b: string, wwr: number, skyPct: number): Limits {
+  if (b === 'custom') return { name: 'No published UAE authority limit selected', uWall: null, uRoof: null, uGlass: null, shgc: null, uSky: null, shgcSky: null };
   if (b === 'safat-s' || b === 'safat-g') {
     const band = wwr <= 40 ? 0 : wwr < 60 ? 1 : 2;
     return { name: CBASIS.find(c => c.id === b)!.label, uWall: b === 'safat-g' ? 0.42 : 0.57, uRoof: 0.30, uGlass: band ? 1.9 : 2.1, shgc: [0.35, 0.28, 0.22][band], uSky: 1.9, shgcSky: skyPct > 10 ? 0.22 : 0.28, band: ['glazing ≤40%', 'glazing 40–60%', 'glazing ≥60%'][band] };
