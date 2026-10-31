@@ -87,6 +87,7 @@ export function resolveRoom(r: Room, ez: number) {
 export function changeType(r: Room, type: string, ez: number) {
   r.type = type; const t = typeOf(type), d = defaultSrc(t);
   (['people', 'oa', 'act'] as const).forEach(k => { if (r.src[k] !== 'custom') r.src[k] = d[k]; });
+  if (r.src.oa === 'custom' && r.src.oaBasis) r.src.oaBasis = d.oa;
   (['light', 'equip', 'ach'] as const).forEach(k => { if (r.src[k] !== 'custom' && !ROOMOPTS[k](r, t, ez).some(o => o.id === r.src[k])) r.src[k] = d[k]; });
   resolveRoom(r, ez);
 }
@@ -229,6 +230,7 @@ function migrateRoom(r: any, ez: number): Room {
     people: r.people ?? 0, light: r.light ?? 0, equip: r.equip ?? 0, oa: r.oa ?? 0, ach: r.ach ?? 0, ps: r.ps ?? 0, pl: r.pl ?? 0,
     src: Object.assign(defaultSrc(t), r.src || {}),
     ...(typeof r.sched === 'string' ? { sched: r.sched } : {}),
+    ...(r.exh !== undefined ? { exh: r.exh } : {}),
   };
   if (!r.src) {
     out.src.people = 'typ';

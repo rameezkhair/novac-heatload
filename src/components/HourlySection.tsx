@@ -1,52 +1,59 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState, type ReactNode } from 'react';
 import type { Computed } from '../engine/calc';
 import { MONTHS } from '../engine/climate';
 import { efficiencyGuidance } from '../engine/efficiency';
 import { BTU_W, SYSTEMS, capRatio, copAt, copToKwTr, requirements, recommended, type SysId } from '../engine/equipment';
-import { LABELS, electrical, hours } from '../engine/hourly';
+import { LABELS, electrical, hours, type Hour } from '../engine/hourly';
 import type { Num, Project } from '../engine/types';
 import { fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { NumInput, SecHead } from './ui';
+/* the weather-year panel and its engine load only when real weather is opened */
+const WeatherYearPanel = lazy(() => import('./WeatherYearPanel').then(m => ({ default: m.WeatherYearPanel })));
 
-const hh = (h: number) => String(h).padStart(2, '0') + ':00';
+export const hh = (h: number) => String(h).padStart(2, '0') + ':00';
 /* round axis step: 1, 2 or 5 × 10ⁿ */
 const niceStep = (span: number) => { const raw = span / 4, p = 10 ** Math.floor(Math.log10(raw || 1)), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; };
 
 export function HourlySection({ d, store }: { d: Computed; store: Store }) {
   const { T, res, rooms } = d;
   const [scope, setScope] = useState('all');
-  const [month, setMonth] = useState<number | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
+  const [basis, setBasis] = useState<'design' | 'weather'>('design');
   if (!rooms.length || !T.blk) return <section>
     <SecHead n={7} title="Hourly analysis" />
     <p className="hint">Add a room to see its hourly loads.</p>
   </section>;
   /* a deleted room falls back to the whole building */
-  const sc = scope !== 'all' && !res[scope] ? 'all' : scope, room = sc === 'all' ? null : res[sc];
-  const pkM = room ? room.pkM! : T.blk.m, m = month ?? pkM;
+  const sc = scope !== 'all' && !res[scope] ? 'all' : scope;
+  const scopeSel = <label className="fld" htmlFor="hr-scope"><span className="fl">Show</span><span className="in-u"><select id="hr-scope" value={sc} onChange={e => setScope(e.target.value)}>
+    <option value="all">Whole building (all rooms × quantity)</option>
+    {rooms.map(r => <option key={r.id} value={r.id}>{r.name || 'Untitled'}{res[r.id].qty > 1 ? ' (one of ' + res[r.id].qty + ')' : ''}</option>)}
+  </select></span></label>;
+  return <section className="hourly">
+    <SecHead n={7} title="Hourly analysis" sub="Heat balance loads hour by hour, by component" />
+    <div className="seg" role="group" aria-label="Weather for the hourly analysis">
+      <button type="button" aria-pressed={basis === 'design'} onClick={() => setBasis('design')}>Design days <span>sizing, code conditions</span></button>
+      <button type="button" aria-pressed={basis === 'weather'} onClick={() => setBasis('weather')}>Real weather year <span>8,760 hours, actual loads and energy</span></button>
+    </div>
+    {basis === 'design' ? <DesignDays key={sc} d={d} sc={sc} scopeSel={scopeSel} />
+      : <Suspense fallback={<p className="hint">Loading the weather tools…</p>}><WeatherYearPanel d={d} store={store} sc={sc} scopeSel={scopeSel} /></Suspense>}
+  </section>;
+}
+
+function DesignDays({ d, sc, scopeSel }: { d: Computed; sc: string; scopeSel: ReactNode }) {
+  const { T, res } = d;
+  const [month, setMonth] = useState<number | null>(null);
+  const room = sc === 'all' ? null : res[sc];
+  const pkM = room ? room.pkM! : T.blk!.m, m = month ?? pkM;
   const H = hours(d, sc, m);
   const monthly = MONTHS.map((_, k) => { const x = hours(d, sc, k); let b = 0; x.forEach((y, i) => { if (y.total > x[b].total) b = i; }); return { kW: x[b].total / 1000, h: b + 1 }; });
   let pk = 0; H.forEach((y, i) => { if (y.total > H[pk].total) pk = i; });
   const sum = H.reduce((a, y) => a + y.total, 0) / 1000;
   const el = electrical(d, sc, m);
 
-  /* chart geometry (viewBox units) */
-  const W = 760, Ht = 280, ml = 44, mr = 8, mt = 22, mb = 24, pw = W - ml - mr, ph = Ht - mt - mb, bw = pw / 24;
-  const stacks = H.map(y => { let up = 0, dn = 0; return y.v.map(x => { const kw = x / 1000; if (kw >= 0) { const s = [up, up + kw]; up += kw; return s; } const s = [dn + kw, dn]; dn += kw; return s; }); });
-  const top = Math.max(...stacks.map(s => Math.max(0, ...s.map(x => x[1])))), bot = Math.min(...stacks.map(s => Math.min(0, ...s.map(x => x[0]))));
-  const step = niceStep(top - bot || 1), yMax = Math.ceil(top / step) * step || step, yMin = Math.floor(bot / step) * step;
-  const y = (v: number) => mt + (yMax - v) / (yMax - yMin) * ph;
-  const ticks: number[] = []; for (let v = yMin; v <= yMax + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
-  const hv = hover != null ? H[hover] : null;
-
-  return <section className="hourly">
-    <SecHead n={7} title="Hourly analysis" sub="Heat balance loads hour by hour, by component" />
+  return <>
     <div className="hr-filters">
-      <label className="fld" htmlFor="hr-scope"><span className="fl">Show</span><span className="in-u"><select id="hr-scope" value={sc} onChange={e => { setScope(e.target.value); setMonth(null); }}>
-        <option value="all">Whole building (all rooms × quantity)</option>
-        {rooms.map(r => <option key={r.id} value={r.id}>{r.name || 'Untitled'}{res[r.id].qty > 1 ? ' (one of ' + res[r.id].qty + ')' : ''}</option>)}
-      </select></span></label>
+      {scopeSel}
       <label className="fld" htmlFor="hr-month"><span className="fl">Design day</span><span className="in-u"><select id="hr-month" value={m} onChange={e => setMonth(Number(e.target.value))}>
         {MONTHS.map((x, k) => <option key={x} value={k}>{x} 21{k === pkM ? ' (peak month)' : ''}</option>)}
       </select></span></label>
@@ -58,28 +65,7 @@ export function HourlySection({ d, store }: { d: Computed; store: Store }) {
       <div className="tot"><div className="k">Outdoor, {MONTHS[m]} 21</div><div className="v">{fmt(Math.max(...H.map(x => x.To)), 1)}<small>°C</small></div><div className="s">minimum {fmt(Math.min(...H.map(x => x.To)), 1)} °C</div></div>
     </div>
 
-    <div className="hr-card">
-      <h3>Room load by hour, {MONTHS[m]} 21{room ? '' : ', whole building'} <span className="muted">· kW, before safety margins</span></h3>
-      <ul className="hr-legend">{LABELS.map((l, k) => <li key={l}><i style={{ background: `var(--s${k + 1})` }} />{l}</li>)}</ul>
-      <div className="hr-plot" onMouseLeave={() => setHover(null)}>
-        <svg viewBox={`0 0 ${W} ${Ht}`} role="img" aria-label={`Stacked hourly room load for ${MONTHS[m]} 21. Peak ${fmt(H[pk].total / 1000, 2)} kW at ${hh(pk + 1)}. Full values in the table below.`}>
-          {ticks.map(t => <g key={t}><line x1={ml} x2={W - mr} y1={y(t)} y2={y(t)} className={t === 0 ? 'hr-zero' : 'hr-grid'} /><text x={ml - 6} y={y(t) + 3.5} textAnchor="end" className="hr-tick">{fmt(t, step < 1 ? 1 : 0)}</text></g>)}
-          {stacks.map((s, i) => <g key={i} opacity={hover != null && hover !== i ? 0.45 : 1}>
-            {s.map(([a, b], k) => b - a > 1e-6 ? <rect key={k} x={ml + i * bw + 2} width={bw - 4} y={y(b)} height={Math.max(0, y(a) - y(b))} fill={`var(--s${k + 1})`} className="hr-seg" /> : null)}
-          </g>)}
-          {H.map((_, i) => (i + 1) % 3 === 0 ? <text key={i} x={ml + i * bw + bw / 2} y={Ht - 8} textAnchor="middle" className="hr-tick">{i + 1}</text> : null)}
-          <text x={ml + pk * bw + bw / 2} y={y(stacks[pk].reduce((a, x) => Math.max(a, x[1]), 0)) - 6} textAnchor="middle" className="hr-peak">Peak {fmt((H[pk].total - H[pk].margin) / 1000, 1)} kW</text>
-          {H.map((_, i) => <rect key={'h' + i} x={ml + i * bw} y={mt} width={bw} height={ph} fill="transparent" onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} tabIndex={-1} />)}
-        </svg>
-        {hv && hover != null && <div className="hr-tip" style={{ left: `${(ml + hover * bw + bw / 2) / W * 100}%`, transform: hover > 15 ? 'translateX(calc(-100% - 12px))' : 'translateX(12px)' }}>
-          <b>{MONTHS[m]} 21, {hh(hover + 1)}</b><span className="muted">Outdoor {fmt(hv.To, 1)} °C</span>
-          {LABELS.map((l, k) => Math.abs(hv.v[k]) > 0.5 ? <div key={l} className="hr-tip-row"><i style={{ background: `var(--s${k + 1})` }} /><span>{l}</span><b>{fmt(hv.v[k] / 1000, 2)}</b></div> : null)}
-          <div className="hr-tip-row tot"><span>Safety margins</span><b>{fmt(hv.margin / 1000, 2)}</b></div>
-          <div className="hr-tip-row tot"><span>Total, kW</span><b>{fmt(hv.total / 1000, 2)}</b></div>
-        </div>}
-      </div>
-      <p className="hint">Hour 1 is 00:00 to 01:00 local time. Negative parts (heat leaving to cooler spaces or the night sky) are drawn below zero.</p>
-    </div>
+    <DayChart H={H} day={`${MONTHS[m]} 21`} title={<>Room load by hour, {MONTHS[m]} 21{room ? '' : ', whole building'} <span className="muted">· kW, before safety margins</span></>} />
 
     <div className="hr-card">
       <h3>Peak load by month <span className="muted">· kW, with margins · click a month to show its day</span></h3>
@@ -93,7 +79,43 @@ export function HourlySection({ d, store }: { d: Computed; store: Store }) {
       <thead><tr><th>Hour</th><th>Outdoor °C</th>{LABELS.map(l => <th key={l}>{l}</th>)}<th>Margins</th><th>Total kW</th><th>Total TR</th><th>Electrical kW</th></tr></thead>
       <tbody>{H.map((x, i) => <tr key={i} className={i === pk ? 'pk' : undefined}><td>{hh(i + 1)}</td><td>{fmt(x.To, 1)}</td>{x.v.map((v, k) => <td key={k}>{fmt(v / 1000, 2)}</td>)}<td>{fmt(x.margin / 1000, 2)}</td><td><b>{fmt(x.total / 1000, 2)}</b></td><td>{fmt(x.total / 3517, 2)}</td><td>{fmt(el.kWe[i], 2)}</td></tr>)}</tbody>
     </table></div>
-  </section>;
+  </>;
+}
+
+/* stacked hourly load components of one day, kW; `day` names the day in the tooltip */
+export function DayChart({ H, day, title, note }: { H: Hour[]; day: string; title: ReactNode; note?: ReactNode }) {
+  const [hover, setHover] = useState<number | null>(null);
+  let pk = 0; H.forEach((y, i) => { if (y.total > H[pk].total) pk = i; });
+  /* chart geometry (viewBox units) */
+  const W = 760, Ht = 280, ml = 44, mr = 8, mt = 22, mb = 24, pw = W - ml - mr, ph = Ht - mt - mb, bw = pw / 24;
+  const stacks = H.map(y => { let up = 0, dn = 0; return y.v.map(x => { const kw = x / 1000; if (kw >= 0) { const s = [up, up + kw]; up += kw; return s; } const s = [dn + kw, dn]; dn += kw; return s; }); });
+  const top = Math.max(...stacks.map(s => Math.max(0, ...s.map(x => x[1])))), bot = Math.min(...stacks.map(s => Math.min(0, ...s.map(x => x[0]))));
+  const step = niceStep(top - bot || 1), yMax = Math.ceil(top / step) * step || step, yMin = Math.floor(bot / step) * step;
+  const y = (v: number) => mt + (yMax - v) / (yMax - yMin) * ph;
+  const ticks: number[] = []; for (let v = yMin; v <= yMax + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  const hv = hover != null ? H[hover] : null;
+  return <div className="hr-card">
+    <h3>{title}</h3>
+    <ul className="hr-legend">{LABELS.map((l, k) => <li key={l}><i style={{ background: `var(--s${k + 1})` }} />{l}</li>)}</ul>
+    <div className="hr-plot" onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${Ht}`} role="img" aria-label={`Stacked hourly room load for ${day}. Peak ${fmt(H[pk].total / 1000, 2)} kW at ${hh(pk + 1)}. Full values in the table below.`}>
+        {ticks.map(t => <g key={t}><line x1={ml} x2={W - mr} y1={y(t)} y2={y(t)} className={t === 0 ? 'hr-zero' : 'hr-grid'} /><text x={ml - 6} y={y(t) + 3.5} textAnchor="end" className="hr-tick">{fmt(t, step < 1 ? 1 : 0)}</text></g>)}
+        {stacks.map((s, i) => <g key={i} opacity={hover != null && hover !== i ? 0.45 : 1}>
+          {s.map(([a, b], k) => b - a > 1e-6 ? <rect key={k} x={ml + i * bw + 2} width={bw - 4} y={y(b)} height={Math.max(0, y(a) - y(b))} fill={`var(--s${k + 1})`} className="hr-seg" /> : null)}
+        </g>)}
+        {H.map((_, i) => (i + 1) % 3 === 0 ? <text key={i} x={ml + i * bw + bw / 2} y={Ht - 8} textAnchor="middle" className="hr-tick">{i + 1}</text> : null)}
+        <text x={ml + pk * bw + bw / 2} y={y(stacks[pk].reduce((a, x) => Math.max(a, x[1]), 0)) - 6} textAnchor="middle" className="hr-peak">Peak {fmt((H[pk].total - H[pk].margin) / 1000, 1)} kW</text>
+        {H.map((_, i) => <rect key={'h' + i} x={ml + i * bw} y={mt} width={bw} height={ph} fill="transparent" onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} tabIndex={-1} />)}
+      </svg>
+      {hv && hover != null && <div className="hr-tip" style={{ left: `${(ml + hover * bw + bw / 2) / W * 100}%`, transform: hover > 15 ? 'translateX(calc(-100% - 12px))' : 'translateX(12px)' }}>
+        <b>{day}, {hh(hover + 1)}</b><span className="muted">Outdoor {fmt(hv.To, 1)} °C</span>
+        {LABELS.map((l, k) => Math.abs(hv.v[k]) > 0.5 ? <div key={l} className="hr-tip-row"><i style={{ background: `var(--s${k + 1})` }} /><span>{l}</span><b>{fmt(hv.v[k] / 1000, 2)}</b></div> : null)}
+        {hv.margin !== 0 && <div className="hr-tip-row tot"><span>Safety margins</span><b>{fmt(hv.margin / 1000, 2)}</b></div>}
+        <div className="hr-tip-row tot"><span>Total, kW</span><b>{fmt(hv.total / 1000, 2)}</b></div>
+      </div>}
+    </div>
+    <p className="hint">{note ?? 'Hour 1 is 00:00 to 01:00 local time. Negative parts (heat leaving to cooler spaces or the night sky) are drawn below zero.'}</p>
+  </div>;
 }
 
 /* Whole-building power recommendation in summary, for the building peak month. */

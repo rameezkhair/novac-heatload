@@ -11,6 +11,9 @@
     <meta property="og:image" content="https://novac.ae/screenshot.png" />
     <link rel="stylesheet" href="/src/styles.css" />
     <link rel="stylesheet" href="/src/landing.css" />
+    <!-- hides the scroll-in sections before first paint; without scripts they simply show -->
+    <script>document.documentElement.classList.add('js')</script>
+    <script type="module" src="/src/landing.ts"></script>
   </head>
   <body class="landing">
     <nav class="nav">
@@ -21,10 +24,11 @@
           <span class="ver">v0.1</span>
         </a>
         <div class="links">
-          <a href="#features">Features</a>
+          <a href="#why">Why NOVAC</a>
           <a href="#workflow">Workflow</a>
+          <a href="#features">Features</a>
+          <a href="#compare">Compare</a>
           <a href="#standards">Standards</a>
-          <a href="#changelog">Changelog</a>
         </div>
         <a class="btn primary" href="app.html">Launch app</a>
       </div>
@@ -34,7 +38,7 @@
       <section class="hero">
         <div class="wrap">
           <div class="hero-copy">
-            <p class="pill">
+            <p class="pill rise">
               <svg class="uae-flag" viewBox="0 0 30 18" aria-hidden="true" focusable="false">
                 <defs><clipPath id="uae-flag-clip"><rect width="30" height="18" rx="2" /></clipPath></defs>
                 <g clip-path="url(#uae-flag-clip)">
@@ -46,26 +50,26 @@
               </svg>
               <span>Made in UAE · simplified heat load calculator</span>
             </p>
-            <h1 class="hero-h">A simpler way to calculate building cooling demand</h1>
-            <p class="lead">Set project conditions, add room details, and review cooling demand room by room. NOVAC uses the ASHRAE heat balance method and checks against UAE building codes.</p>
-            <div class="cta">
+            <h1 class="hero-h rise">A simpler way to calculate building cooling demand</h1>
+            <p class="lead rise">Set project conditions, add room details, and review cooling demand room by room. NOVAC uses the ASHRAE heat balance method and checks against UAE building codes.</p>
+            <div class="cta rise">
               <a class="btn gold lg" href="app.html">Launch NOVAC <span aria-hidden="true">→</span></a>
-              <a class="btn ghost lg" href="#workflow">See how it works</a>
+              <a class="btn ghost lg" href="#why">Why NOVAC</a>
             </div>
-            <ul class="meta">
+            <ul class="meta rise">
               <li>Runs in your browser</li>
               <li>Free, no sign-up</li>
               <li>Projects stay on your computer</li>
             </ul>
           </div>
 
-          <figure class="window">
+          <figure class="window rise">
             <div class="titlebar" aria-hidden="true">
               <span class="lights"><i></i><i></i><i></i></span>
-              <span class="title">NOVAC · Example: G+1 office, Dubai (first floor)</span>
+              <span class="title">NOVAC · Example: Zarvela Business Centre, Dubai</span>
             </div>
             <img src="screenshot.png" alt="The NOVAC calculator with the example Dubai office loaded, on the project and design conditions step" width="1280" height="800" />
-            <div class="chip c1"><span>Plant load</span><b>15.8 TR</b></div>
+            <div class="chip c1"><span>Plant load</span><b>13.8 TR</b></div>
             <div class="chip c2"><span>Outdoor design · DBC H.1</span><b>46 / 29 °C</b></div>
           </figure>
         </div>
@@ -73,78 +77,151 @@
 
       <section class="specs" aria-label="At a glance">
         <div class="wrap">
-          <div><b>Heat balance</b><span>ASHRAE load method</span></div>
-          <div><b>kW and TR</b><span>Sensible, latent and plant totals</span></div>
-          <div><b>5 codes</b><span>DBC, Al Sa'fat, Estidama, Barjeel, ASHRAE</span></div>
-          <div><b>.novac.json</b><span>Project files you save and share</span></div>
+          <div class="reveal"><b><span data-count="8760">8,760</span> h</b><span>Heat balance, every hour of the year</span></div>
+          <div class="reveal"><b><span data-count="0.15" data-dec="2">0.15</span> %</b><span>Agreement with an independent simulation</span></div>
+          <div class="reveal"><b><span data-count="7">7</span> emirates</b><span>Design conditions and sub-locations built in</span></div>
+          <div class="reveal"><b><span data-count="5">5</span> code sets</b><span>DBC, Al Sa'fat, Estidama, Barjeel, ASHRAE</span></div>
         </div>
       </section>
 
-      <section class="wrap block" id="features">
-        <div class="head">
-          <p class="kicker">Features</p>
-          <h2>Everything a load calculation needs, in one workspace</h2>
+      <section class="wrap block" id="why">
+        <div class="head reveal">
+          <p class="kicker">Why NOVAC</p>
+          <h2>Built for UAE projects, without the desktop-software overhead</h2>
         </div>
         <div class="features">
-          <article class="feat">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 10h18M10 10v11"/></svg>
-            <h3>Room-by-room loads</h3>
-            <p>Walls, roof, glass, people, lighting, equipment and ventilation for every room, with project totals in kW and TR.</p>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+            <h3>Made for the UAE climate</h3>
+            <p>Design conditions for every emirate from the DBC and the Abu Dhabi Cooling Load Manual, with sub-locations from the coast to the inland desert and Hatta that set elevation and daily range. Fresh air is designed to DBC 34 °C DB / 32 °C WB, or the Abu Dhabi DOE condition.</p>
           </article>
-          <article class="feat">
+          <article class="feat reveal">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
-            <h3>Compliance checks</h3>
-            <p>U-values, window-to-wall ratio, lighting power and outdoor air checked against your chosen code set, with the clause cited.</p>
+            <h3>UAE codes and ESMA built in</h3>
+            <p>Al Sa'fat, Estidama and Barjeel limits checked input by input, with ASHRAE 90.1-2022 alongside. ESMA star ratings at T3 46 °C are converted to the 35 °C nominal rating, so equipment efficiency is compared like for like.</p>
           </article>
-          <article class="feat">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M3 20V4"/><path d="M5 17c4-1 7-4 9-8s4-5 6-5"/><path d="M5 17c5 0 9-2 15-6"/></svg>
-            <h3>Psychrometrics</h3>
-            <p>Design conditions for Dubai, Abu Dhabi, Sharjah, Al Ain and more, a psychrometric chart, and PMV/PPD comfort figures.</p>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"/><path d="M5 20V10M10 20V5M15 20v-8M20 20V8"/></svg>
+            <h3>Heat balance, independently verified</h3>
+            <p>The ASHRAE heat balance method, hour by hour for every month, with walls and roofs modelled layer by layer. Checked against an independent time-stepping simulation, it agrees within 0.15 % at every hour.</p>
           </article>
-          <article class="feat">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg>
-            <h3>Reports and exports</h3>
-            <p>A printable calculation report, the load schedule as CSV, or the schedule copied straight into Excel.</p>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <h3>Nothing to install</h3>
+            <p>Runs in any browser on Windows, Mac or a tablet. No licence key, no admin rights, no sign-up, and your projects stay on your own computer.</p>
           </article>
-          <article class="feat">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg>
-            <h3>Save and open projects</h3>
-            <p>Save to a project file on your computer and keep saving to it with Ctrl+S, or keep copies in the browser.</p>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/></svg>
+            <h3>Results you can explain</h3>
+            <p>Every room peak is split into walls, roof, glass, people, lighting, equipment, infiltration and fresh air, and the parts add up exactly. Hourly charts show when and why each room peaks.</p>
           </article>
-          <article class="feat">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg>
-            <h3>Undo and redo</h3>
-            <p>Try a different glass or occupancy and step back with full undo and redo history.</p>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <h3>Minutes, not days</h3>
+            <p>A guided seven-step workflow from project brief to plant size, opening on a worked example. Room loads, plant load in kW and TR, power required and the report, without weeks of training.</p>
           </article>
         </div>
       </section>
 
       <section class="band" id="workflow">
         <div class="wrap block">
-          <div class="head">
+          <div class="head reveal">
             <p class="kicker">Workflow</p>
-            <h2>Five steps from project brief to plant size</h2>
+            <h2>Seven steps from project brief to plant size</h2>
           </div>
           <ol class="steps">
-            <li><b>Project & design conditions</b><span>Pick the emirate and code set. Outdoor and indoor conditions fill in from the standards.</span></li>
-            <li><b>Psychrometric chart</b><span>See the outdoor, fresh-air and indoor states plotted, with moisture contents.</span></li>
-            <li><b>Envelope & system</b><span>Enter U-values, glazing and the fresh-air system once for the whole project.</span></li>
-            <li><b>Rooms</b><span>Add each room with its areas, orientation, occupancy and equipment.</span></li>
-            <li><b>Results</b><span>Review the load schedule and plant load, then generate the report.</span></li>
+            <li class="reveal"><b>Project details</b><span>Name the project, client, consultant and contractor for the report.</span></li>
+            <li class="reveal"><b>Design conditions</b><span>Pick the emirate and sub-location; outdoor, fresh-air and indoor conditions fill in from the codes.</span></li>
+            <li class="reveal"><b>Psychrometrics</b><span>Outdoor, fresh-air, room and supply states on the psychrometric chart.</span></li>
+            <li class="reveal"><b>Building envelope</b><span>U-values, glazing, wall types and the fresh-air system, once for the whole project.</span></li>
+            <li class="reveal"><b>Spaces</b><span>Each room's areas, orientation, occupancy, lighting and equipment, with a live total.</span></li>
+            <li class="reveal"><b>Heat load summary</b><span>Room, fresh-air and plant loads in kW and TR, efficiency and power required.</span></li>
+            <li class="reveal"><b>Hourly analysis</b><span>Loads hour by hour and month by month, by component, with the peak marked.</span></li>
           </ol>
         </div>
       </section>
 
-      <section class="wrap block split">
-        <div>
-          <div class="head">
-            <p class="kicker">Built for speed</p>
-            <h2>Works like the desktop tools you know</h2>
-          </div>
-          <p class="muted">Keyboard shortcuts, a project file you save over, and a worked example that opens on first launch, so you can see a finished calculation before starting your own.</p>
+      <section class="wrap block" id="features">
+        <div class="head reveal">
+          <p class="kicker">Features</p>
+          <h2>Everything a load calculation needs, in one workspace</h2>
         </div>
-        <div class="keys" aria-label="Keyboard shortcuts">
-          <div class="keys-h">Keyboard shortcuts</div>
+        <div class="features">
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 10h18M10 10v11"/></svg>
+            <h3>Room-by-room loads</h3>
+            <p>Walls, roof, glass, people, lighting, equipment and ventilation for every room, with project totals in kW and TR.</p>
+          </article>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+            <h3>Efficiency and power</h3>
+            <p>Pick the cooling system and FAHU arrangement; see actual and nominal efficiency, capacity and electrical power for room, fresh-air or total load.</p>
+          </article>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M3 20V4"/><path d="M5 17c4-1 7-4 9-8s4-5 6-5"/><path d="M5 17c5 0 9-2 15-6"/></svg>
+            <h3>Psychrometrics and comfort</h3>
+            <p>A psychrometric chart of every design state, supply-air checks, and PMV/PPD comfort figures for the indoor design.</p>
+          </article>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg>
+            <h3>Reports and exports</h3>
+            <p>A printable calculation report as PDF, the load schedule as CSV, or the whole report copied into Word or email.</p>
+          </article>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg>
+            <h3>Save and open projects</h3>
+            <p>Save to a project file on your computer and keep saving to it with Ctrl+S, or keep copies in the browser.</p>
+          </article>
+          <article class="feat reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg>
+            <h3>Undo and redo</h3>
+            <p>Try a different glass or occupancy and step back with Ctrl+Z and Ctrl+Y.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="wrap block" id="compare">
+        <div class="head reveal">
+          <p class="kicker">Compare</p>
+          <h2>How NOVAC compares with desktop load software</h2>
+        </div>
+        <div class="cmp reveal" role="region" aria-label="NOVAC compared with typical desktop load software" tabindex="0">
+          <table>
+            <thead><tr><th scope="col"></th><th scope="col" class="us">NOVAC</th><th scope="col">Typical desktop load software</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Getting started</th><td class="us">Open a browser</td><td>Install on Windows, licence activation</td></tr>
+              <tr><th scope="row">Cost</th><td class="us">Free</td><td>Paid licence or annual subscription</td></tr>
+              <tr><th scope="row">UAE design conditions</th><td class="us">Built in, by emirate and sub-location</td><td>Entered by the engineer</td></tr>
+              <tr><th scope="row">Al Sa'fat, Estidama, Barjeel checks</th><td class="us">On every input</td><td>Checked by hand</td></tr>
+              <tr><th scope="row">ESMA efficiency ratings</th><td class="us">Built in, T3 converted to 35 °C</td><td>Not included</td></tr>
+              <tr><th scope="row">Load method</th><td class="us">ASHRAE heat balance, verified</td><td>Heat balance or transfer function, by product</td></tr>
+              <tr><th scope="row">Time to first result</th><td class="us">Minutes, guided steps</td><td>Training usually needed</td></tr>
+              <tr><th scope="row">Full-building energy modelling (ASHRAE 90.1 Appendix G, LEED)</th><td class="us no">Not included: use a full simulation tool</td><td>Available</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="wrap block split" id="standards">
+        <div class="reveal">
+          <div class="head">
+            <p class="kicker">Standards</p>
+            <h2>Checked against the codes you design to</h2>
+          </div>
+          <ul class="stds">
+            <li>Dubai Building Code</li>
+            <li>Al Sa'fat</li>
+            <li>Estidama</li>
+            <li>Barjeel</li>
+            <li>ASHRAE 90.1-2022</li>
+            <li>ASHRAE 62.1</li>
+            <li>ESMA UAE.S 5010</li>
+            <li>ASHRAE heat balance method</li>
+          </ul>
+          <p class="muted note">Your projects stay on your computer. Nothing is uploaded; save them as files to share with colleagues.</p>
+        </div>
+        <div class="keys reveal" aria-label="Keyboard shortcuts">
+          <div class="keys-h">Works like the desktop tools you know</div>
           <dl>
             <div><dt><kbd>Ctrl</kbd><kbd>S</kbd></dt><dd>Save project</dd></div>
             <div><dt><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>S</kbd></dt><dd>Save as</dd></div>
@@ -154,37 +231,23 @@
         </div>
       </section>
 
-      <section class="wrap block" id="standards">
-        <div class="head">
-          <p class="kicker">Standards</p>
-          <h2>Checked against the codes you design to</h2>
-        </div>
-        <ul class="stds">
-          <li>Dubai Building Code</li>
-          <li>Al Sa'fat</li>
-          <li>Estidama</li>
-          <li>Barjeel</li>
-          <li>ASHRAE 62.1</li>
-          <li>ASHRAE heat balance method</li>
-        </ul>
-        <p class="muted note">Your projects stay on your computer. Nothing is uploaded; save them as files to share with colleagues.</p>
-      </section>
-
       <section class="wrap block" id="changelog">
-        <div class="head">
+        <div class="head reveal">
           <p class="kicker">Changelog</p>
           <h2>What's new</h2>
         </div>
-        <ul class="log">
-          <li><time datetime="2026-10-30">30 Oct 2026</time><span class="tag new">New</span>Save and Save as to a project file, with Ctrl+S</li>
-          <li><time datetime="2026-10-30">30 Oct 2026</time><span class="tag">Update</span>Compliance and design basis hidden by default, with a Show compliance switch</li>
-          <li><time datetime="2026-10-30">30 Oct 2026</time><span class="tag">Update</span>New landing page; the calculator moved to its own page</li>
+        <ul class="log reveal">
+          <li><time datetime="2026-10-31">31 Oct 2026</time><span class="tag new">New</span>NOVAC is live at novac.ae</li>
+          <li><time datetime="2026-10-31">31 Oct 2026</time><span class="tag new">New</span>Heat load summary: actual and nominal efficiency, capacity and power for room, fresh-air or total load</li>
+          <li><time datetime="2026-10-31">31 Oct 2026</time><span class="tag new">New</span>Live total load in Spaces, with a whole-plant summary</li>
+          <li><time datetime="2026-10-31">31 Oct 2026</time><span class="tag">Update</span>ESMA T3 ratings converted to the 35 °C nominal condition (ISO 16358-1)</li>
+          <li><time datetime="2026-10-30">30 Oct 2026</time><span class="tag">Update</span>Save and Save as to a project file, with Ctrl+S</li>
           <li><time datetime="2026-10-30">30 Oct 2026</time><span class="tag">Release</span>NOVAC rebuilt as a web app</li>
         </ul>
       </section>
 
       <section class="final">
-        <div class="wrap">
+        <div class="wrap reveal">
           <h2>Ready to size a project?</h2>
           <p>Open NOVAC with a worked example, or start a new project.</p>
           <a class="btn gold lg" href="app.html">Launch NOVAC <span aria-hidden="true">→</span></a>

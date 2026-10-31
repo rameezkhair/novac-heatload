@@ -11,19 +11,29 @@ export interface Sun { beta: number; az: number; Eb: number; Ed: number }
 /* sun and clear-sky irradiance at local standard time `lst` (hours) on the 21st of month m (0–11).
    az is measured clockwise from north, beta is the altitude, both in degrees */
 export function sunAt(st: Station, m: number, lst: number): Sun {
-  const n = DAY_OF_YEAR[m];
+  return clearSky(st, m, sunGeom(st.lat, st.lon, st.tz, DAY_OF_YEAR[m], lst));
+}
+
+/* sun altitude and azimuth (degrees) and extraterrestrial normal irradiance (W/m²) on day of year n at local standard time lst */
+export function sunGeom(lat: number, lon: number, tz: number, n: number, lst: number) {
   const E0 = 1367 * (1 + 0.033 * Math.cos(360 * RAD * (n - 3) / 365));
   const G = 360 * RAD * (n - 1) / 365;
   const ET = 2.2918 * (0.0075 + 0.1868 * Math.cos(G) - 3.2077 * Math.sin(G) - 1.4615 * Math.cos(2 * G) - 4.089 * Math.sin(2 * G));
   const dec = 23.45 * Math.sin(360 * RAD * (n + 284) / 365) * RAD;
-  const ast = lst + ET / 60 + (st.lon - 15 * st.tz) / 15;
-  const H = 15 * (ast - 12) * RAD, L = st.lat * RAD;
+  const ast = lst + ET / 60 + (lon - 15 * tz) / 15;
+  const H = 15 * (ast - 12) * RAD, L = lat * RAD;
   const sinB = Math.cos(L) * Math.cos(dec) * Math.cos(H) + Math.sin(L) * Math.sin(dec);
   const beta = Math.asin(Math.max(-1, Math.min(1, sinB)));
   let az = Math.atan2(-Math.sin(H) * Math.cos(dec), Math.sin(dec) * Math.cos(L) - Math.cos(dec) * Math.sin(L) * Math.cos(H)) / RAD;
   if (az < 0) az += 360;
-  if (beta <= 0) return { beta: beta / RAD, az, Eb: 0, Ed: 0 };
-  const bd = beta / RAD, m_ = 1 / (sinB + 0.50572 * Math.pow(6.07995 + bd, -1.6364));
+  return { beta: beta / RAD, az, E0 };
+}
+
+/* ASHRAE clear-sky beam and diffuse irradiance for month m's optical depths */
+export function clearSky(st: Station, m: number, g: { beta: number; az: number; E0: number }): Sun {
+  const { beta: bd, az, E0 } = g;
+  if (bd <= 0) return { beta: bd, az, Eb: 0, Ed: 0 };
+  const sinB = Math.sin(bd * RAD), m_ = 1 / (sinB + 0.50572 * Math.pow(6.07995 + bd, -1.6364));
   const tb = st.taub[m], td = st.taud[m];
   const ab = 1.454 - 0.406 * tb - 0.268 * td + 0.021 * tb * td, ad = 0.507 + 0.205 * tb - 0.080 * td - 0.190 * tb * td;
   return { beta: bd, az, Eb: E0 * Math.exp(-tb * Math.pow(m_, ab)), Ed: E0 * Math.exp(-td * Math.pow(m_, ad)) };

@@ -1,4 +1,5 @@
 import type { Layer } from './materials';
+import type { WeatherRef } from './weather/types';
 
 /* A numeric input may be blank while the user is typing; the engine reads blanks as 0 via num(). */
 export type Num = number | '';
@@ -17,6 +18,8 @@ export interface PartType { id: string; name: string; u: Num; layers?: Layer[] }
 
 export interface RoomSrc {
   people: string; light: string; equip: string; oa: string; ach: string; act: string;
+  /* the outdoor air category the fresh air was calculated from, kept when the IAQ ventilation result is applied */
+  oaBasis?: string;
 }
 export interface Room {
   id: string; name: string; type: string; qty: Num; area: Num; height: Num;
@@ -28,6 +31,8 @@ export interface Room {
   src: RoomSrc;
   /* operating schedule for people, lighting and equipment (heat balance method); none = 24 hours */
   sched?: string;
+  /* exhaust airflow, L/s per unit (toilets, kitchens, process), for the IAQ air balance */
+  exh?: Num;
 }
 
 export interface ProjectSrc {
@@ -58,6 +63,24 @@ export interface Project {
   sys?: string; effOpt?: string; effCop?: Num; aux?: Num;
   /* roof layers from the U-value calculator */
   roofLayers?: Layer[];
+  /* the weather year used by the hourly analysis (real weather mode); the hourly data itself is cached in the browser */
+  weather?: WeatherRef;
+  /* indoor air quality settings; rooms, outdoor air and the cooling system come from the rest of the project */
+  iaq?: IaqSettings;
   src: ProjectSrc;
+}
+/* ASHRAE 62.1 system type: auto follows the project (FAHU = 100% outdoor air, one room = single zone, otherwise multiple-zone recirculating) */
+export interface IaqSettings {
+  sys?: 'auto' | 'doas' | 'single' | 'multi';
+  ev?: 'simplified' | 'appendix';
+  /* ventilation above the minimum, % (enhanced ventilation) */
+  enh?: Num;
+  /* filter at each stage: outdoor air pre and final (FAHU or AHU), and the room units' recirculation filter */
+  fPre?: string; fFinal?: string; fRec?: string;
+  /* fan total efficiency for the filter pressure drop, and fan operating hours per year */
+  fanEff?: Num; hours?: Num;
+  /* overrides of the reference data, by contaminant and by filter */
+  cont?: Record<string, Partial<Record<'genP' | 'genA' | 'dep' | 'pen' | 'out' | 'limit', Num>>>;
+  filt?: Record<string, Partial<Record<'e1' | 'e2' | 'e3' | 'dp0' | 'dpF' | 'v', Num>>>;
 }
 export interface AppState { version: 2; project: Project; rooms: Room[]; sel: string | undefined; example: boolean }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { computeAll } from './engine/calc';
 import { allChecks, applicable, projectChecks } from './engine/checks';
 import { exampleState, migrate, newProjectState } from './engine/project';
@@ -13,6 +13,8 @@ import { ReportView } from './components/ReportView';
 import { RoomsSection } from './components/RoomsSection';
 import { ScheduleSection } from './components/ScheduleSection';
 import { ArmButton, ComplianceProvider, useToast } from './components/ui';
+/* the indoor air quality step and its engines load when the step is first opened */
+const IaqSection = lazy(() => import('./components/IaqSection').then(m => ({ default: m.IaqSection })));
 
 export default function App() {
   const store = useStore(), { state, undo, redo } = store, toast = useToast();
@@ -32,6 +34,7 @@ export default function App() {
     { title: 'Spaces', description: 'Enter space areas, loads and surface details.' },
     { title: 'Heat load summary', description: 'Review the load schedule and generate a report.' },
     { title: 'Hourly analysis', description: 'See the heat balance loads hour by hour and month by month.' },
+    { title: 'Indoor air quality', description: 'Design ventilation to ASHRAE 62.1, check indoor contaminants and select filters.' },
   ];
 
   /* the project file on disk that Save writes back to, if any */
@@ -133,6 +136,7 @@ export default function App() {
         {activeStep === 4 && <RoomsSection store={store} d={d} />}
         {activeStep === 5 && <ScheduleSection d={d} checks={checks} store={store} />}
         {activeStep === 6 && <HourlySection d={d} store={store} />}
+        {activeStep === 7 && <Suspense fallback={<p className="hint">Loading the indoor air quality tools…</p>}><IaqSection d={d} store={store} /></Suspense>}
         <div className="workflow-controls" aria-label="Step navigation">
           {activeStep > 0
             ? <button className="btn" type="button" onClick={() => navigateStep(activeStep - 1)}>Previous</button>
@@ -165,7 +169,7 @@ function workflowCompletion(state: Store['state']): boolean[] {
     && positive(room.qty) && positive(room.area) && positive(room.height)
     && [room.people, room.light, room.equip, room.oa, room.ach, room.ps, room.pl].every(value => hasNumber(value) && Number(value) >= 0));
   const all = details && climate && envelope && rooms;
-  return [details, climate, climate, envelope, rooms, all, all];
+  return [details, climate, climate, envelope, rooms, all, all, all];
 }
 
 /* save and open projects: in this browser, or as .json files to share */

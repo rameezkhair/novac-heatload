@@ -69,11 +69,10 @@ main section{margin-top:0}
 
 .band{background:var(--surface);border-block:1px solid var(--line);margin-top:80px!important}
 .band .block{padding-block:72px}
-.steps{list-style:none;counter-reset:s;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}
-.steps li{counter-increment:s;position:relative;padding:52px 18px 0 0;display:flex;flex-direction:column;gap:6px}
-.steps li::before{content:counter(s);position:absolute;top:0;left:0;z-index:1;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--surface);border:2px solid var(--accent);color:var(--accent);font-weight:700}
-.steps li::after{content:"";position:absolute;top:17px;left:34px;right:0;height:2px;background:var(--line)}
-.steps li:last-child::after{display:none}
+.steps{list-style:none;counter-reset:s;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.steps li{counter-increment:s;position:relative;padding:20px 20px 22px 20px;display:flex;flex-direction:column;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:10px;transition:border-color .15s,transform .15s}
+.steps li:hover{border-color:var(--accent);transform:translateY(-2px)}
+.steps li::before{content:counter(s);position:static;margin-bottom:8px;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--surface);border:2px solid var(--accent);color:var(--accent);font-weight:700}
 .steps b{font-size:15px}
 .steps span{color:var(--muted);font-size:14px;line-height:1.55}
 
@@ -118,9 +117,7 @@ kbd{font-family:inherit;font-size:12px;font-weight:600;min-width:26px;text-align
   .specs .wrap{grid-template-columns:repeat(2,minmax(0,1fr))}
   .specs .wrap>div:nth-child(3){border-left:0;padding-left:0}
   .specs .wrap>div:nth-child(n+3){border-top:1px solid var(--line)}
-  .steps{grid-template-columns:minmax(0,1fr);gap:22px}
-  .steps li{padding:4px 0 0 52px}
-  .steps li::after{display:none}
+  .steps{grid-template-columns:repeat(2,minmax(0,1fr))}
   .split{grid-template-columns:minmax(0,1fr);gap:28px}
   .links{display:none}
   .nav .btn{margin-left:auto}
@@ -131,7 +128,7 @@ kbd{font-family:inherit;font-size:12px;font-weight:600;min-width:26px;text-align
   .hero-h{font-size:30px}
   .head h2,.split h2,.final h2{font-size:24px}
   .block{padding-block:56px 0}
-  .features,.specs .wrap{grid-template-columns:minmax(0,1fr)}
+  .features,.specs .wrap,.steps{grid-template-columns:minmax(0,1fr)}
   .specs .wrap>div{border-left:0;padding-left:0;border-top:1px solid var(--line)}
   .specs .wrap>div:first-child{border-top:0}
   .chip{display:none}
@@ -140,3 +137,42 @@ kbd{font-family:inherit;font-size:12px;font-weight:600;min-width:26px;text-align
   .log li>.tag{grid-row:1;justify-self:end}
   .log li{grid-auto-flow:row}
 }
+
+/* why NOVAC: comparison with desktop load software */
+.cmp{margin-top:28px;overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.cmp table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+.cmp th,.cmp td{text-align:left;padding:13px 18px;border-top:1px solid var(--line);vertical-align:top;line-height:1.45}
+.cmp thead th{border-top:0;font-size:13px;color:var(--muted);font-weight:600}
+.cmp thead th.us{color:var(--accent);font-size:15px;font-weight:800}
+.cmp tbody th{font-weight:600;width:34%}
+.cmp td{color:var(--muted)}
+.cmp td.us{color:var(--fg);font-weight:600;background:var(--accent-soft)}
+.cmp td.us::before{content:"✓";color:var(--accent);margin-right:8px;font-weight:800}
+.cmp td.us.no{font-weight:400;color:var(--muted)}
+.cmp td.us.no::before{content:"–";color:var(--muted)}
+
+/* motion: hero rises on load, sections fade up on scroll (landing.ts), chips float */
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.rise{animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+.hero-copy .rise:nth-child(2){animation-delay:.08s}.hero-copy .rise:nth-child(3){animation-delay:.16s}
+.hero-copy .rise:nth-child(4){animation-delay:.24s}.hero-copy .rise:nth-child(5){animation-delay:.32s}
+.window.rise{animation-delay:.2s;animation-duration:.9s}
+.chip.c1{animation:float 5s ease-in-out 1.2s infinite}
+.chip.c2{animation:float 6s ease-in-out 1.8s infinite}
+.js .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
+.js .reveal.in{opacity:1;transform:none}
+.specs b span{font-variant-numeric:tabular-nums}
+/* nav: current section and a shadow once scrolled */
+.links a[aria-current="true"]{color:var(--hero-fg);box-shadow:inset 0 -2px 0 var(--gold);padding-bottom:4px}
+.nav{transition:box-shadow .2s}
+.nav.lifted{box-shadow:0 6px 24px rgba(0,0,0,.35)}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+#standards.split{align-items:start}
+#standards .stds{margin-bottom:16px}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .rise,.chip.c1,.chip.c2{animation:none}
+  .js .reveal{opacity:1;transform:none;transition:none}
+}
+.js .feat.reveal.in:hover,.js .steps li.reveal.in:hover{transform:translateY(-2px)}

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import App from '../src/App';
 import { ToastProvider } from '../src/components/ui';
 import { num } from '../src/engine/util';
+import { NET } from '../src/engine/weather/providers';
+import { fakeOpenMeteo } from './weatherFixture';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 /* Node 26 defines its own localStorage global, which hides jsdom's */
@@ -38,9 +40,9 @@ describe('app', () => {
   });
 
   it('navigates through the calculator steps and counts valid defaults as complete', async () => {
-    expect($$('.workflow-step')).toHaveLength(7);
+    expect($$('.workflow-step')).toHaveLength(8);
     expect($('.workflow-step[data-step="0"]').getAttribute('aria-current')).toBe('step');
-    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete']);
+    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete']);
     expect($('#p-name')).not.toBeNull();
     expect($('#p-toDB')).toBeNull();
     await act(async () => byText('button', 'Continue').click());
@@ -416,5 +418,65 @@ describe('app', () => {
       expect(JSON.parse(written['b.novac.json']).project.name).toBe('Villa B');
       expect(JSON.parse(written['a.novac.json']).project.name).toBe('Villa A');
     } finally { delete (window as any).showSaveFilePicker; }
+  });
+});
+
+describe('real weather year', () => {
+  it('downloads a weather year and runs the hourly analysis on it', async () => {
+    NET.spacing = 0; NET.backoff = 1;
+    const f = vi.fn(async (_url: string) => new Response(JSON.stringify(fakeOpenMeteo(2025)), { status: 200 }));
+    vi.stubGlobal('fetch', f);
+    try {
+      await act(async () => $('.workflow-step[data-step="6"]').click());
+      await act(async () => $$('.seg button')[1].click());
+      for (let i = 0; i < 50 && !$('#wx-year'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+      expect($('.wx-status').textContent).toContain('No weather year loaded yet');
+      await act(async () => setValue($('#wx-year'), '2025'));
+      await act(async () => $<HTMLButtonElement>('.wx-btns .btn.primary').click());
+      for (let i = 0; i < 20 && !$('.wx-quality'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+      expect(String(f.mock.calls[0][0])).toContain('archive-api.open-meteo.com');
+      expect($('.wx-quality h3').textContent).toContain('8,760 hourly records');
+      expect($('.tot.key').textContent).toMatch(/Peak plant load, real weather\d+\.\d\dTR/);
+      expect($$('.hr-hours tbody tr')).toHaveLength(24);
+      /* climate charts: heatmap first, then the other views */
+      expect($('.cl-plot.heat svg')).toBeTruthy();
+      for (const tab of ['Psychrometric chart', 'Sun path', 'Wind rose']) {
+        await act(async () => byText('.cl-tabs button', tab).click());
+        expect($('.cl-plot svg')).toBeTruthy();
+      }
+      expect(host.textContent).not.toMatch(/NaN|undefined/);
+      /* the weather choice is saved with the project, and the design days are still there */
+      await act(async () => { await new Promise(r => setTimeout(r, 350)); });
+      expect(JSON.parse(localStorage.getItem('novac-heatload-v2') || '{}').project.weather).toMatchObject({ provider: 'open-meteo', year: 2025 });
+      await act(async () => $$('.seg button')[0].click());
+      expect($<HTMLSelectElement>('#hr-month')).toBeTruthy();
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('indoor air quality', () => {
+  it('calculates ventilation, writes it to the rooms and the loads follow', async () => {
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    const before = num(plantTR());
+    await act(async () => $('.workflow-step[data-step="7"]').click());
+    for (let i = 0; i < 50 && !$('.iaq-zones'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    expect($$('.iaq-zones tbody tr')).toHaveLength(5);
+    expect($('.iaq-kpis').textContent).toContain('System outdoor air intake, Vot');
+    /* 30% above the minimum, applied to every room's fresh air */
+    await act(async () => setValue($('#iaq-enh'), '30'));
+    const apply = byText('.iaq-apply button', 'Apply required fresh air to the rooms') as HTMLButtonElement;
+    expect(apply.disabled).toBe(false);
+    await act(async () => apply.click());
+    expect(apply.disabled).toBe(true);
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    expect(num(plantTR())).toBeGreaterThan(before);
+    /* contaminants and filtration on the same rooms */
+    await act(async () => $('.workflow-step[data-step="7"]').click());
+    await act(async () => byText('.iaq-tabs button', 'Contaminants').click());
+    expect($$('.iaq-cont tbody tr')).toHaveLength(9);
+    expect($('.iaq-cont').textContent).toContain('Ventilation indicator');
+    await act(async () => byText('.iaq-tabs button', 'Filtration').click());
+    expect($$('.iaq-filt tbody tr')).toHaveLength(3);
+    expect(host.textContent).not.toMatch(/NaN|undefined|Infinity/);
   });
 });
