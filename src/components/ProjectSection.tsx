@@ -8,7 +8,30 @@ import { fmt, fmtIn, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { CheckTable, CountPill, Field, SecHead, SelectField, useCompliance, useToast } from './ui';
 
-export function ProjectSection({ store, d, marks }: { store: Store; d: Computed; marks: Record<string, Mark> }) {
+/* step 1: who the project is for; the project name is required before moving on */
+export function ProjectDetailsSection({ store, showErr }: { store: Store; showErr: boolean }) {
+  const p = store.state.project, nameErr = showErr && !p.name.trim();
+  const setP = (k: 'name' | 'client' | 'consultant' | 'contractor', v: string) => store.update(s => { s.project[k] = v; }, 'p.' + k);
+  const text = (k: 'client' | 'consultant' | 'contractor', label: string, ph: string) =>
+    <label className="fld" htmlFor={'p-' + k}><span className="fl">{label}</span><span className="in-u"><input id={'p-' + k} type="text" placeholder={ph} value={p[k] ?? ''} onChange={ev => setP(k, ev.target.value)} /></span></label>;
+  return <section>
+    <SecHead n={1} title="Project details" sub="The project name is required. Client, consultant and contractor appear on the report." />
+    <div className="groups">
+      <fieldset><legend>Project</legend>
+        <div className="fgrid one">
+          <label className="fld" htmlFor="p-name"><span className="fl">Project name <span className="req-star" aria-hidden="true">*</span></span><span className="in-u"><input id="p-name" type="text" required aria-required="true" aria-invalid={nameErr || undefined} aria-describedby={nameErr ? 'p-name-err' : undefined} className={nameErr ? 'bad-in' : undefined} placeholder="e.g. G+1 office, Al Quoz" value={p.name} onChange={ev => setP('name', ev.target.value)} /></span></label>
+          {nameErr && <p className="fld-err" id="p-name-err" role="alert">Enter a project name to continue.</p>}
+          {text('client', 'Client', 'e.g. Al Quoz Properties LLC')}
+          {text('consultant', 'Consultant', 'e.g. MEP design consultant')}
+          {text('contractor', 'Contractor', 'e.g. MEP contractor')}
+        </div>
+      </fieldset>
+    </div>
+  </section>;
+}
+
+/* step 2: location and indoor and outdoor design conditions */
+export function DesignConditionsSection({ store, d, marks }: { store: Store; d: Computed; marks: Record<string, Mark> }) {
   const { update } = store, p = d.p, e = d.e, toast = useToast(), showC = useCompliance();
   const setP = (k: keyof Project, v: unknown, after?: (p: Project) => void) => update(s => {
     (s.project as Record<string, unknown>)[k] = v; after?.(s.project as Project);
@@ -26,11 +49,10 @@ export function ProjectSection({ store, d, marks }: { store: Store; d: Computed;
   const cnt = (rows: typeof oRows) => ({ nb: rows.filter(r => r[3][0] === 'bad').length, nw: rows.filter(r => r[3][0] === 'warn').length });
 
   return <section>
-    <SecHead n={1} title="Project & design conditions" />
+    <SecHead n={2} title="Design conditions" />
     <div className="groups">
-      <fieldset><legend>Project</legend>
+      <fieldset><legend>Location</legend>
         <div className="fgrid one">
-          <label className="fld" htmlFor="p-name"><span className="fl">Project name</span><span className="in-u"><input id="p-name" type="text" placeholder="e.g. G+1 office, Al Quoz" value={p.name} onChange={ev => setP('name', ev.target.value)} /></span></label>
           <SelectField id="p-location" label="Emirate / design-condition basis" value={p.location} onChange={v => {
             let why: string | null = null;
             update(s => { why = setLocation(s.project as Project, v); const ez = ezOf(s.project as Project); s.rooms.forEach(r => resolveRoom(r as never, ez)); });

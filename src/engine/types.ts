@@ -28,7 +28,8 @@ export interface ProjectSrc {
   [k: string]: string | undefined;
 }
 export interface Project {
-  name: string; location: string; subloc: string; cbasis: string; codeset?: string;
+  name: string; client: string; consultant: string; contractor: string;
+  location: string; subloc: string; cbasis: string; codeset?: string;
   toDB: Num; toWB: Num; dr: Num; elev: Num; vDB: Num; vWB: Num;
   autoBand: boolean;
   tiDB: Num; tiRH: Num; met: Num; clo: Num; vel: Num;

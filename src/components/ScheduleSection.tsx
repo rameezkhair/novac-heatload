@@ -12,7 +12,7 @@ export function ScheduleSection({ d, checks }: { d: Computed; checks: Check[] })
   const scope = p.location === 'dubai' || p.location === 'custom' ? '' : ' DBC applies to Dubai; shown for reference.';
   const fa = p.fahu ? T.fahuW : T.oa;
   return <section>
-    <SecHead n={4} title={showC ? 'Load schedule & compliance' : 'Load schedule'} sub={(p.name ? p.name + ' · ' : '') + (LOC[p.location]?.label || '')} />
+    <SecHead n={6} title={showC ? 'Heat load summary & compliance' : 'Heat load summary'} sub={(p.name ? p.name + ' · ' : '') + (LOC[p.location]?.label || '')} />
     <div className="totals">
       <div className="tot"><div className="k">Room load (excl. fresh air)</div><div className="v">{fmt((T.s + T.l) / 3517, 1)}<small>TR</small></div><div className="s">{fmt((T.s + T.l) / 1000, 1)} kW{p.fahu ? '' : ' · room units ' + fmt(T.u / 3517, 1) + ' TR incl. fresh air'}</div></div>
       <div className="tot"><div className="k">Fresh air cooling load{p.fahu && T.rec ? ' (net of recovery)' : ''}</div><div className="v">{fmt(fa / 3517, 1)}<small>TR</small></div><div className="s">{fmt(fa / 1000, 1)} kW · {fmt(T.oaq, 0)} L/s · {p.fahu ? 'FAHU' : 'in room units'}{T.rec ? ' · ' + fmt(T.rec / 1000, 1) + ' kW recovered' : ''}</div></div>

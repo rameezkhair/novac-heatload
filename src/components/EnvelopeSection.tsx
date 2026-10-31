@@ -5,6 +5,8 @@ import type { Mark, Num, Orient, Project } from '../engine/types';
 import { fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { Field, NumInput, PickField, SecHead, useToast } from './ui';
+import { AssemblyReferenceLibrary } from './AssemblyReferenceLibrary';
+import { DmMaterialLibrary } from './DmMaterialLibrary';
 
 export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; d: Computed; marks: Record<string, Mark>; limits: Limits }) {
   const { update } = store, p = d.p, T = d.T, toast = useToast();
@@ -20,7 +22,7 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
   const setSolar = (k: Orient | 'H', v: Num) => update(s => { s.project.solar[k] = num(v); }, 'solar.' + k);
 
   return <section>
-    <SecHead n={2} title="Envelope & system" sub="Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance." />
+    <SecHead n={4} title="Building envelope" sub="Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance." />
     <div className="codebar">
       <label className="fld" htmlFor="p-codeset"><span className="fl">Envelope code · fills all values and sets the compliance basis</span>
         <span className="in-u"><select id="p-codeset" value={p.codeset} onChange={e => { const v = e.target.value; let lbl = ''; update(s => { lbl = applyCodeset(s.project as Project, v)?.[1] || ''; }); toast('Applied: ' + lbl); }}>
@@ -54,6 +56,8 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
         {f('ervS', 'Sensible effectiveness', '%', 1)}{f('ervL', 'Latent effectiveness', '%', 1)}{f('ervShare', 'Exhaust air recovered', '% of OA', 1)}
       </div><p className="hint">Required above 1,000 L/s of treated outdoor air: recover at least 50% of exhaust air at 70% or higher sensible effectiveness. Applied to the FAHU load.</p></fieldset>
     </div>
+    <DmMaterialLibrary />
+    <AssemblyReferenceLibrary />
     <details>
       <summary>Orientation factors: wall, roof and glass CLTD, and solar gain through glass</summary>
       <div className="body">

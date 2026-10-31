@@ -144,7 +144,7 @@ export function autoBand(p: Project, T: { wallG: number; wwr: number; roof: numb
 
 export function defaultProject(): Project {
   const p: Project = Object.assign({
-    name: '', location: 'dubai', cbasis: 'safat-s', codeset: 'safat-s-40',
+    name: '', client: '', consultant: '', contractor: '', location: 'dubai', cbasis: 'safat-s', codeset: 'safat-s-40',
   }, presetVals('dubai'), {
     autoBand: true, tiDB: 24, tiRH: 50, met: 1.1, clo: 0.61, vel: 0.2,
     uPart: 1.8, uCeil: 0.6, uFloor: 0.6, shade: 1, tAdj: 35, tSupply: 13, sfS: 10, sfL: 5, fahu: true, diversity: 100,

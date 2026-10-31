@@ -5,6 +5,19 @@ export function downloadFile(filename: string, data: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/* render an element to a Letter-size PDF and download it; the library is loaded only when first used */
+export async function downloadPdf(filename: string, el: HTMLElement) {
+  const { default: html2pdf } = await import('html2pdf.js');
+  await html2pdf().set({
+    filename,
+    margin: [0.3, 0, 0.3, 0],
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#FFFFFF', windowWidth: 816 },
+    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'], avoid: ['.room', 'table', '.chart', '.kpis'] },
+  }).from(el).save();
+}
+
 export function pickFile(accept: string): Promise<string | null> {
   return new Promise(resolve => {
     const i = document.createElement('input');

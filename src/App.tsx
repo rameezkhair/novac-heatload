@@ -6,7 +6,7 @@ import { ABBR, fileBase, scheduleTSV } from './engine/report';
 import { canSaveInPlace, copyText, openProjectFile, saveProjectFile, type FileHandle } from './files';
 import { deleteSaved, listSaved, saveToLibrary, useStore, type SavedProject, type Store } from './state/store';
 import { EnvelopeSection } from './components/EnvelopeSection';
-import { ProjectSection } from './components/ProjectSection';
+import { DesignConditionsSection, ProjectDetailsSection } from './components/ProjectSection';
 import { PsychroSection } from './components/PsychroSection';
 import { ReportView } from './components/ReportView';
 import { RoomsSection } from './components/RoomsSection';
@@ -24,16 +24,27 @@ export default function App() {
   const checks = useMemo(() => allChecks(d, marks, limits).filter(applicable), [d, marks, limits]);
   const completed = workflowCompletion(state);
   const steps = [
-    { title: 'Project & climate', description: 'Set the location and indoor and outdoor design conditions.' },
-    { title: 'Envelope & system', description: 'Review envelope properties and cooling-system assumptions.' },
-    { title: 'Rooms', description: 'Enter room areas, loads and surface details.' },
-    { title: 'Review', description: 'Review the load schedule and generate a report.' },
+    { title: 'Project details', description: 'Name the project and record the client, consultant and contractor.' },
+    { title: 'Design conditions', description: 'Set the location and indoor and outdoor design conditions.' },
+    { title: 'Psychrometric overview', description: 'Check the air states on the psychrometric chart.' },
+    { title: 'Building envelope', description: 'Review envelope properties and cooling-system assumptions.' },
+    { title: 'Spaces', description: 'Enter space areas, loads and surface details.' },
+    { title: 'Heat load summary', description: 'Review the load schedule and generate a report.' },
   ];
 
   /* the project file on disk that Save writes back to, if any */
   const [file, setFile] = useState<FileHandle | null>(null);
-  const replace = (s: typeof state, f: FileHandle | null = null) => { store.replace(s); setFile(f); };
-  const navigateStep = (step: number) => { setActiveStep(step); scrollTo(0, 0); };
+  const replace = (s: typeof state, f: FileHandle | null = null) => { store.replace(s); setFile(f); setNameErr(false); };
+  /* the project name is mandatory: leaving step 1 without one keeps the user there */
+  const [nameErr, setNameErr] = useState(false);
+  const navigateStep = (step: number) => {
+    if (step !== 0 && !state.project.name.trim()) {
+      setNameErr(true); setActiveStep(0); scrollTo(0, 0);
+      setTimeout(() => document.getElementById('p-name')?.focus());
+      return;
+    }
+    setActiveStep(step); scrollTo(0, 0);
+  };
   const save = async (as: boolean) => {
     try {
       const r = await saveProjectFile(as ? null : file, fileBase(state.project.name) + '.novac.json', JSON.stringify(state, null, 1));
@@ -125,13 +136,12 @@ export default function App() {
           </div>
           <p className="workflow-caption"><b>Step {activeStep + 1} of {steps.length}</b><span aria-hidden="true">·</span>{steps[activeStep].description}</p>
         </nav>
-        {activeStep === 0 && <>
-          <ProjectSection store={store} d={d} marks={marks} />
-          <PsychroSection d={d} />
-        </>}
-        {activeStep === 1 && <EnvelopeSection store={store} d={d} marks={marks} limits={limits} />}
-        {activeStep === 2 && <RoomsSection store={store} d={d} />}
-        {activeStep === 3 && <ScheduleSection d={d} checks={checks} />}
+        {activeStep === 0 && <ProjectDetailsSection store={store} showErr={nameErr} />}
+        {activeStep === 1 && <DesignConditionsSection store={store} d={d} marks={marks} />}
+        {activeStep === 2 && <PsychroSection d={d} />}
+        {activeStep === 3 && <EnvelopeSection store={store} d={d} marks={marks} limits={limits} />}
+        {activeStep === 4 && <RoomsSection store={store} d={d} />}
+        {activeStep === 5 && <ScheduleSection d={d} checks={checks} />}
         <div className="workflow-controls" aria-label="Step navigation">
           {activeStep > 0
             ? <button className="btn" type="button" onClick={() => navigateStep(activeStep - 1)}>Previous</button>
@@ -146,6 +156,7 @@ export default function App() {
 
 function workflowCompletion(state: Store['state']): boolean[] {
   const p = state.project;
+  const details = p.name.trim() !== '';
   const hasNumber = (value: unknown) => typeof value === 'number'
     ? Number.isFinite(value)
     : typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value));
@@ -162,7 +173,7 @@ function workflowCompletion(state: Store['state']): boolean[] {
     room.name.trim() !== '' && !!room.type
     && positive(room.qty) && positive(room.area) && positive(room.height)
     && [room.people, room.light, room.equip, room.oa, room.ach, room.ps, room.pl].every(value => hasNumber(value) && Number(value) >= 0));
-  return [climate, envelope, rooms, climate && envelope && rooms];
+  return [details, climate, climate, envelope, rooms, details && climate && envelope && rooms];
 }
 
 /* save and open projects: in this browser, or as .json files to share */

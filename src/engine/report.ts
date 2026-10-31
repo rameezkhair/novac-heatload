@@ -98,11 +98,10 @@ export function reportBody(s: AppState, compliance = false, today = new Date()) 
   const date = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const loc = LOC[p.location] || { label: '' }, sub = subOf(p);
   let h = `<h1>Heat Load Calculation Report</h1><p class="rsub">NOVAC Simplified Heat Load Calculator · ${esc(p.name || 'Untitled project')} · ${esc(loc.label)} · ${date}</p><p class="small">Developed on ASHRAE's CLTD/CLF method${c_ ? ", with checks against DBC, Al Sa'fat, Estidama and ASHRAE standards" : ''}</p>`;
-  const half = Math.ceil(ABBR.length / 2), ab: string[][] = [];
-  for (let i = 0; i < half; i++) { const a = ABBR[i], b = ABBR[i + half] || ['', '']; ab.push([`<b>${esc(a[0])}</b>`, esc(a[1]), `<b>${esc(b[0])}</b>`, esc(b[1])]); }
-  h += `<h2>Abbreviations and symbols</h2>` + tbl([['Term'], ['Meaning'], ['Term'], ['Meaning']], ab);
   h += `<h2>1. Summary</h2>` + tbl([['Item'], ['Value']], [
-    ['Project', esc(p.name || 'Untitled project')], ['Location', esc(loc.label) + (sub ? ', ' + esc(sub.label) : '')], ['Authority basis', esc(authLine(p.location))], ['Date', date],
+    ['Project', esc(p.name || 'Untitled project')],
+    ...([['Client', p.client], ['Consultant', p.consultant], ['Contractor', p.contractor]] as const).filter(([, v]) => v?.trim()).map(([k, v]) => [k, esc(v)]),
+    ['Location', esc(loc.label) + (sub ? ', ' + esc(sub.label) : '')], ['Authority basis', esc(authLine(p.location))], ['Date', date],
     ['Method', 'ASHRAE CLTD/CLF, room by room; ventilation per DBC H.4.10.2 (ASHRAE 62.1-2022, 62.2-2019, 170-2021)'],
     ['Rooms', `${rooms.length} room types, ${T.q} rooms in total`], ['Conditioned floor area', `${fmt(T.a, 1)} m²`]]);
   h += `<div class="kpis"><div class="kpi"><div class="k">Room units</div><div class="v">${fmt(T.u / 3517, 1)} TR</div><div class="s">${fmt(T.u / 1000, 1)} kW</div></div><div class="kpi"><div class="k">Fresh air (FAHU)</div><div class="v">${p.fahu ? fmt(T.fahuW / 3517, 1) + ' TR' : 'In units'}</div><div class="s">${fmt(T.oaq, 0)} L/s</div></div><div class="kpi"><div class="k">Plant load</div><div class="v">${fmt(T.plant / 3517, 1)} TR</div><div class="s">${fmt(T.plant / 1000, 1)} kW at ${fmt(num(p.diversity), 0)}% diversity</div></div><div class="kpi"><div class="k">Overall density</div><div class="v">${T.plant ? fmt(T.a / (T.plant / 3517), 1) : '–'} m²/TR</div><div class="s">${fmt(T.a ? T.plant / T.a : 0, 0)} W/m²</div></div></div>`;
@@ -198,7 +197,8 @@ export function scheduleCSV(s: AppState) {
 export function scheduleTSV(s: AppState, compliance = false) {
   const d = computeAll(s.project, s.rooms), { marks, limits } = projectChecks(s.project, d.T, s.rooms);
   const checks = allChecks(d, marks, limits).filter(applicable);
-  const lines: (string | number)[][] = [['NOVAC Simplified Heat Load Calculator: load schedule'], [`Project: ${s.project.name || '-'}`], [],
+  const lines: (string | number)[][] = [['NOVAC Simplified Heat Load Calculator: load schedule'], [`Project: ${s.project.name || '-'}`],
+    ...([['Client', s.project.client], ['Consultant', s.project.consultant], ['Contractor', s.project.contractor]] as const).filter(([, v]) => v?.trim()).map(([k, v]) => [`${k}: ${v}`]), [],
     ...(compliance ? [['Design basis', 'Value', 'Source'], ...basisRows(s.project, d), [], ['Compliance check', 'Criterion', 'Detail'], ...checks.map(([st, c, t]) => [PILL[st], c, t]), []] : []), SCHED_HEAD, ...scheduleRows(s)];
   return lines.map(l => l.join('\t')).join('\n');
 }
