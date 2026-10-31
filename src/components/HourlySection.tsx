@@ -110,10 +110,10 @@ export function ElectricalKpis({ d, basis: b }: { d: Computed; basis: LoadBasis 
   const month = d.T.blk?.m ?? 0, el = electrical(d, 'all', month);
   const { p, T, e } = d, sys = (p.sys || 'ducted') as SysId, q = el.q;
   const unit = SYSTEMS.find(x => x.id === sys)!, aux = num(p.aux) / 3.51685;
-  /* the load picked in the totals above, at its design outdoor temperature: room and plant loads at the
-     envelope design dry bulb, fresh air at the fresh-air design dry bulb */
+  /* the load picked in the totals above; every basis, fresh air included, is rated at the plant's
+     outdoor design dry bulb so its efficiency matches the actual plant */
   const kW = (b === 'room' ? T.s + T.l : b === 'fa' ? (p.fahu ? T.fahuW : T.oa) : T.plant) / 1000;
-  const tAct = b === 'fa' ? e.Tv : e.To;
+  const tAct = e.To;
   const what = b === 'room' ? 'room load (excl. fresh air)' : b === 'fa' ? 'fresh air load' : 'plant load';
   /* nominal is always T1, 35 °C outdoor (ISO 5151 / AHRI). ESMA rates DX units at T3 (46 °C), so their EER is
      converted to 35 °C with the ISO 16358-1 Annex F capacity and power ratios (UAE.S 5010 Annex 2) */
