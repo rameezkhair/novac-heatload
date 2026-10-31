@@ -16,7 +16,7 @@ NOVAC calculates room-by-room peak cooling loads and helps engineers review the 
 
 ## Positioning
 
-A browser-based UAE-focused calculator combining ASHRAE CLTD/CLF calculations with local design conditions, psychrometrics, and code checks.
+A browser-based UAE-focused calculator combining ASHRAE heat balance method calculations with local design conditions, psychrometrics, and code checks.
 
 ## Operating Context
 
