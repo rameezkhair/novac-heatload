@@ -90,16 +90,6 @@ describe('app', () => {
     expect($('.rpt').textContent).toContain('ContractorBuild Co');
   });
 
-  it('shows abbreviations in a dropdown in the top bar', async () => {
-    const dropdown = $<HTMLDetailsElement>('details.abbr-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown.open).toBe(false);
-    await act(async () => dropdown.querySelector('summary')!.click());
-    expect(dropdown.open).toBe(true);
-    expect(dropdown.textContent).toContain('ASHRAE');
-    expect(dropdown.textContent).toContain('American Society of Heating, Refrigerating and Air-Conditioning Engineers');
-  });
-
   it('filters the ASHRAE assembly reference without changing project U-values', async () => {
     await act(async () => $('.workflow-step[data-step="3"]').click());
     const projectUWall = $<HTMLInputElement>('#p-uWall').value;
@@ -155,6 +145,17 @@ describe('app', () => {
     expect($('#p-elev').closest('.fld')!.querySelector('.cmark')!.textContent).toContain('Fails');
   });
 
+  it('shows the total plant summary from the Total load row', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.rtotal').click());
+    expect($('.rtotal').getAttribute('aria-current')).toBe('true');
+    expect($('.result').textContent).toContain('Total plant');
+    expect($$('.plant-rooms tbody tr')).toHaveLength($$('.ritem').length);
+    await act(async () => $('.plant-rooms .linkish').click());
+    expect($('#r-area')).not.toBeNull();
+    expect($('.rtotal').getAttribute('aria-current')).toBe('false');
+  });
+
   it('recalculates when a room changes, and undo restores it', async () => {
     await act(async () => $('.workflow-step[data-step="5"]').click());
     const before = plantTR();
@@ -162,7 +163,7 @@ describe('app', () => {
     await act(async () => setValue($('#r-area'), '240'));
     await act(async () => $('.workflow-step[data-step="5"]').click());
     expect(plantTR()).not.toBe(before);
-    await act(async () => byText('button', '↶ Undo').click());
+    await act(async () => { dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })); });
     expect(plantTR()).toBe(before);
   });
 
@@ -284,7 +285,7 @@ describe('app', () => {
     expect($<HTMLInputElement>('input[aria-label="external wall type 1 U-value"]').value).toBe(u);
   });
 
-  it('calculates with the heat balance method by default and can switch to CLTD', async () => {
+  it('uses the heat balance method throughout the calculator', async () => {
     await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(host.textContent).toMatch(/Peak on [A-Z][a-z]{2} 21 at \d\d:00/);
     expect($('.hb-chart svg')).not.toBeNull();
@@ -296,28 +297,57 @@ describe('app', () => {
     await act(async () => $('.workflow-step[data-step="3"]').click());
     expect(host.textContent).not.toContain('Orientation factors');
     expect($('#p-aWall')).not.toBeNull();
-    await act(async () => setValue($('#p-method'), 'cltd'));
-    expect(host.textContent).toContain('Orientation factors');
-    expect($('#p-aWall')).toBeNull();
+    expect($('#p-method')).toBeNull();
+    expect(host.textContent).toContain('Heat balance method');
     await act(async () => $('.workflow-step[data-step="4"]').click());
-    expect($('#r-sched')).toBeNull();
-    expect($('.hb-chart')).toBeNull();
+    expect($('#r-sched')).not.toBeNull();
+    expect($('.hb-chart svg')).not.toBeNull();
     await act(async () => $('.workflow-step[data-step="5"]').click());
-    expect(plantTR()).not.toBe(hb);
+    expect(plantTR()).toBe(hb);
     expect($$('.workflow-step .workflow-status').every(e => e.textContent === 'Complete')).toBe(true);
   });
 
   it('shows hourly loads by component for the building, a room and any month', async () => {
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    expect($('.hr-req .pill.ok').textContent).toBe('Recommended');
+    /* the FAHU selector here and the checkbox in the envelope step are the same setting */
+    const fahu = $<HTMLSelectElement>('#summary-el-fahu');
+    const was = fahu.value;
+    await act(async () => setValue(fahu, was === 'fahu' ? 'room' : 'fahu'));
+    expect($('.totals').textContent).toContain(was === 'fahu' ? 'in room units' : 'FAHU');
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    expect($<HTMLInputElement>('#p-fahu').checked).toBe(was !== 'fahu');
+    await act(async () => $<HTMLInputElement>('#p-fahu').click());
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    expect($<HTMLSelectElement>('#summary-el-fahu').value).toBe(was);
+    await act(async () => setValue($('#summary-el-sys'), 'split'));
+    expect($<HTMLSelectElement>('#summary-el-eff').selectedOptions[0].textContent).toContain('ESMA 5 stars');
+    /* ESMA T3 EER 10.31 at 46 °C is 10.31 × (1.25 / 0.859) = 15.00 at the 35 °C nominal condition */
+    expect($$('.hr-kpis')[1].textContent).toContain('EER 10.31 at T3 46 °C → 15.00 at 35 °C');
+    await act(async () => setValue($('#summary-el-eff'), 'custom'));
+    await act(async () => setValue($('#summary-el-cop'), '3.5'));
+    /* actual then nominal efficiency, cooling and power, directly below the TR totals */
+    const kpis = $$('.totals + .kpi-basis + .hr-kpis, .hr-kpis + .hr-kpis');
+    expect(kpis).toHaveLength(2);
+    expect(kpis[0].textContent).toMatch(/Efficiency · actual.*Cooling load · actual.*Power required · actual/);
+    expect(kpis[1].textContent).toMatch(/Efficiency · nominal.*Cooling capacity · nominal.*Power required · nominal/);
+    expect(kpis[1].textContent).toContain('COP 3.50');
+    expect(host.textContent).not.toContain('Peak power');
+    /* clicking a load above switches the cards to that load: actual cooling equals the clicked card's kW */
+    const picks = $$('button.tot.pick'), kw = (el: Element) => el.querySelector('.s')!.textContent!.match(/[\d,.]+ kW/)![0];
+    expect(picks).toHaveLength(3);
+    expect(picks[2].getAttribute('aria-pressed')).toBe('true');
+    for (const [i, name] of [[0, 'room load'], [1, 'fresh air load'], [2, 'plant load']] as const) {
+      await act(async () => $$('button.tot.pick')[i].click());
+      expect($$('button.tot.pick')[i].getAttribute('aria-pressed')).toBe('true');
+      expect($('.kpi-basis').textContent).toContain(name);
+      const actual = $$('.hr-kpis')[0].querySelectorAll('.tot')[1].querySelector('.v')!.textContent!;
+      expect(Number(actual.replace(/[^\d.]/g, '')).toFixed(1)).toBe(Number(kw($$('button.tot.pick')[i]).replace(/[^\d.]/g, '')).toFixed(1));
+    }
     await act(async () => $('.workflow-step[data-step="6"]').click());
     expect($$('.hr-hours tbody tr')).toHaveLength(24);
     expect($$('.hr-hours tr.pk')).toHaveLength(1);
     expect($$('.hr-legend li')).toHaveLength(8);
-    expect($('.hr-req .pill.ok').textContent).toBe('Recommended');
-    await act(async () => setValue($('#el-sys'), 'split'));
-    expect($<HTMLSelectElement>('#el-eff').selectedOptions[0].textContent).toContain('ESMA 5 stars');
-    await act(async () => setValue($('#el-eff'), 'custom'));
-    await act(async () => setValue($('#el-cop'), '3.5'));
-    expect(host.textContent).toContain('3.50COP');
     expect($<HTMLSelectElement>('#hr-month').selectedOptions[0].textContent).toContain('(peak month)');
     await act(async () => setValue($('#hr-scope'), $$('#hr-scope option')[2].getAttribute('value')!));
     await act(async () => setValue($('#hr-month'), '0'));
@@ -326,9 +356,7 @@ describe('app', () => {
     expect($<HTMLSelectElement>('#hr-month').value).toBe('9');
     expect(host.textContent).not.toMatch(/NaN|undefined/);
     await act(async () => $('.workflow-step[data-step="3"]').click());
-    await act(async () => setValue($('#p-method'), 'cltd'));
-    await act(async () => $('.workflow-step[data-step="6"]').click());
-    expect(host.textContent).toContain('Hourly analysis needs the heat balance method');
+    expect($('#p-method')).toBeNull();
   });
 
   it('renders the report', async () => {
@@ -336,7 +364,8 @@ describe('app', () => {
     const rpt = $('.rpt');
     expect(rpt.textContent).toContain('Heat Load Calculation Report');
     expect(rpt.textContent).toContain('4.5 Corridor');
-    expect(rpt.textContent).toContain('Developed on the ASHRAE heat balance method');
+    expect(rpt.textContent).toContain('Calculated using the ASHRAE heat balance method');
+    expect(rpt.textContent).toContain('Heat balance method (hourly)');
     expect(rpt.textContent).toContain('Monthly design days');
     expect(rpt.textContent).toMatch(/Design hour \(room peak\)[A-Z][a-z]{2} 21, \d\d:00/);
     expect(rpt.textContent).not.toContain('Abbreviations and symbols');

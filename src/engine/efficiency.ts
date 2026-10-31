@@ -8,10 +8,10 @@ export function efficiencyGuidance(p: Project, capacityKw: number): EfficiencyGu
     if (p.acType === 'vrf') {
       const c = capacityKw;
       const cspf = c < 40 ? 14.84 : c < 220 ? 13.78 : 13.25;
-      return { authority: 'RAK Municipality · Barjeel v1.3 (Aug 2025)', target: `VRF CSPF ≥ ${cspf} at T3`, source: 'Barjeel Table 5', href: 'https://mun.rak.ae/Documents/Building/2025/Barjeel%20Regulation%20%28English%29.pdf', seer: cspf, note: 'VRF seasonal rating is CSPF, not SEER. Use the certified product rating.' };
+      return { authority: 'RAK Municipality · Barjeel v1.3 (Dec 2025)', target: `VRF CSPF ≥ ${cspf} at T3`, source: 'Barjeel Table 5', href: 'https://mun.rak.ae/Documents/Building/2025/Final%20Updated%20Barjeel%20Regulation%20%28English%29%2011.12.2025.pdf', seer: cspf, note: 'VRF seasonal rating is CSPF, not SEER. Use the certified product rating.' };
     }
     const eer = p.acType === 'split' ? 8.31 : capacityKw < 40 ? 8.80 : capacityKw < 70 ? 8.59 : capacityKw < 223 ? 8.27 : 7.95;
-    return { authority: 'RAK Municipality · Barjeel v1.3 (Aug 2025)', target: `Minimum EER ${eer} Btu/Wh at T3 (COP ${ (eer / 3.412).toFixed(2) })`, source: p.acType === 'split' ? 'Barjeel Table 4, non-ducted AC' : 'Barjeel Table 4, ducted split / packaged', href: 'https://mun.rak.ae/Documents/Building/2025/Barjeel%20Regulation%20%28English%29.pdf', eer, note: 'T3 is the high ambient rating condition. Use this minimum only for the listed equipment class.' };
+    return { authority: 'RAK Municipality · Barjeel v1.3 (Dec 2025)', target: `Minimum EER ${eer} Btu/Wh at T3 (COP ${ (eer / 3.412).toFixed(2) })`, source: p.acType === 'split' ? 'Barjeel Table 4, non-ducted AC' : 'Barjeel Table 4, ducted split / packaged', href: 'https://mun.rak.ae/Documents/Building/2025/Final%20Updated%20Barjeel%20Regulation%20%28English%29%2011.12.2025.pdf', eer, note: 'T3 is the high ambient rating condition. Use this minimum only for the listed equipment class.' };
   }
   if (p.location === 'abudhabi' || p.location === 'alain') {
     if (capacityKw < 65_000 / 3412.14 && p.acType === 'split') return {

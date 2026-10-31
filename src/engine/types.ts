@@ -46,8 +46,7 @@ export interface Project {
   acType: 'split' | 'ducted' | 'vrf'; ratedEer: Num; ratedSeer: Num; fanSfp: Num;
   erv: boolean; ervS: Num; ervL: Num; ervShare: Num;
   uWall: Num; wallTypes: PartType[]; uRoof: Num; uGlass: Num; shgc: Num; uSky: Num; shgcSky: Num; ez: Num;
-  /* calculation method: ASHRAE heat balance (hourly, all months) or CLTD/CLF (single peak) */
-  method: 'hbm' | 'cltd';
+  /* ASHRAE heat-balance model inputs */
   /* heat balance: solar absorptance of wall and roof outer surfaces, ground reflectance, radiant fraction of people, lighting and equipment gains */
   aWall: Num; aRoof: Num; gRefl: Num; frP: Num; frL: Num; frE: Num;
   /* suspended ceiling below roofs and floor slabs: the room sees gypsum board, not the slab */
@@ -59,8 +58,6 @@ export interface Project {
   sys?: string; effOpt?: string; effCop?: Num; aux?: Num;
   /* roof layers from the U-value calculator */
   roofLayers?: Layer[];
-  cltd: Record<Orient | 'R' | 'G', Num>;
-  solar: Record<Orient | 'H', Num>;
   src: ProjectSrc;
 }
 export interface AppState { version: 2; project: Project; rooms: Room[]; sel: string | undefined; example: boolean }

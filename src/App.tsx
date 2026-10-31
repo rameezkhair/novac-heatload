@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeAll } from './engine/calc';
 import { allChecks, applicable, projectChecks } from './engine/checks';
 import { exampleState, migrate, newProjectState } from './engine/project';
-import { ABBR, fileBase, scheduleTSV } from './engine/report';
-import { canSaveInPlace, copyText, openProjectFile, saveProjectFile, type FileHandle } from './files';
+import { fileBase } from './engine/report';
+import { canSaveInPlace, openProjectFile, saveProjectFile, type FileHandle } from './files';
 import { deleteSaved, listSaved, saveToLibrary, useStore, type SavedProject, type Store } from './state/store';
 import { EnvelopeSection } from './components/EnvelopeSection';
 import { HourlySection } from './components/HourlySection';
@@ -91,22 +91,10 @@ export default function App() {
           </div>
         </div>
         <div className="actions app-actions">
-          <span className="undo-grp">
-            <button className="btn" type="button" title="Undo (Ctrl+Z)" disabled={!store.canUndo} onClick={undo}>↶ Undo</button>
-            <button className="btn" type="button" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" disabled={!store.canRedo} onClick={redo}>↷ Redo</button>
-          </span>
           <ProjectsMenu store={store} file={file} save={save} replace={replace} />
           <button className="btn" type="button" onClick={() => { replace(exampleState()); toast('Example loaded'); }}>Load example</button>
           <ArmButton className="btn danger" label="New project" armedLabel="Click again to clear all" onConfirm={() => { replace(newProjectState()); toast('New project started'); }} />
-          <button className="btn" type="button" onClick={() => copyText(scheduleTSV(state, showC)).then(toast)}>Copy schedule for Excel</button>
           <button className="btn primary" type="button" onClick={() => showReport(true)}>Generate report</button>
-          <details className="menu abbr-menu">
-            <summary className="btn abbr-trigger">Abbreviations</summary>
-            <div className="menu-pop">
-              <h4>Abbreviations and symbols</h4>
-              <dl className="abbr-grid">{ABBR.map(([a, b]) => <div key={a}><dt>{a}</dt><dd>{b}</dd></div>)}</dl>
-            </div>
-          </details>
         </div>
       </div>
     </header>
@@ -170,7 +158,7 @@ function workflowCompletion(state: Store['state']): boolean[] {
   const envelope = !!p.codeset && [
     p.uPart, p.uCeil, p.uFloor, p.shade, p.tAdj, p.tSupply, p.sfS, p.sfL, p.diversity,
     p.uWall, p.uRoof, p.uGlass, p.shgc, p.uSky, p.shgcSky, p.ez, p.ervS, p.ervL, p.ervShare,
-    ...(p.method === 'cltd' ? [...Object.values(p.cltd), ...Object.values(p.solar)] : [p.aWall, p.aRoof, p.gRefl, p.frP, p.frL, p.frE]),
+    p.aWall, p.aRoof, p.gRefl, p.frP, p.frL, p.frE,
   ].every(hasNumber) && positive(p.ez);
   const rooms = state.rooms.length > 0 && state.rooms.every(room =>
     room.name.trim() !== '' && !!room.type

@@ -1,14 +1,12 @@
-/* Room-by-room cooling load. All loads in W.
-   Heat balance method (default): hourly ASHRAE heat balance on the design day of every month, peak taken over all hours
-   and months (engine in ./hbm). CLTD/CLF method: the original single-peak calculation, kept for comparison. */
+/* Room-by-room cooling load. All loads in W, calculated with the hourly ASHRAE heat-balance engine in ./hbm. */
 import { ADJ, DRF, ORIENTS, SCHEDULES } from './data';
 import { climateOf, roomLoads, COMPONENTS, type MonthLoads } from './hbm/room';
 import { W_rh, W_wb, hOf, pressureAt, wbOf, rhOf } from './psychro';
-import { partU, pxU, refElevOf, wallU } from './project';
-import type { Adjacent, Project, Room } from './types';
+import { refElevOf } from './project';
+import type { Project, Room } from './types';
 import { num } from './util';
 
-export interface Env { P: number; k: number; lapse: number; To: number; Tv: number; Wo: number; Wv: number; Wi: number; corr: number }
+export interface Env { P: number; k: number; lapse: number; To: number; Tv: number; Wo: number; Wv: number; Wi: number }
 
 /* Site effects: pressure from elevation; air density factor k = P/101.325 on all air loads;
    6.5 K per 1,000 m lapse above the emirate reference, holding the code humidity ratio. */
@@ -19,7 +17,6 @@ export function envOf(p: Project): Env {
   const Wo = Math.min(W_wb(num(p.toDB), num(p.toWB), P), W_rh(To, 100, P)), Wv = Math.min(W_wb(num(p.vDB), num(p.vWB), P), W_rh(Tv, 100, P));
   return {
     P, k, lapse, To, Tv, Wo, Wv, Wi: W_rh(num(p.tiDB), num(p.tiRH), P),
-    corr: (25.5 - num(p.tiDB)) + ((To - num(p.dr) / 2) - 29.4),
   };
 }
 
@@ -32,7 +29,6 @@ export function adjTemp(p: Project, e: Env, id: string, custom?: unknown) {
   if (!a[2]) return num(p.tAdj);
   return Math.round(a[2](e.To, num(p.tiDB)) * 10) / 10;
 }
-const adjGain = (p: Project, e: Env, x: Adjacent, U: unknown) => uEff(x.u, U) * num(x.a) * (adjTemp(p, e, x.adj || 'project', x.t) - num(p.tiDB));
 
 /* load components of one unit at the design hour */
 interface Parts {
@@ -42,7 +38,6 @@ interface Parts {
 export interface RoomLoad extends Parts {
   oaQ: number; part: number; oaS: number; oaL: number; mS: number; mL: number; roomS: number; roomL: number;
   unitS: number; unitL: number; unit: number; oa: number; sa: number; A: number; roofA: number; qty: number;
-  method: 'hbm' | 'cltd';
   /* heat balance: design month (0–11) and hour (1–24) of the room peak, and room sensible / latent load
      (with margins, one unit) for every hour of every month, index month × 24 + hour − 1 */
   pkM?: number; pkH?: number; profS?: number[]; profL?: number[];
@@ -51,7 +46,7 @@ export interface RoomLoad extends Parts {
 }
 
 /* fresh air, margins, unit totals and supply air from the room components */
-function finish(p: Project, r: Room, e: Env, x: Parts, extra: Pick<RoomLoad, 'method' | 'pkM' | 'pkH' | 'profS' | 'profL' | 'hb'>): RoomLoad {
+function finish(p: Project, r: Room, e: Env, x: Parts, extra: Pick<RoomLoad, 'pkM' | 'pkH' | 'profS' | 'profL' | 'hb'>): RoomLoad {
   const A = num(r.area), Ti = num(p.tiDB), ks = 1.23 * e.k, kl = 3010 * e.k;
   const part = x.partW + x.partC + x.partF;
   const oaQ = num(r.oa), oaS = ks * oaQ * (e.Tv - Ti), oaL = kl * oaQ * Math.max(0, e.Wv - e.Wi);
@@ -88,7 +83,7 @@ function calcHbm(p: Project, r: Room, e: Env): RoomLoad {
   return finish(p, r, e, {
     n, walls: at('walls'), roof: at('roof'), gSol: at('gSol'), gCond: at('gCond'), partW: at('partW'), partC: at('partC'), partF: at('partF'),
     pS: at('pS'), pL: n * num(r.pl) * sch.people[bh], light: at('light'), equip: at('equip'), infQ, infS: at('infS'), infL, wallG, glassA, sky,
-  }, { method: 'hbm', pkM: bm, pkH: bh + 1, profS, profL, hb: months });
+  }, { pkM: bm, pkH: bh + 1, profS, profL, hb: months });
 }
 
 /* results are kept per room and project, so editing one room recalculates only that room */
@@ -97,34 +92,8 @@ const memo = new WeakMap<Room, { p: Project; c: RoomLoad }>();
 export function calc(p: Project, r: Room, e: Env): RoomLoad {
   const m = memo.get(r);
   if (m && m.p === p) return m.c;
-  const c = p.method === 'cltd' ? calcCltd(p, r, e) : calcHbm(p, r, e);
+  const c = calcHbm(p, r, e);
   memo.set(r, { p, c }); return c;
-}
-
-/* ASHRAE CLTD/CLF single-peak method */
-function calcCltd(p: Project, r: Room, e: Env): RoomLoad {
-  const A = num(r.area), H = num(r.height), Ti = num(p.tiDB), dT = e.To - Ti, ks = 1.23 * e.k, kl = 3010 * e.k;
-  /* Glass conduction uses the ASHRAE glass CLTD, corrected like walls and roof. The original tool used
-     the full outdoor-indoor difference, which overstates glass conduction by about 2-3 K at UAE conditions. */
-  const glassCltd = Math.max(0, num(p.cltd.G) + e.corr);
-  let walls = 0, gSol = 0, gCond = 0, wallG = 0, glassA = 0;
-  for (const o of ORIENTS) {
-    const w = num(r.walls[o]?.w), g = num(r.walls[o]?.g); glassA += g; wallG += Math.max(w, g);
-    walls += num(wallU(p, r.walls[o]?.t)) * Math.max(0, w - g) * Math.max(0, num(p.cltd[o]) + e.corr);
-    gCond += num(p.uGlass) * g * glassCltd;
-    gSol += g * num(p.solar[o]) * num(p.shgc) * num(p.shade);
-  }
-  const isRoof = r.above === 'roof', sky = isRoof ? num(r.sky) : 0;
-  const roof = isRoof ? num(p.uRoof) * Math.max(0, num(r.roof) - sky) * Math.max(0, num(p.cltd.R) + e.corr) : 0;
-  gCond += num(p.uSky) * sky * glassCltd;
-  gSol += sky * num(p.solar.H) * num(p.shgcSky) * num(p.shade);
-  const partW = r.px.reduce((a, x) => a + adjGain(p, e, x, partU(p, x)), 0);
-  const partC = r.above === 'uncond' ? adjGain(p, e, r.ce, pxU(p, 'ceiling')) : 0;
-  const partF = r.below === 'uncond' ? adjGain(p, e, r.fl, p.uFloor)
-    : r.below === 'outdoor' ? uEff(r.fl.u, p.uFloor) * num(r.fl.a) * Math.max(0, dT) : 0;
-  const n = num(r.people), pS = n * num(r.ps), pL = n * num(r.pl), light = A * num(r.light), equip = A * num(r.equip);
-  const infQ = num(r.ach) * A * H / 3.6, infS = ks * infQ * dT, infL = kl * infQ * Math.max(0, e.Wo - e.Wi);
-  return finish(p, r, e, { n, walls, roof, gSol, gCond, partW, partC, partF, pS, pL, light, equip, infQ, infS, infL, wallG, glassA, sky }, { method: 'cltd' });
 }
 
 /* DBC H.4.8.3: DCV in spaces over 100 m² with design occupancy of 25 people per 100 m² or more */

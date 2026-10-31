@@ -22,7 +22,7 @@ export const LOC: Record<string, Loc> = {
   custom: { label: 'Custom', ref: 'Custom values', note: 'Custom conditions. Record your data source.' },
 };
 
-/* Sub-locations: elevation sets site pressure for all psychrometrics; daily range sets the CLTD mean-temperature correction.
+/* Sub-locations: elevation sets site pressure for all psychrometrics; daily range shapes heat-balance weather profiles.
    Design DB/WB stay at the emirate's code values. July ranges = mean daily max − mean daily min (Climates to Travel). */
 export interface SubLoc { id: string; label: string; elev: number; dr: number; src: string; est: boolean }
 const CTT = 'July mean max − min (Climates to Travel)';

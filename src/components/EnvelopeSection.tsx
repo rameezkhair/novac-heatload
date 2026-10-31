@@ -1,8 +1,8 @@
-import { CODESETS, LIB, ORIENTS, PMETA, SAFAT, type Limits, type PickKey } from '../engine/data';
+import { CODESETS, LIB, PMETA, SAFAT, type Limits, type PickKey } from '../engine/data';
 import type { Computed } from '../engine/calc';
 import { MONTHS, STATION_SRC, stationOf } from '../engine/climate';
 import { applyCodeset, ezOf, newTypeId, resolveProject, resolveRoom } from '../engine/project';
-import type { Mark, Num, Orient, Project } from '../engine/types';
+import type { Mark, Num, Project } from '../engine/types';
 import { fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { Badge, Field, NumInput, PickField, SecHead, useToast } from './ui';
@@ -16,11 +16,23 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
     onSrc={v => update(s => { s.project.src[k] = v; resolveProject(s.project as Project); if (k === 'ez') { const ez = ezOf(s.project as Project); s.rooms.forEach(r => resolveRoom(r as never, ez)); } })}
     onValue={v => update(s => { s.project[k] = v; s.project.src[k] = 'custom'; if (k === 'ez') { const ez = ezOf(s.project as Project); s.rooms.forEach(r => resolveRoom(r as never, ez)); } }, 'p.' + k)} />;
   const f = (k: keyof Project, label: string, unit: string, step: number) => <Field key={k} id={'p-' + k} label={label} unit={unit} step={step} mark={marks[k]} value={p[k] as Num} onChange={v => setP(k, v)} />;
+  const hbm = (k: 'aWall' | 'aRoof' | 'gRefl' | 'frP' | 'frL' | 'frE', label: string, step: number) => {
+    const options: Record<typeof k, { id: string; label: string; v: number }[]> = {
+      aWall: [{ id: 'ashrae-light', label: 'ASHRAE · light surface', v: 0.45 }, { id: 'ashrae-medium', label: 'ASHRAE · medium surface', v: 0.7 }, { id: 'ashrae-dark', label: 'ASHRAE · dark surface', v: 0.9 }],
+      aRoof: [{ id: 'ashrae-light', label: 'ASHRAE · light surface', v: 0.45 }, { id: 'ashrae-medium', label: 'ASHRAE · medium surface', v: 0.7 }, { id: 'ashrae-dark', label: 'ASHRAE · dark surface', v: 0.9 }],
+      gRefl: [{ id: 'ashrae-typical', label: 'ASHRAE · typical ground', v: 0.2 }],
+      frP: [{ id: 'ashrae-office', label: 'ASHRAE · office occupants', v: 0.6 }],
+      frL: [{ id: 'ashrae-typical', label: 'ASHRAE · typical lighting*', v: 0.5 }],
+      frE: [{ id: 'ashrae-fan', label: 'ASHRAE · office equipment with fan', v: 0.1 }, { id: 'ashrae-no-fan', label: 'ASHRAE · office equipment without fan', v: 0.3 }],
+    };
+    const opts = options[k], source = p.src[k] || (k === 'aWall' || k === 'aRoof' ? 'ashrae-medium' : k === 'frP' ? 'ashrae-office' : k === 'frL' ? 'ashrae-typical' : k === 'frE' ? 'ashrae-no-fan' : 'ashrae-typical');
+    return <PickField key={k} id={'p-' + k} label={label} step={step} opts={opts} src={source} value={p[k]} showV
+      onSrc={v => update(s => { s.project.src[k] = v; const option = opts.find(o => o.id === v); if (option) (s.project as Record<string, unknown>)[k] = option.v; })}
+      onValue={v => update(s => { (s.project as Record<string, unknown>)[k] = v; s.project.src[k] = 'custom'; }, 'p.' + k)} />;
+  };
   const groups = [...new Set(CODESETS.map(c => c[4]))];
   const anySafat = (['uGlass', 'shgc', 'shgcSky'] as const).some(k => (p.src[k] || '').startsWith('safat'));
   const band = T.wwr <= 40 ? '≤40%' : T.wwr < 60 ? '40–60%' : '≥60%';
-  const setCltd = (k: Orient | 'R' | 'G', v: Num) => update(s => { s.project.cltd[k] = num(v); }, 'cltd.' + k);
-  const setSolar = (k: Orient | 'H', v: Num) => update(s => { s.project.solar[k] = num(v); }, 'solar.' + k);
 
   return <section>
     <SecHead n={4} title="Building envelope" sub="Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance." />
@@ -31,30 +43,22 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
         </select></span></label>
       <p>Limits used: wall {L.uWall}, roof {L.uRoof}, glazing {L.uGlass} W/m²K, SHGC {L.shgc}{L.band ? ` (${L.band}, from the project glazing ratio)` : ''}, skylight {L.uSky} W/m²K{L.shgcSky != null ? ', skylight SHGC ' + L.shgcSky : ''}. Hover a badge to see the limit.</p>
     </div>
-    <fieldset className="method-box"><legend>Calculation method</legend>
+    <fieldset className="method-box"><legend>Heat balance method</legend>
       <div className="fgrid4">
-        <label className="fld" htmlFor="p-method" style={{ gridColumn: 'span 2' }}><span className="fl">Cooling load method</span>
-          <span className="in-u"><select id="p-method" value={p.method} onChange={e => setP('method', e.target.value)}>
-            <option value="hbm">ASHRAE heat balance method, hourly, every month</option>
-            <option value="cltd">ASHRAE CLTD/CLF method, single peak (legacy)</option>
-          </select></span></label>
-        {p.method !== 'cltd' && <>
           <label className="fld" htmlFor="p-ceil"><span className="fl">Ceiling seen by the room</span>
             <span className="in-u"><select id="p-ceil" value={p.ceil} onChange={e => setP('ceil', e.target.value)}>
               <option value="susp">Suspended gypsum ceiling</option><option value="none">Exposed slab</option></select></span></label>
           <label className="fld" htmlFor="p-floorFin"><span className="fl">Floor finish</span>
             <span className="in-u"><select id="p-floorFin" value={p.floorFin} onChange={e => setP('floorFin', e.target.value)}>
               <option value="tile">Tiles or stone on screed</option><option value="carpet">Carpet</option></select></span></label>
-          {f('aWall', 'Wall outside solar absorptance', '', 0.05)}{f('aRoof', 'Roof outside solar absorptance', '', 0.05)}{f('gRefl', 'Ground reflectance', '', 0.05)}
-          {f('frP', 'People, radiant fraction', '', 0.05)}{f('frL', 'Lighting, radiant fraction', '', 0.05)}{f('frE', 'Equipment, radiant fraction', '', 0.05)}
-        </>}
+          {hbm('aWall', 'Wall outside solar absorptance', 0.05)}{hbm('aRoof', 'Roof outside solar absorptance', 0.05)}{hbm('gRefl', 'Ground reflectance', 0.05)}
+          {hbm('frP', 'People, radiant fraction', 0.05)}{hbm('frL', 'Lighting, radiant fraction', 0.05)}{hbm('frE', 'Equipment, radiant fraction', 0.05)}
       </div>
-      {p.method !== 'cltd' ? <p className="hint">Each room is solved hour by hour on the 21st of every month (ASHRAE Fundamentals Ch. 18 heat balance): sun on each wall, roof and window, conduction through
+      <p className="hint">Each room is solved hour by hour on the 21st of every month (ASHRAE Fundamentals Ch. 18 heat balance): sun on each wall, roof and window, conduction through
         the layers with their thermal mass, long-wave exchange with the sky, radiant and convective internal gains, and the room air balance. The peak is the highest hour of the year.
         Weather: {STATION_SRC}, {stationOf(p.location).name} (WMO {stationOf(p.location).wmo}); {MONTHS[stationOf(p.location).db.indexOf(Math.max(...stationOf(p.location).db))]} uses the project design dry bulb
         ({fmt(d.e.To, 1)} °C) and daily range ({fmt(num(p.dr), 1)} K), other months follow the ASHRAE monthly 0.4% values. Absorptance: about 0.45 light, 0.7 medium, 0.9 dark (ASHRAE Ch. 18).
-        Radiant fractions are typical values; ASHRAE Ch. 18 gives ranges by fixture and equipment type.</p>
-        : <p className="hint">Single-peak CLTD/CLF calculation with the orientation factors at the bottom of this step. Kept for comparison with earlier projects.</p>}
+        The selectors provide ASHRAE starting values; choose Custom when project data is available. *Lighting radiant fraction varies with luminaire and return-air arrangement; verify it against the fixture and ASHRAE Fundamentals Ch. 18 Table 3. Occupant and equipment recommendations follow Table 14.</p>
     </fieldset>
     {/* external and partition U-values side by side, glazing across the full width below */}
     <div className="env-pair">
@@ -95,21 +99,6 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
         {f('ervS', 'Sensible effectiveness', '%', 1)}{f('ervL', 'Latent effectiveness', '%', 1)}{f('ervShare', 'Exhaust air recovered', '% of OA', 1)}
       </div><p className="hint">Required above 1,000 L/s of treated outdoor air: recover at least 50% of exhaust air at 70% or higher sensible effectiveness. Applied to the FAHU load.</p></fieldset>
     </div>
-    {p.method === 'cltd' && <details>
-      <summary>Orientation factors: wall, roof and glass CLTD, and solar gain through glass</summary>
-      <div className="body">
-        <p className="hint" style={{ marginTop: 0 }}>Base CLTD for a medium-weight wall (ASHRAE group D), insulated roof and glass. The correction for your design conditions ({d.e.corr >= 0 ? '+' : ''}{fmt(d.e.corr, 1)} K) is applied automatically. Solar values are peak gain per m² of glass per unit SHGC, including a storage factor, for about 25°N in July.</p>
-        <div className="tbl-wrap" style={{ marginTop: 10 }}><table>
-          <thead><tr><th>Surface</th><th>Base CLTD (K)</th><th>Corrected (K)</th><th>Solar on glass (W/m²)</th></tr></thead>
-          <tbody>
-            {[...ORIENTS.map(o => [o, 'Wall ' + o, o] as const), ['R', 'Roof / skylight', 'H'] as const, ['G', 'Glass conduction (all orientations)', null] as const].map(([c, lab, sk]) =>
-              <tr key={c}><td>{lab}</td>
-                <td><NumInput label={'Base CLTD ' + lab} step={0.5} value={p.cltd[c]} onChange={v => setCltd(c, v)} /></td>
-                <td>{fmt(Math.max(0, num(p.cltd[c]) + d.e.corr), 1)}</td>
-                <td>{sk ? <NumInput label={'Solar gain ' + lab} step={5} value={p.solar[sk]} onChange={v => setSolar(sk, v)} /> : <span className="muted">–</span>}</td></tr>)}
-          </tbody></table></div>
-      </div>
-    </details>}
   </section>;
 }
 

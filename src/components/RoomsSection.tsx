@@ -22,7 +22,10 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
     const x = s.rooms.find(y => y.id === s.sel); if (!x) return;
     fn(x, s); resolveRoom(x as Room, ezOf(s.project as AppState['project']));
   }, group);
-  const add = () => update(s => { const n = newRoom('Room ' + (s.rooms.length + 1), 'office', ezOf(s.project as AppState['project'])); s.rooms.push(n); s.sel = n.id; });
+  /* the Total load row swaps the room editor for the whole-plant summary */
+  const [total, setTotal] = useState(false);
+  const showTotal = total && state.rooms.length > 0;
+  const add = () => { setTotal(false); update(s => { const n = newRoom('Room ' + (s.rooms.length + 1), 'office', ezOf(s.project as AppState['project'])); s.rooms.push(n); s.sel = n.id; }); };
 
   return <section>
     <SecHead n={5} title="Spaces" sub="Each load item has a source list. Changing a value by hand switches it to Custom." />
@@ -30,13 +33,19 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
       <nav className="rlist" aria-label="Rooms">
         {state.rooms.map(x => {
           const c = d.res[x.id], ch = roomChecks(x, c, ez), fails = Object.values(ch).filter(v => v && v[0] === 'bad').length;
-          return <button key={x.id} type="button" className="ritem" aria-current={x.id === state.sel} onClick={() => update(s => { s.sel = x.id; })}>
+          return <button key={x.id} type="button" className="ritem" aria-current={!showTotal && x.id === state.sel} onClick={() => { setTotal(false); update(s => { s.sel = x.id; }); }}>
             <span className="nm">{x.name || 'Untitled'}{c.qty > 1 ? ` ×${c.qty}` : ''}</span><span className="tr">{fmt(c.unit / 3517, 2)} TR</span>
             <span className="ty">{typeOf(x.type).label} · {fmt(num(x.area), 0)} m²{fails ? <> · <b className="x">✗ {fails} fail{fails > 1 ? 's' : ''}</b></> : null}</span>
           </button>;
         })}
+        {state.rooms.length > 0 && <button type="button" className="rtotal" aria-current={showTotal} onClick={() => setTotal(true)}>
+          <span className="nm">Total load</span><span className="tr">{fmt(d.T.u / 3517, 2)} TR</span>
+          <span className="ty">{fmt(d.T.u / 1000, 2)} kW · {d.T.q} space{d.T.q === 1 ? '' : 's'} · {fmt(d.T.a, 0)} m²</span>
+        </button>}
         <button type="button" className="add" onClick={add}>+ Add room</button>
       </nav>
+      {showTotal ? <><div className="editor"><PlantRooms d={d} onOpen={id => { setTotal(false); update(s => { s.sel = id; }); }} /></div>
+        <aside className="result" aria-live="polite"><PlantResult d={d} /></aside></> : <>
       <div className="editor">
         {r ? <RoomEditor key={r.id} r={r} d={d} edit={edit}
           onDup={() => update(s => { const i = s.rooms.findIndex(y => y.id === s.sel); const c = JSON.parse(JSON.stringify(s.rooms[i])); c.id = newId(); c.name = s.rooms[i].name + ' (copy)'; s.rooms.splice(i + 1, 0, c); s.sel = c.id; })}
@@ -44,8 +53,48 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
           : <div className="empty">No rooms yet.<br /><br /><button className="btn primary" type="button" onClick={add}>Add the first room</button></div>}
       </div>
       <aside className="result" aria-live="polite">{r ? <RoomResult r={r} d={d} /> : <><div className="eyebrow">Selected room</div><p className="muted">Add a room to see its load.</p></>}</aside>
+      </>}
     </div>
   </section>;
+}
+
+/* each room's share of the total, all rooms × quantity; click a row to edit that room */
+function PlantRooms({ d, onOpen }: { d: Computed; onOpen: (id: string) => void }) {
+  const { rooms, res, T } = d, max = Math.max(...rooms.map(x => res[x.id].unit * res[x.id].qty), 1);
+  return <>
+    <h3>Total load by space</h3>
+    <p className="hint" style={{ marginTop: 0 }}>Room unit loads including fresh air{d.p.fahu ? ' (treated in the FAHU, so excluded here)' : ''}, multiplied by quantity. Click a space to edit it.</p>
+    <div className="tbl-wrap"><table className="plant-rooms">
+      <thead><tr><th>Space</th><th>Qty</th><th>Area m²</th><th>Unit TR</th><th>Total TR</th><th>Total kW</th><th>Share</th></tr></thead>
+      <tbody>{rooms.map(x => { const c = res[x.id], t = c.unit * c.qty; return <tr key={x.id} onClick={() => onOpen(x.id)}>
+        <td><button type="button" className="linkish">{x.name || 'Untitled'}</button></td><td>{c.qty}</td><td>{fmt(c.A * c.qty, 0)}</td><td>{fmt(c.unit / 3517, 2)}</td><td><b>{fmt(t / 3517, 2)}</b></td><td>{fmt(t / 1000, 2)}</td>
+        <td><span className="track"><span className="fill" style={{ width: (t / max * 100).toFixed(1) + '%' }} /></span> {fmt(T.u ? t / T.u * 100 : 0, 0)}%</td></tr>; })}</tbody>
+      <tfoot><tr><td>Total</td><td>{T.q}</td><td>{fmt(T.a, 0)}</td><td /><td><b>{fmt(T.u / 3517, 2)}</b></td><td>{fmt(T.u / 1000, 2)}</td><td>100%</td></tr></tfoot>
+    </table></div>
+  </>;
+}
+
+function PlantResult({ d }: { d: Computed }) {
+  const { p, T } = d, fa = p.fahu ? T.fahuW : T.oa, rm = T.s + T.l, div = num(p.diversity);
+  return <>
+    <div className="eyebrow">Total plant · all spaces</div>
+    <h3>{p.name || 'Project'}</h3>
+    <div className="big"><span className="big-num">{fmt(T.plant / 3517, 2)}</span><span className="big-unit">TR</span></div>
+    <div className="sub">{fmt(T.plant / 1000, 2)} kW plant load{div !== 100 ? ` at ${fmt(div, 0)}% diversity` : ''}</div>
+    {T.blk && <div className="sub">Block peak on {MONTHS[T.blk.m]} 21 at {String(T.blk.h).padStart(2, '0')}:00 · {fmt((T.blk.s + T.blk.l) / 3517, 2)} TR coincident</div>}
+    <dl className="kv">
+      <dt>Room load (excl. fresh air)</dt><dd>{fmt(rm / 3517, 2)} TR · {fmt(rm / 1000, 2)} kW</dd>
+      <dt>Sensible / latent</dt><dd>{fmt(T.s / 1000, 2)} / {fmt(T.l / 1000, 2)} kW</dd>
+      <dt>Sensible heat ratio</dt><dd>{fmt(T.s / (rm || 1), 2)}</dd>
+      <dt>Fresh air load{p.fahu && T.rec ? ' (net)' : ''}</dt><dd>{fmt(fa / 3517, 2)} TR · {fmt(fa / 1000, 2)} kW</dd>
+      <dt>Fresh air</dt><dd>{fmt(T.oaq, 0)} L/s · {fmt(T.oaq * 2.119, 0)} CFM · {p.fahu ? 'FAHU' : 'room units'}</dd>
+      {T.rec ? <><dt>Energy recovered</dt><dd>{fmt(T.rec / 1000, 2)} kW</dd></> : null}
+      <dt>Supply air</dt><dd>{fmt(T.sa, 0)} L/s · {fmt(T.sa * 2.119, 0)} CFM</dd>
+      <dt>Spaces / area</dt><dd>{T.q} · {fmt(T.a, 0)} m²</dd>
+      <dt>People</dt><dd>{fmt(T.n, 0)}</dd>
+      <dt>Load density</dt><dd>{fmt(T.a ? T.plant / T.a : 0, 0)} W/m² · {T.plant ? fmt(T.a / (T.plant / 3517), 1) : '–'} m²/TR</dd>
+    </dl>
+  </>;
 }
 
 function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: (fn: RoomFn, group?: string) => void; onDup: () => void; onDel: () => void }) {
@@ -78,9 +127,9 @@ function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: 
           </span>
         </div>
         {pick('light')}{pick('equip')}
-        {d.p.method !== 'cltd' && <label className="fld" htmlFor="r-sched"><span className="fl">Operating hours · people, lighting, equipment</span>
+        <label className="fld" htmlFor="r-sched"><span className="fl">Operating hours · people, lighting, equipment</span>
           <span className="in-u"><select id="r-sched" value={r.sched || '24h'} onChange={e => { const v = e.target.value; edit(x => { if (v === '24h') delete x.sched; else x.sched = v; }); }}>
-            {SCHEDULES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></span></label>}
+            {SCHEDULES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></span></label>
       </div>
     </div>
     <div className="ed-sec"><h4>Air</h4><div className="fgrid">{pick('oa')}{pick('ach')}</div></div>
@@ -93,7 +142,7 @@ function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: 
     <div className="ed-sec"><h4>Roof, ceiling and floor</h4>
       <div className="tbl-wrap"><table className="exp ptbl">
         <colgroup><col style={{ width: '27%' }} /><col style={{ width: '11%' }} /><col style={{ width: '29%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /></colgroup>
-        <thead><tr><th>Element</th><th>Area (m²)</th><th>Adjacent space (tb)</th><th>{d.p.method === 'cltd' ? 'tb / CLTD' : 'tb (°C)'}</th><th>U-value (W/m²K)</th></tr></thead>
+        <thead><tr><th>Element</th><th>Area (m²)</th><th>Adjacent space (tb)</th><th>tb (°C)</th><th>U-value (W/m²K)</th></tr></thead>
         <tbody>
           <SurfaceRow r={r} d={d} w="a" edit={edit} />
           {r.above === 'roof' && <tr><td className="sub">Skylight in roof</td><td><span className="calc-in"><NumInput label="Skylight area" min={0} step={0.5} value={r.sky} onChange={set('sky')} /><AreaCalc what="Skylight" dims={['Length', 'Width']} qty="No. of skylights" onApply={set('sky')} /></span></td><td className="muted" colSpan={3}>Solar and conduction, skylight SHGC and U from the envelope step</td></tr>}
@@ -111,9 +160,7 @@ function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: 
             : <tr className="dis"><td colSpan={6}>No wall partitions.</td></tr>}
           <tr className="addrow"><td colSpan={6}><button className="btn sm" type="button" onClick={() => edit(y => { y.px.push({ type: 'wall', a: '', adj: PXDEF.wall, t: '', u: '' }); })}>+ Add wall partition</button></td></tr>
         </tbody></table></div>
-      <p className="hint">{d.p.partTypes.length ? 'Partition type sets the U-value; type over it for a one-off value. ' : 'To use more than one partition construction, add partition types in step 4, Building envelope. '}{d.p.method === 'cltd'
-        ? 'ASHRAE CLTD/CLF method: roof q = U × A × CLTD (corrected); ceilings, floors and partitions q = U × A × (tb − ti); tb for an unconditioned space, when unknown, = outdoor − 2.8 K; conditioned space at the same temperature and slab on grade: no cooling gain.'
-        : 'Heat balance method: every surface is solved hour by hour with its thermal mass. An unconditioned space defined from the outdoor temperature (outdoor − 2.8 K, ventilated spaces) follows the hourly outdoor profile; walls and slabs shared with conditioned space at the room temperature pass no net heat but store it; a slab on grade sits on 2 m of soil at the annual mean temperature.'}</p>
+      <p className="hint">{d.p.partTypes.length ? 'Partition type sets the U-value; type over it for a one-off value. ' : 'To use more than one partition construction, add partition types in step 4, Building envelope. '}Heat balance method: every surface is solved hour by hour with its thermal mass. An unconditioned space defined from the outdoor temperature (outdoor − 2.8 K, ventilated spaces) follows the hourly outdoor profile; walls and slabs shared with conditioned space at the room temperature pass no net heat but store it; a slab on grade sits on 2 m of soil at the annual mean temperature.</p>
     </div>
     <div className="ed-actions">
       <button className="btn" type="button" onClick={onDup}>Duplicate room</button>
@@ -283,9 +330,9 @@ function SurfaceRow({ r, d, w, edit }: { r: Room; d: Computed; w: 'a' | 'b'; edi
   }}>{L.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>;
   if (w === 'a' && sel === 'roof') return <tr><td>{pickEl}</td>
     <td><span className="calc-in"><NumInput label="Roof area" min={0} step={0.5} value={r.roof} onChange={v => edit(x => { x.roof = v; }, 'r.roof')} /><AreaCalc what="Roof" dims={['Length', 'Width']} onApply={v => edit(x => { x.roof = v; })} /></span></td>
-    <td className="muted">Outdoor, sun on roof</td><td className="n">{p.method === 'cltd' ? `${fmt(num(p.cltd.R) + d.e.corr, 1)} K` : 'Hourly'}</td><td className="n">{num(p.uRoof)} <span className="usrc">Envelope roof</span></td></tr>;
+    <td className="muted">Outdoor, sun on roof</td><td className="n">Hourly</td><td className="n">{num(p.uRoof)} <span className="usrc">Envelope roof</span></td></tr>;
   if (sel === 'cond') return <tr><td>{pickEl}</td><td className="muted">–</td><td className="muted">Conditioned at room temperature</td><td className="n">{num(p.tiDB)} °C</td><td className="muted">No transfer</td></tr>;
-  if (sel === 'ground') return <tr><td>{pickEl}</td><td className="muted">–</td><td className="muted">Ground</td><td className="muted">–</td><td className="muted">{p.method === 'cltd' ? 'Neglected for cooling' : `Soil at ${stationOf(p.location).tavg} °C`}</td></tr>;
+  if (sel === 'ground') return <tr><td>{pickEl}</td><td className="muted">–</td><td className="muted">Ground</td><td className="muted">–</td><td className="muted">{`Soil at ${stationOf(p.location).tavg} °C`}</td></tr>;
   const k = w === 'a' ? 'ce' : 'fl';
   return <AdjRow label={pickEl} what={w === 'a' ? 'Ceiling' : 'Floor'} x={r[k]} U={num(pxU(p, w === 'a' ? 'ceiling' : 'floor'))} d={d} outdoor={sel === 'outdoor'} change={fn => edit(x => fn(x[k]), k)} />;
 }

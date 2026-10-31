@@ -100,7 +100,7 @@ export function DesignConditionsSection({ store, d, marks }: { store: Store; d: 
     </div>}
     <div className="derived">
       <span>Outdoor W <b>{fmt(e.Wo * 1000, 1)}</b> g/kg</span><span>Fresh-air W <b>{fmt(e.Wv * 1000, 1)}</b> g/kg</span><span>Indoor W <b>{fmt(e.Wi * 1000, 1)}</b> g/kg</span>
-      {p.method === 'cltd' ? <span>CLTD correction <b>{e.corr >= 0 ? '+' : ''}{fmt(e.corr, 1)}</b> K</span> : <span>Solar and monthly weather <b>{stationOf(p.location).name}</b></span>}<span>Pressure <b>{fmt(e.P, 1)}</b> kPa</span>
+      <span>Solar and monthly weather <b>{stationOf(p.location).name}</b></span><span>Pressure <b>{fmt(e.P, 1)}</b> kPa</span>
     </div>
   </section>;
 }

@@ -159,10 +159,7 @@ export function defaultProject(): Project {
     erv: false, ervS: 70, ervL: 0, ervShare: 50,
     uWall: 0, wallTypes: [], uRoof: 0, uGlass: 0, shgc: 0, uSky: 0, shgcSky: 0, ez: 1,
     /* heat balance: medium-colour surfaces (ASHRAE Ch. 18), ASHRAE typical ground reflectance, typical radiant fractions */
-    method: 'hbm', aWall: 0.7, aRoof: 0.7, gRefl: 0.2, frP: 0.6, frL: 0.5, frE: 0.3, ceil: 'susp', floorFin: 'tile', sys: 'ducted', effOpt: '', effCop: '', aux: 0,
-    /* G: glass conduction CLTD, ASHRAE Fundamentals CLTD/CLF table for glass, 8 K at the 15:00 peak */
-    cltd: { N: 10, NE: 13, E: 18, SE: 17, S: 14, SW: 21, W: 23, NW: 18, R: 28, G: 8 },
-    solar: { N: 130, NE: 430, E: 570, SE: 300, S: 95, SW: 300, W: 570, NW: 430, H: 720 },
+    aWall: 0.7, aRoof: 0.7, gRefl: 0.2, frP: 0.6, frL: 0.5, frE: 0.3, ceil: 'susp', floorFin: 'tile', sys: 'ducted', effOpt: '', effCop: '', aux: 0,
     src: Object.assign({ indoor: 'dbc', ez: 'ceil-cool', out: 'dbc', vent: 'dbc' }, CODESETS[0][2]),
   }) as Project;
   resolveProject(p); return p;
@@ -238,6 +235,8 @@ function migrateRoom(r: any, ez: number): Room {
 export function migrate(s: any): AppState {
   if (!s || !s.project || !Array.isArray(s.rooms)) throw new Error('Not a heat load project file');
   const sp = { ...s.project, src: { ...(s.project.src || {}) } };
+  /* Old project files may contain fields from the retired CLTD/CLF method. Drop them on import. */
+  delete sp.method; delete sp.cltd; delete sp.solar;
   const coastal = ['dubai', 'sharjah', 'ajman', 'uaq', 'rak', 'fujairah'].includes(sp.location);
   if (!s.project.src) {
     ENVK.forEach(k => { const o = LIB[k].find(o => o.v === num(sp[k])); sp.src[k] = o ? o.id : 'custom'; });
@@ -255,10 +254,7 @@ export function migrate(s: any): AppState {
   if (sp.location === 'sharjah' && sp.subloc === 'masfout') sp.location = 'ajman';
   if (!sp.subloc) { const m = (SUBLOC[sp.location] || []).find(s => s.elev === num(sp.elev) && s.dr === num(sp.dr)); sp.subloc = m ? m.id : 'custom'; }
   const d = defaultProject();
-  const p: Project = Object.assign(d, sp, {
-    cltd: Object.assign({}, d.cltd, sp.cltd || {}), solar: Object.assign({}, d.solar, sp.solar || {}),
-    src: Object.assign({}, d.src, sp.src),
-  });
+  const p: Project = Object.assign(d, sp, { src: Object.assign({}, d.src, sp.src) });
   /* code sets with no skylight SHGC used to inherit the previous pick; give them the ASHRAE value */
   const types = (l: any): PartType[] => Array.isArray(l) ? l.map((t: any) => ({ id: String(t.id), name: String(t.name ?? ''), u: t.u ?? '', ...(Array.isArray(t.layers) ? { layers: t.layers } : {}) })) : [];
   p.partTypes = types(sp.partTypes); p.wallTypes = types(sp.wallTypes);

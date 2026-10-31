@@ -2,10 +2,10 @@ import { useState } from 'react';
 import type { Computed } from '../engine/calc';
 import { MONTHS } from '../engine/climate';
 import { efficiencyGuidance } from '../engine/efficiency';
-import { BTU_W, SYSTEMS, copToKwTr, requirements, recommended, type SysId } from '../engine/equipment';
+import { BTU_W, SYSTEMS, capRatio, copAt, copToKwTr, requirements, recommended, type SysId } from '../engine/equipment';
 import { LABELS, electrical, hours } from '../engine/hourly';
 import type { Num, Project } from '../engine/types';
-import { fmt } from '../engine/util';
+import { fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { NumInput, SecHead } from './ui';
 
@@ -14,13 +14,13 @@ const hh = (h: number) => String(h).padStart(2, '0') + ':00';
 const niceStep = (span: number) => { const raw = span / 4, p = 10 ** Math.floor(Math.log10(raw || 1)), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; };
 
 export function HourlySection({ d, store }: { d: Computed; store: Store }) {
-  const { p, T, res, rooms } = d;
+  const { T, res, rooms } = d;
   const [scope, setScope] = useState('all');
   const [month, setMonth] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
-  if (p.method === 'cltd' || !rooms.length || !T.blk) return <section>
+  if (!rooms.length || !T.blk) return <section>
     <SecHead n={7} title="Hourly analysis" />
-    <p className="hint">{p.method === 'cltd' ? 'Hourly analysis needs the heat balance method. Switch the calculation method in step 4, Building envelope.' : 'Add a room to see its hourly loads.'}</p>
+    <p className="hint">Add a room to see its hourly loads.</p>
   </section>;
   /* a deleted room falls back to the whole building */
   const sc = scope !== 'all' && !res[scope] ? 'all' : scope, room = sc === 'all' ? null : res[sc];
@@ -89,8 +89,6 @@ export function HourlySection({ d, store }: { d: Computed; store: Store }) {
       </button>; })}</div>
     </div>
 
-    <ElectricalCard d={d} store={store} el={el} month={m} room={!!room} />
-
     <div className="tbl-wrap"><table className="hr-tbl hr-hours">
       <thead><tr><th>Hour</th><th>Outdoor °C</th>{LABELS.map(l => <th key={l}>{l}</th>)}<th>Margins</th><th>Total kW</th><th>Total TR</th><th>Electrical kW</th></tr></thead>
       <tbody>{H.map((x, i) => <tr key={i} className={i === pk ? 'pk' : undefined}><td>{hh(i + 1)}</td><td>{fmt(x.To, 1)}</td>{x.v.map((v, k) => <td key={k}>{fmt(v / 1000, 2)}</td>)}<td>{fmt(x.margin / 1000, 2)}</td><td><b>{fmt(x.total / 1000, 2)}</b></td><td>{fmt(x.total / 3517, 2)}</td><td>{fmt(el.kWe[i], 2)}</td></tr>)}</tbody>
@@ -98,10 +96,58 @@ export function HourlySection({ d, store }: { d: Computed; store: Store }) {
   </section>;
 }
 
+/* Whole-building power recommendation in summary, for the building peak month. */
+export function ElectricalSummary({ d, store }: { d: Computed; store: Store }) {
+  const month = d.T.blk?.m ?? 0;
+  const [hover, setHover] = useState<number | null>(null);
+  const loads = hours(d, 'all', month), el = electrical(d, 'all', month);
+  return <ElectricalCard d={d} store={store} el={el} month={month} room={false} hover={hover} setHover={setHover} loads={loads} idPrefix="summary" />;
+}
+
+/* Whole-building efficiency and power figures in summary, for the building peak month. */
+export type LoadBasis = 'room' | 'fa' | 'total';
+export function ElectricalKpis({ d, basis: b }: { d: Computed; basis: LoadBasis }) {
+  const month = d.T.blk?.m ?? 0, el = electrical(d, 'all', month);
+  const { p, T, e } = d, sys = (p.sys || 'ducted') as SysId, q = el.q;
+  const unit = SYSTEMS.find(x => x.id === sys)!, aux = num(p.aux) / 3.51685;
+  /* the load picked in the totals above, at its design outdoor temperature: room and plant loads at the
+     envelope design dry bulb, fresh air at the fresh-air design dry bulb */
+  const kW = (b === 'room' ? T.s + T.l : b === 'fa' ? (p.fahu ? T.fahuW : T.oa) : T.plant) / 1000;
+  const tAct = b === 'fa' ? e.Tv : e.To;
+  const what = b === 'room' ? 'room load (excl. fresh air)' : b === 'fa' ? 'fresh air load' : 'plant load';
+  /* nominal is always T1, 35 °C outdoor (ISO 5151 / AHRI). ESMA rates DX units at T3 (46 °C), so their EER is
+     converted to 35 °C with the ISO 16358-1 Annex F capacity and power ratios (UAE.S 5010 Annex 2) */
+  const ratedCapacityTemp = 35;
+  const copA = copAt(q, tAct, unit.air), actualKWe = kW / copA + kW * aux;
+  const nominalCapacity = unit.air ? kW / capRatio(tAct) : kW;
+  const nominalAtRating = nominalCapacity, cop35 = copAt(q, 35, unit.air);
+  const ratingInput = nominalAtRating / cop35 + aux * nominalAtRating;
+  /* efficiency at each condition, from the cooling delivered per kW of input */
+  const copActual = actualKWe > 0 ? kW / actualKWe : 0, copNominal = ratingInput > 0 ? nominalAtRating / ratingInput : 0;
+  const auxNote = num(p.aux) > 0 ? ', including auxiliary allowance' : '';
+  const rating = q.kind === 'seasonal' ? `${q.label}: ${q.metric} is seasonal, used as the 35 °C value; check the full-load rating on the product data`
+    : q.t === 35 ? `${q.label}, rated at 35 °C`
+    : `${q.label}: EER ${fmt(q.cop * BTU_W, 2)} at T3 ${q.t} °C → ${fmt(cop35 * BTU_W, 2)} at 35 °C (ISO 16358-1 Annex F)`;
+  const eff = (cop: number) => <><div className="v">{fmt(cop * BTU_W, 2)}<small>EER</small></div><div className="s">COP {fmt(cop, 2)} · {fmt(copToKwTr(cop), 2)} kW/TR</div></>;
+  return <>
+    <p className="kpi-basis" aria-live="polite">Efficiency and power for the <b>{what}</b> · {fmt(kW / 3.51685, 2)} TR. Click a load above to change.</p>
+    <div className="totals c3 hr-kpis">
+      <div className="tot"><div className="k">Efficiency · actual, {fmt(tAct, 1)} °C outdoor</div>{eff(copActual)}</div>
+      <div className="tot"><div className="k">Cooling load · actual</div><div className="v">{fmt(kW, 2)}<small>kW</small></div><div className="s">{fmt(kW / 3.51685, 2)} TR at {fmt(tAct, 1)} °C outdoor</div></div>
+      <div className="tot key"><div className="k">Power required · actual</div><div className="v">{fmt(actualKWe, 2)}<small>kW</small></div><div className="s">{fmt(kW, 2)} kW cooling ÷ COP {fmt(copA, 2)}{auxNote}</div></div>
+    </div>
+    <div className="totals c3 hr-kpis">
+      <div className="tot"><div className="k">Efficiency · nominal, T1 {ratedCapacityTemp} °C</div>{eff(copNominal)}<div className="s">{rating}</div></div>
+      <div className="tot"><div className="k">Cooling capacity · nominal, {ratedCapacityTemp} °C</div><div className="v">{fmt(nominalCapacity, 2)}<small>kW</small></div><div className="s">{fmt(nominalCapacity / 3.51685, 2)} TR rated at 35 °C to deliver {fmt(kW, 2)} kW at {fmt(tAct, 1)} °C</div></div>
+      <div className="tot key"><div className="k">Power required · nominal, {ratedCapacityTemp} °C</div><div className="v">{fmt(ratingInput, 2)}<small>kW</small></div><div className="s">{fmt(nominalAtRating, 2)} kW cooling ÷ COP {fmt(cop35, 2)}{auxNote}</div></div>
+    </div>
+  </>;
+}
+
 /* recommended efficiency, authority requirements and the electrical input of the cooling plant */
-function ElectricalCard({ d, store, el, month, room }: { d: Computed; store: Store; el: ReturnType<typeof electrical>; month: number; room: boolean }) {
+function ElectricalCard({ d, store, el, month, room, hover, setHover, loads, idPrefix }: { d: Computed; store: Store; el: ReturnType<typeof electrical>; month: number; room: boolean; hover: number | null; setHover: (hour: number | null) => void; loads: ReturnType<typeof hours>; idPrefix: string }) {
   const p = d.p, sys = (p.sys || 'ducted') as SysId, kW = el.peakKW, reqs = requirements(sys, kW), rec = recommended(sys, kW);
-  const set = (k: 'sys' | 'effOpt' | 'effCop' | 'aux', v: unknown) => store.update(s => { (s.project as Record<string, unknown>)[k] = v; }, 'p.' + k);
+  const set = (k: 'sys' | 'effOpt' | 'effCop' | 'aux' | 'fahu', v: unknown) => store.update(s => { (s.project as Record<string, unknown>)[k] = v; }, 'p.' + k);
   const q = el.q, max = Math.max(...el.kWe, 0.001), W = 760, Ht = 150, ml = 44, mt = 14, mb = 22, ph = Ht - mt - mb, bw = (W - ml - 8) / 24;
   const step = (() => { const raw = max / 3, pw = 10 ** Math.floor(Math.log10(raw || 1)), f = raw / pw; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pw; })();
   const yMax = Math.ceil(max / step) * step, y = (v: number) => mt + (yMax - v) / yMax * ph;
@@ -114,13 +160,16 @@ function ElectricalCard({ d, store, el, month, room }: { d: Computed; store: Sto
   return <div className="hr-card">
     <h3>Electrical consumption and recommended efficiency <span className="muted">· {room ? 'this room' : 'whole building'}, room cooling load</span></h3>
     <div className="hr-filters">
-      <label className="fld" htmlFor="el-sys"><span className="fl">Cooling system</span><span className="in-u"><select id="el-sys" value={sys} onChange={e => { set('sys', e.target.value); set('effOpt', ''); }}>
+      <label className="fld" htmlFor={`${idPrefix}-el-sys`}><span className="fl">Cooling system</span><span className="in-u"><select id={`${idPrefix}-el-sys`} value={sys} onChange={e => { set('sys', e.target.value); set('effOpt', ''); }}>
         {SYSTEMS.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select></span></label>
-      <label className="fld" htmlFor="el-eff"><span className="fl">Efficiency used for the estimate</span><span className="in-u"><select id="el-eff" value={p.effOpt === 'custom' ? 'custom' : q.id} onChange={e => set('effOpt', e.target.value === rec.id ? '' : e.target.value)}>
+      <label className="fld" htmlFor={`${idPrefix}-el-fahu`}><span className="fl">Fresh air handling</span><span className="in-u"><select id={`${idPrefix}-el-fahu`} value={p.fahu ? 'fahu' : 'room'} onChange={e => set('fahu', e.target.value === 'fahu')}>
+        <option value="fahu">Treated by a FAHU (separate load)</option>
+        <option value="room">Handled by room units</option></select></span></label>
+      <label className="fld" htmlFor={`${idPrefix}-el-eff`}><span className="fl">Efficiency used for the estimate</span><span className="in-u"><select id={`${idPrefix}-el-eff`} value={p.effOpt === 'custom' ? 'custom' : q.id} onChange={e => set('effOpt', e.target.value === rec.id ? '' : e.target.value)}>
         {reqs.map(r => <option key={r.id} value={r.id}>{r.label}: {r.metric} {r.value}{r.id === rec.id ? ' (recommended)' : ''}</option>)}
         <option value="custom">Custom: manufacturer's full-load COP at 35 °C</option></select></span></label>
-      {p.effOpt === 'custom' && <label className="fld" htmlFor="el-cop" style={{ flex: '0 1 160px', minWidth: 140 }}><span className="fl">COP at 35 °C</span><span className="in-u"><NumInput id="el-cop" label="Custom COP" min={0} step={0.1} value={(p.effCop ?? '') as Num} onChange={v => set('effCop', v)} /><span className="u">W/W</span></span></label>}
-      <label className="fld" htmlFor="el-aux" style={{ flex: '0 1 200px', minWidth: 160 }}><span className="fl">Fans, pumps, towers allowance</span><span className="in-u"><NumInput id="el-aux" label="Auxiliary allowance" min={0} step={0.05} value={(p.aux ?? 0) as Num} onChange={v => set('aux', v)} /><span className="u">kW/TR</span></span></label>
+      {p.effOpt === 'custom' && <label className="fld" htmlFor={`${idPrefix}-el-cop`} style={{ flex: '0 1 160px', minWidth: 140 }}><span className="fl">COP at 35 °C</span><span className="in-u"><NumInput id={`${idPrefix}-el-cop`} label="Custom COP" min={0} step={0.1} value={(p.effCop ?? '') as Num} onChange={v => set('effCop', v)} /><span className="u">W/W</span></span></label>}
+      <label className="fld" htmlFor={`${idPrefix}-el-aux`} style={{ flex: '0 1 200px', minWidth: 160 }}><span className="fl">Fans, pumps, towers allowance</span><span className="in-u"><NumInput id={`${idPrefix}-el-aux`} label="Auxiliary allowance" min={0} step={0.05} value={(p.aux ?? 0) as Num} onChange={v => set('aux', v)} /><span className="u">kW/TR</span></span></label>
     </div>
     <p className="hint" style={{ marginTop: 0 }}><b>Recommended:</b> {rec.label} ({rec.metric} {rec.value}, {rec.cond}). {sys === 'split' || sys === 'window'
       ? 'ESMA star labels are mandatory for sale in the UAE; specify the highest star rating available.'
@@ -128,16 +177,11 @@ function ElectricalCard({ d, store, el, month, room }: { d: Computed; store: Sto
     {local && <p className="hint"><b>Local authority:</b> {local.authority}: {local.target} ({local.source}). <a href={local.href} target="_blank" rel="noopener">Source</a></p>}
     <p className="hint"><b>Edition:</b> ESMA values are from UAE.S 5010-1:2019 and 5010-5:2019. Cabinet Resolution 157/2025 introduced the 2025 editions (in force November 2025, with a transition period);
       their thresholds were not publicly available to check, so confirm the current label class on the product certificate.</p>
-    <div className="totals hr-kpis">
-      <div className="tot"><div className="k">Design efficiency</div><div className="v">{fmt(q.cop, 2)}<small>COP</small></div><div className="s">EER {fmt(q.cop * BTU_W, 2)} · {fmt(copToKwTr(q.cop), 2)} kW/TR · {q.kind === 'full' ? 'full load at ' + q.t + ' °C' : q.metric + ' (seasonal)'}</div></div>
-      <div className="tot key"><div className="k">Peak electrical demand</div><div className="v">{fmt(el.designKWe, 1)}<small>kW</small></div><div className="s">at the design peak, {fmt(kW, 1)} kW cooling, {fmt(el.designTo, 1)} °C outdoor</div></div>
-      <div className="tot"><div className="k">Electricity, {MONTHS[month]} 21</div><div className="v">{fmt(el.dayKWh, 0)}<small>kWh</small></div><div className="s">design day, peak hour {fmt(el.kWe[pk], 1)} kW at {hh(pk + 1)}</div></div>
-      <div className="tot"><div className="k">Annual electricity, estimate</div><div className="v">{fmt(el.annualKWh / 1000, 1)}<small>MWh</small></div><div className="s">seasonal COP {fmt(el.cspf, 2)} over {fmt(el.binHours, 0)} h · ESMA label basis {fmt(el.esmaKWh / 1000, 1)} MWh</div></div>
-    </div>
     <h4 className="hr-sub">Electrical input by hour, {MONTHS[month]} 21 <span className="muted">· kW</span></h4>
-    <svg className="hr-el" viewBox={`0 0 ${W} ${Ht}`} role="img" aria-label={`Electrical input by hour, peak ${fmt(el.kWe[pk], 1)} kW at ${hh(pk + 1)}. Values in the table below.`}>
+    <p className="hint">{hover != null ? <><b>{hh(hover + 1)}:</b> {fmt(el.kWe[hover], 2)} kW electrical input for {fmt(loads[hover].total / 1000, 2)} kW cooling at {fmt(loads[hover].To, 1)} °C outdoor.</> : <>Peak at {hh(pk + 1)}: <b>{fmt(el.kWe[pk], 2)} kW</b>. Hover a bar to inspect the hour.</>}</p>
+    <svg className="hr-el" onMouseLeave={() => setHover(null)} viewBox={`0 0 ${W} ${Ht}`} role="img" aria-label={`Electrical input by hour, peak ${fmt(el.kWe[pk], 1)} kW at ${hh(pk + 1)}. Values in the table below.`}>
       {ticks.map(t => <g key={t}><line x1={ml} x2={W - 8} y1={y(t)} y2={y(t)} className={t === 0 ? 'hr-zero' : 'hr-grid'} /><text x={ml - 6} y={y(t) + 3.5} textAnchor="end" className="hr-tick">{fmt(t, step < 1 ? 1 : 0)}</text></g>)}
-      {el.kWe.map((x, i) => <rect key={i} x={ml + i * bw + 2} width={bw - 4} y={y(x)} height={Math.max(0, y(0) - y(x))} rx={2} fill={i === pk ? 'var(--accent)' : 'var(--s1)'}><title>{hh(i + 1)}: {fmt(x, 2)} kW</title></rect>)}
+      {el.kWe.map((x, i) => <rect key={i} x={ml + i * bw + 2} width={bw - 4} y={y(x)} height={Math.max(0, y(0) - y(x))} rx={2} fill={i === pk || i === hover ? 'var(--accent)' : 'var(--s1)'} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} tabIndex={0} role="img" aria-label={`${hh(i + 1)} electrical input ${fmt(x, 2)} kW`}><title>{hh(i + 1)}: {fmt(x, 2)} kW</title></rect>)}
       {el.kWe.map((_, i) => (i + 1) % 3 === 0 ? <text key={'t' + i} x={ml + i * bw + bw / 2} y={Ht - 6} textAnchor="middle" className="hr-tick">{i + 1}</text> : null)}
     </svg>
     <h4 className="hr-sub">Minimum efficiency requirements for this system <span className="muted">· {fmt(kW, 1)} kW ({fmt(kW / 3.51685, 1)} TR, {fmt(kW * 1000 * BTU_W, 0)} Btu/h)</span></h4>

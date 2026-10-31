@@ -65,13 +65,9 @@ describe('heat balance', () => {
 
 describe('heat balance on the example project', () => {
   const s = exampleState(), d = computeAll(s.project, s.rooms);
-  const c = exampleState(); c.project.method = 'cltd';
-  const dc = computeAll(c.project, c.rooms);
-  it('peaks in summer and stays below the CLTD estimate', () => {
+  it('peaks in summer', () => {
     const office = d.res[s.rooms[0].id];
-    expect(office.method).toBe('hbm');
     expect(office.pkM).toBeGreaterThanOrEqual(4); expect(office.pkM).toBeLessThanOrEqual(9);
-    expect(d.T.u / dc.T.u).toBeGreaterThan(0.6); expect(d.T.u / dc.T.u).toBeLessThan(1.05);
   });
   it('splits each room peak into components that add up to the room load', () => {
     for (const r of s.rooms) {
