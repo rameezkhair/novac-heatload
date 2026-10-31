@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Draft } from 'immer';
 import { ABOVE, ACT, ADJ, ADJ_EDIT, BELOW, ORIENTS, PXDEF, SCHEDULES, TYPES, typeOf } from '../engine/data';
@@ -6,51 +6,117 @@ import { adjTemp, dcvNeeded, type Computed, type RoomLoad } from '../engine/calc
 import { MONTHS, stationOf } from '../engine/climate';
 import { roomChecks } from '../engine/checks';
 import { ROOMOPTS, RMETA, SHOWV, changeType, ezOf, newId, newRoom, partU, pxU, resolveRoom, type RoomPick } from '../engine/project';
-import type { Adjacent, AppState, Mark, Num, Orient, PartType, Project, Room } from '../engine/types';
+import type { Adjacent, AppState, Floor, Mark, Num, Orient, PartType, Project, Room } from '../engine/types';
 import { blank, evalArea, fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { ArmButton, Badge, ExprInput, Field, NumInput, PickField, SecHead, useToast } from './ui';
+import { LoadPicture } from './LoadPlan';
 
 type RoomFn = (r: Draft<Room>, s: Draft<AppState>) => void;
+
+const FLOOR_NAMES = ['Ground floor', 'First floor', 'Second floor', 'Third floor', 'Fourth floor', 'Fifth floor', 'Sixth floor'];
+type View = { k: 'room' } | { k: 'total' } | { k: 'floor'; id: string };
 
 export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
   const { state, update } = store, toast = useToast();
   const r = state.rooms.find(x => x.id === state.sel);
-  const ez = ezOf(d.p);
+  const ez = ezOf(d.p), floors = state.project.floors ?? [];
   /* edit the selected room, then refresh its source-driven values (people from area, and so on) */
   const edit = (fn: RoomFn, group?: string) => update(s => {
     const x = s.rooms.find(y => y.id === s.sel); if (!x) return;
     fn(x, s); resolveRoom(x as Room, ezOf(s.project as AppState['project']));
   }, group);
-  /* the Total load row swaps the room editor for the whole-plant summary */
-  const [total, setTotal] = useState(false);
-  const showTotal = total && state.rooms.length > 0;
-  const add = () => { setTotal(false); update(s => { const n = newRoom('Room ' + (s.rooms.length + 1), 'office', ezOf(s.project as AppState['project'])); s.rooms.push(n); s.sel = n.id; }); };
+  /* the list selects a room, a floor, or the Total load row (whole-plant summary) */
+  const [view, setView] = useState<View>({ k: 'room' });
+  const floor = view.k === 'floor' ? floors.find(f => f.id === view.id) : undefined;
+  const shown: View['k'] = !state.rooms.length && !floor ? 'room' : view.k === 'floor' && !floor ? 'room' : view.k;
+  const open = (id: string) => { setView({ k: 'room' }); update(s => { s.sel = id; }); };
+  const add = (level?: string) => {
+    setView({ k: 'room' });
+    update(s => { const n = newRoom('Room ' + (s.rooms.length + 1), 'office', ezOf(s.project as AppState['project'])); if (level) n.level = level; s.rooms.push(n); s.sel = n.id; });
+  };
+  const addFloor = () => {
+    /* the next floor name after the highest one in use, never a duplicate */
+    const id = newId(), first = !floors.length, names = new Set(floors.map(x => x.name));
+    let i = Math.max(-1, ...floors.map(x => FLOOR_NAMES.indexOf(x.name))) + 1, name = FLOOR_NAMES[i] ?? `Floor ${i}`;
+    while (names.has(name)) name = FLOOR_NAMES[++i] ?? `Floor ${i}`;
+    update(s => {
+      const fl = (s.project.floors ??= []); fl.push({ id, name, n: 1 });
+      /* the first floor takes the rooms already entered */
+      if (first) s.rooms.forEach(x => { if (!x.level) x.level = id; });
+    });
+    setView({ k: 'floor', id });
+    toast(first && state.rooms.length ? `Added ${name} with the existing rooms` : `Added ${name}`);
+  };
+  /* drag a space onto a floor to move it there, or onto a space to place it just before that one ('' = not on a floor) */
+  const [drag, setDrag] = useState<string | null>(null);
+  const [over, setOver] = useState<{ floor: string; before?: string } | null>(null);
+  const move = (id: string, level: string, before?: string) => {
+    const r0 = state.rooms.find(x => x.id === id); if (!r0 || before === id) return;
+    const to = level ? floors.find(f => f.id === level)?.name ?? 'the floor' : 'Not on a floor', changed = (r0.level ?? '') !== level;
+    update(s => {
+      const i = s.rooms.findIndex(x => x.id === id), [r] = s.rooms.splice(i, 1);
+      if (level) r.level = level; else delete r.level;
+      /* before a given space, otherwise after the last space already on that floor */
+      let j = before ? s.rooms.findIndex(x => x.id === before) : -1;
+      if (j < 0) { const last = s.rooms.map(x => x.level ?? '').lastIndexOf(level); j = last < 0 ? s.rooms.length : last + 1; }
+      s.rooms.splice(j, 0, r);
+    });
+    if (changed) toast(`Moved ${r0.name || 'the space'} to ${to}`);
+  };
+  const drop = (floor: string, before?: string) => ({
+    onDragOver: (e: DragEvent) => { if (!drag) return; e.preventDefault(); e.stopPropagation(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; if (over?.floor !== floor || over?.before !== before) setOver({ floor, before }); },
+    onDrop: (e: DragEvent) => { if (!drag) return; e.preventDefault(); e.stopPropagation(); move(drag, floor, before); setDrag(null); setOver(null); },
+  });
+  const item = (x: Room) => {
+    const c = d.res[x.id], ch = roomChecks(x, c, ez), fails = Object.values(ch).filter(v => v && v[0] === 'bad').length, q = Math.max(1, Math.round(num(x.qty)) || 1);
+    const lv = x.level && floors.some(f => f.id === x.level) ? x.level : '';
+    return <button key={x.id} type="button" className={'ritem' + (drag === x.id ? ' dragging' : '') + (over?.before === x.id && drag !== x.id ? ' drop-before' : '')} aria-current={shown === 'room' && x.id === state.sel} onClick={() => open(x.id)}
+      draggable title="Drag to another floor, or onto a space to place it before that space"
+      onDragStart={e => { try { e.dataTransfer.setData('text/plain', x.id); e.dataTransfer.effectAllowed = 'move'; } catch { /* no data transfer (tests) */ } setDrag(x.id); }}
+      onDragEnd={() => { setDrag(null); setOver(null); }} {...drop(lv, x.id)}>
+      <span className="nm">{x.name || 'Untitled'}{q > 1 ? ` ×${q}` : ''}</span><span className="tr">{fmt(c.unit / 3517, 2)} TR</span>
+      <span className="ty">{typeOf(x.type).label} · {fmt(num(x.area), 0)} m²{fails ? <> · <b className="x">✗ {fails} fail{fails > 1 ? 's' : ''}</b></> : null}</span>
+    </button>;
+  };
+  const sum = (rooms: Room[]) => rooms.reduce((a, x) => { const c = d.res[x.id]; return { u: a.u + c.unit * c.qty, a: a.a + c.A * c.qty }; }, { u: 0, a: 0 });
+  const loose = state.rooms.filter(x => !x.level || !floors.some(f => f.id === x.level));
 
   return <section>
     <SecHead n={5} title="Spaces" sub="Each load item has a source list. Changing a value by hand switches it to Custom." />
     <div className="workspace">
       <nav className="rlist" aria-label="Rooms">
-        {state.rooms.map(x => {
-          const c = d.res[x.id], ch = roomChecks(x, c, ez), fails = Object.values(ch).filter(v => v && v[0] === 'bad').length;
-          return <button key={x.id} type="button" className="ritem" aria-current={!showTotal && x.id === state.sel} onClick={() => { setTotal(false); update(s => { s.sel = x.id; }); }}>
-            <span className="nm">{x.name || 'Untitled'}{c.qty > 1 ? ` ×${c.qty}` : ''}</span><span className="tr">{fmt(c.unit / 3517, 2)} TR</span>
-            <span className="ty">{typeOf(x.type).label} · {fmt(num(x.area), 0)} m²{fails ? <> · <b className="x">✗ {fails} fail{fails > 1 ? 's' : ''}</b></> : null}</span>
-          </button>;
+        {floors.map(f => {
+          const rooms = state.rooms.filter(x => x.level === f.id), t = sum(rooms), n = Math.max(1, Math.round(num(f.n)) || 1);
+          return <div className={'rfloor' + (drag && over?.floor === f.id ? ' drop-over' : '')} key={f.id} role="group" aria-label={f.name} {...drop(f.id)}>
+            <button type="button" className="rfloor-h" aria-current={shown === 'floor' && floor?.id === f.id} onClick={() => setView({ k: 'floor', id: f.id })}>
+              <span className="nm">{f.name || 'Untitled floor'}{n > 1 ? ` ×${n}` : ''}</span><span className="tr">{fmt(t.u / 3517, 2)} TR</span>
+              <span className="ty">{rooms.length} space{rooms.length === 1 ? '' : 's'} · {fmt(t.a, 0)} m²{n > 1 ? ` (${n} floors)` : ''}</span>
+            </button>
+            {rooms.map(item)}
+            <button type="button" className="add sm" onClick={() => add(f.id)}>+ Add room to {f.name || 'this floor'}</button>
+          </div>;
         })}
-        {state.rooms.length > 0 && <button type="button" className="rtotal" aria-current={showTotal} onClick={() => setTotal(true)}>
+        {floors.length > 0 && (loose.length > 0 || drag) && <div className={'rfloor' + (drag && over?.floor === '' ? ' drop-over' : '')} role="group" aria-label="Not on a floor" {...drop('')}>
+          <div className="rfloor-h static"><span className="nm">Not on a floor</span>{!loose.length && <span className="ty">Drop here to take a space off its floor</span>}</div>{loose.map(item)}</div>}
+        {!floors.length && <div className="rflat" {...drop('')}>{state.rooms.map(item)}</div>}
+        {drag && floors.length > 0 && <p className="drag-hint" role="status">Drop on a floor to move the space there.</p>}
+        {state.rooms.length > 0 && <button type="button" className="rtotal" aria-current={shown === 'total'} onClick={() => setView({ k: 'total' })}>
           <span className="nm">Total load</span><span className="tr">{fmt(d.T.u / 3517, 2)} TR</span>
           <span className="ty">{fmt(d.T.u / 1000, 2)} kW · {d.T.q} space{d.T.q === 1 ? '' : 's'} · {fmt(d.T.a, 0)} m²</span>
         </button>}
-        <button type="button" className="add" onClick={add}>+ Add room</button>
+        {!floors.length && <button type="button" className="add" onClick={() => add()}>+ Add room</button>}
+        <button type="button" className="add" onClick={addFloor}>+ Add floor</button>
       </nav>
-      {showTotal ? <><div className="editor"><PlantRooms d={d} onOpen={id => { setTotal(false); update(s => { s.sel = id; }); }} /></div>
-        <aside className="result" aria-live="polite"><PlantResult d={d} /></aside></> : <>
+      {shown === 'total' ? <><div className="editor"><LoadPicture d={d} onOpen={open} /><PlantRooms d={d} onOpen={open} /></div>
+        <aside className="result" aria-live="polite"><PlantResult d={d} /></aside></>
+        : shown === 'floor' && floor ? <><div className="editor"><FloorEditor key={floor.id} store={store} d={d} id={floor.id} onOpen={open} onGone={() => setView({ k: 'room' })} /></div>
+          <aside className="result" aria-live="polite"><FloorResult d={d} id={floor.id} /></aside></> : <>
       <div className="editor">
         {r ? <RoomEditor key={r.id} r={r} d={d} edit={edit}
           onDup={() => update(s => { const i = s.rooms.findIndex(y => y.id === s.sel); const c = JSON.parse(JSON.stringify(s.rooms[i])); c.id = newId(); c.name = s.rooms[i].name + ' (copy)'; s.rooms.splice(i + 1, 0, c); s.sel = c.id; })}
           onDel={() => { update(s => { const i = s.rooms.findIndex(y => y.id === s.sel); s.rooms.splice(i, 1); s.sel = (s.rooms[Math.max(0, i - 1)] || {}).id; }); toast('Room deleted'); }} />
-          : <div className="empty">No rooms yet.<br /><br /><button className="btn primary" type="button" onClick={add}>Add the first room</button></div>}
+          : <div className="empty">No rooms yet.<br /><br /><button className="btn primary" type="button" onClick={() => add(floors[0]?.id)}>Add the first room</button></div>}
       </div>
       <aside className="result" aria-live="polite">{r ? <RoomResult r={r} d={d} /> : <><div className="eyebrow">Selected room</div><p className="muted">Add a room to see its load.</p></>}</aside>
       </>}
@@ -58,18 +124,72 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
   </section>;
 }
 
-/* each room's share of the total, all rooms × quantity; click a row to edit that room */
-function PlantRooms({ d, onOpen }: { d: Computed; onOpen: (id: string) => void }) {
-  const { rooms, res, T } = d, max = Math.max(...rooms.map(x => res[x.id].unit * res[x.id].qty), 1);
+/* one floor: its name, how many identical floors it stands for, and its rooms */
+function FloorEditor({ store, d, id, onOpen, onGone }: { store: Store; d: Computed; id: string; onOpen: (id: string) => void; onGone: () => void }) {
+  const { update } = store, toast = useToast(), f = (d.p.floors ?? []).find(x => x.id === id)!, rooms = d.rooms.filter(x => x.level === id);
+  const setF = (fn: (x: Floor) => void, g?: string) => update(s => { const x = s.project.floors?.find(y => y.id === id); if (x) fn(x as Floor); }, g);
+  const dup = () => {
+    const nid = newId();
+    update(s => {
+      const fl = s.project.floors!, i = fl.findIndex(y => y.id === id);
+      fl.splice(i + 1, 0, { id: nid, name: `${f.name} (copy)`, n: f.n });
+      s.rooms.filter(x => x.level === id).forEach(x => { const c = JSON.parse(JSON.stringify(x)); c.id = newId(); c.level = nid; s.rooms.push(c); });
+    });
+    toast(`Copied ${f.name} with ${rooms.length} room${rooms.length === 1 ? '' : 's'}`);
+  };
+  const del = () => {
+    update(s => { s.rooms = s.rooms.filter(x => x.level !== id); s.project.floors = s.project.floors!.filter(y => y.id !== id); if (!s.project.floors.length) delete s.project.floors; });
+    onGone(); toast(`Deleted ${f.name}${rooms.length ? ` and its ${rooms.length} room${rooms.length === 1 ? '' : 's'}` : ''}`);
+  };
   return <>
-    <h3>Total load by space</h3>
+    <h3>Edit floor</h3>
+    <div className="fgrid3">
+      <label className="fld" htmlFor="f-name" style={{ gridColumn: 'span 2' }}><span className="fl">Floor name</span><span className="in-u"><input id="f-name" type="text" value={f.name}
+        onChange={e => { const v = e.target.value; setF(x => { x.name = v; }, 'f.name.' + id); }} /></span></label>
+      <Field id="f-n" label="Identical floors" unit="qty" step={1} value={f.n} onChange={v => setF(x => { x.n = v; }, 'f.n.' + id)} />
+    </div>
+    <p className="hint">For typical floors, enter how many identical floors this one stands for: every room on it then counts that many times in the loads, fresh air and plant.</p>
+    <div className="btns floor-btns">
+      <button className="btn" type="button" onClick={dup}>Duplicate floor</button>
+      <ArmButton className="btn danger" label="Delete floor" armedLabel={rooms.length ? `Delete floor and its ${rooms.length} room${rooms.length === 1 ? '' : 's'}?` : 'Click again to delete'} onConfirm={del} />
+    </div>
+    {rooms.length ? <><LoadPicture d={d} onOpen={onOpen} only={id} /><PlantRooms d={d} onOpen={onOpen} only={id} /></> : <p className="hint">No rooms on this floor yet. Use + Add room under the floor in the list.</p>}
+  </>;
+}
+
+function FloorResult({ d, id }: { d: Computed; id: string }) {
+  const f = (d.p.floors ?? []).find(x => x.id === id)!, rooms = d.rooms.filter(x => x.level === id), n = Math.max(1, Math.round(num(f.n)) || 1);
+  const t = rooms.reduce((a, x) => { const c = d.res[x.id], q = c.qty; return { u: a.u + c.unit * q, s: a.s + c.roomS * q, l: a.l + c.roomL * q, oa: a.oa + c.oaQ * q, a: a.a + c.A * q, p: a.p + c.n * q, sa: a.sa + c.sa * q }; }, { u: 0, s: 0, l: 0, oa: 0, a: 0, p: 0, sa: 0 });
+  return <>
+    <div className="eyebrow">Floor{n > 1 ? ` · ${n} identical floors` : ''}</div>
+    <h3>{f.name || 'Untitled floor'}</h3>
+    <div className="big"><span className="big-num">{fmt(t.u / 3517, 2)}</span><span className="big-unit">TR</span></div>
+    <div className="sub">{fmt(t.u / 1000, 2)} kW of room unit load{d.p.fahu ? ', fresh air in the FAHU' : ', including fresh air'}{n > 1 ? `; ${fmt(t.u / n / 3517, 2)} TR per floor` : ''}</div>
+    <dl className="kv">
+      <dt>Room load (excl. fresh air)</dt><dd>{fmt((t.s + t.l) / 3517, 2)} TR · {fmt((t.s + t.l) / 1000, 2)} kW</dd>
+      <dt>Sensible / latent</dt><dd>{fmt(t.s / 1000, 2)} / {fmt(t.l / 1000, 2)} kW</dd>
+      <dt>Fresh air</dt><dd>{fmt(t.oa, 0)} L/s · {fmt(t.oa * 2.119, 0)} CFM</dd>
+      <dt>Supply air</dt><dd>{fmt(t.sa, 0)} L/s · {fmt(t.sa * 2.119, 0)} CFM</dd>
+      <dt>Spaces / area</dt><dd>{rooms.length} · {fmt(t.a, 0)} m²</dd>
+      <dt>People</dt><dd>{fmt(t.p, 0)}</dd>
+      <dt>Share of the building</dt><dd>{fmt(d.T.u ? t.u / d.T.u * 100 : 0, 0)}%</dd>
+    </dl>
+  </>;
+}
+
+/* each room's share of the total, all rooms × quantity; click a row to edit that room */
+function PlantRooms({ d, onOpen, only }: { d: Computed; onOpen: (id: string) => void; only?: string }) {
+  const { res, T } = d, rooms = only ? d.rooms.filter(x => x.level === only) : d.rooms, max = Math.max(...rooms.map(x => res[x.id].unit * res[x.id].qty), 1);
+  const floors = d.p.floors ?? [], fl = !only && floors.length > 0, fname = (x: Room) => floors.find(f => f.id === x.level)?.name ?? '–';
+  return <>
+    <h3>{only ? 'Load by space on this floor' : 'Total load by space'}</h3>
     <p className="hint" style={{ marginTop: 0 }}>Room unit loads including fresh air{d.p.fahu ? ' (treated in the FAHU, so excluded here)' : ''}, multiplied by quantity. Click a space to edit it.</p>
     <div className="tbl-wrap"><table className="plant-rooms">
-      <thead><tr><th>Space</th><th>Qty</th><th>Area m²</th><th>Unit TR</th><th>Total TR</th><th>Total kW</th><th>Share</th></tr></thead>
+      <thead><tr><th>Space</th>{fl && <th>Floor</th>}<th>Qty</th><th>Area m²</th><th>Unit TR</th><th>Total TR</th><th>Total kW</th><th>Share</th></tr></thead>
       <tbody>{rooms.map(x => { const c = res[x.id], t = c.unit * c.qty; return <tr key={x.id} onClick={() => onOpen(x.id)}>
-        <td><button type="button" className="linkish">{x.name || 'Untitled'}</button></td><td>{c.qty}</td><td>{fmt(c.A * c.qty, 0)}</td><td>{fmt(c.unit / 3517, 2)}</td><td><b>{fmt(t / 3517, 2)}</b></td><td>{fmt(t / 1000, 2)}</td>
+        <td><button type="button" className="linkish">{x.name || 'Untitled'}</button></td>{fl && <td>{fname(x)}</td>}<td>{c.qty}</td><td>{fmt(c.A * c.qty, 0)}</td><td>{fmt(c.unit / 3517, 2)}</td><td><b>{fmt(t / 3517, 2)}</b></td><td>{fmt(t / 1000, 2)}</td>
         <td><span className="track"><span className="fill" style={{ width: (t / max * 100).toFixed(1) + '%' }} /></span> {fmt(T.u ? t / T.u * 100 : 0, 0)}%</td></tr>; })}</tbody>
-      <tfoot><tr><td>Total</td><td>{T.q}</td><td>{fmt(T.a, 0)}</td><td /><td><b>{fmt(T.u / 3517, 2)}</b></td><td>{fmt(T.u / 1000, 2)}</td><td>100%</td></tr></tfoot>
+      {!only && <tfoot><tr><td>Total</td>{fl && <td />}<td>{T.q}</td><td>{fmt(T.a, 0)}</td><td /><td><b>{fmt(T.u / 3517, 2)}</b></td><td>{fmt(T.u / 1000, 2)}</td><td>100%</td></tr></tfoot>}
     </table></div>
   </>;
 }
@@ -108,6 +228,9 @@ function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: 
     <div className="fgrid3">
       <label className="fld" htmlFor="r-name" style={{ gridColumn: 'span 2' }}><span className="fl">Room name</span><span className="in-u"><input id="r-name" type="text" value={r.name} onChange={e => { const v = e.target.value; edit(x => { x.name = v; }, 'r.name'); }} /></span></label>
       <Field id="r-qty" label="Identical rooms" unit="qty" step={1} value={r.qty} onChange={set('qty')} />
+      {(d.p.floors?.length ?? 0) > 0 && <label className="fld" htmlFor="r-level" style={{ gridColumn: 'span 3' }}><span className="fl">Floor</span><span className="in-u"><select id="r-level" value={r.level ?? ''}
+        onChange={e => { const v = e.target.value; edit(x => { if (v) x.level = v; else delete x.level; }); }}>
+        {d.p.floors!.map(f => <option key={f.id} value={f.id}>{f.name || 'Untitled floor'}{Math.round(num(f.n)) > 1 ? ` (×${Math.round(num(f.n))})` : ''}</option>)}<option value="">Not on a floor</option></select></span></label>}
       <label className="fld" htmlFor="r-type" style={{ gridColumn: 'span 2' }}><span className="fl">Room type</span><span className="in-u"><select id="r-type" value={r.type} onChange={e => { const v = e.target.value; edit(x => changeType(x as Room, v, ez)); }}>
         {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></span></label>
       <Field id="r-height" label="Ceiling height" unit="m" step={0.1} value={r.height} onChange={set('height')} />

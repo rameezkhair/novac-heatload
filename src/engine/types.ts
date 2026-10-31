@@ -33,7 +33,11 @@ export interface Room {
   sched?: string;
   /* exhaust airflow, L/s per unit (toilets, kitchens, process), for the IAQ air balance */
   exh?: Num;
+  /* the floor the room is on (Project.floors id); none = not on a floor */
+  level?: string;
 }
+/* a building floor: a group of rooms, repeated n times for typical floors */
+export interface Floor { id: string; name: string; n: Num }
 
 export interface ProjectSrc {
   indoor: string; ez: string; out: string; vent: string;
@@ -67,6 +71,7 @@ export interface Project {
   weather?: WeatherRef;
   /* indoor air quality settings; rooms, outdoor air and the cooling system come from the rest of the project */
   iaq?: IaqSettings;
+  floors?: Floor[];
   src: ProjectSrc;
 }
 /* ASHRAE 62.1 system type: auto follows the project (FAHU = 100% outdoor air, one room = single zone, otherwise multiple-zone recirculating) */

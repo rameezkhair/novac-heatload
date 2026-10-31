@@ -45,6 +45,9 @@ export interface RoomLoad extends Parts {
   hb?: MonthLoads[];
 }
 
+/* a room on a typical floor counts once per repeat of that floor */
+export const floorRepeat = (p: Project, r: Room) => { const f = r.level ? p.floors?.find(x => x.id === r.level) : undefined; return f ? Math.max(1, Math.round(num(f.n)) || 1) : 1; };
+
 /* fresh air, margins, unit totals and supply air from the room components */
 function finish(p: Project, r: Room, e: Env, x: Parts, extra: Pick<RoomLoad, 'pkM' | 'pkH' | 'profS' | 'profL' | 'hb'>): RoomLoad {
   const A = num(r.area), Ti = num(p.tiDB), ks = 1.23 * e.k, kl = 3010 * e.k;
@@ -57,7 +60,7 @@ function finish(p: Project, r: Room, e: Env, x: Parts, extra: Pick<RoomLoad, 'pk
   const sa = roomS / (ks * Math.max(1, Ti - num(p.tSupply)));
   return {
     ...x, oaQ, part, oaS, oaL, mS, mL, roomS, roomL, unitS, unitL, unit, oa: oaS + oaL, sa, A,
-    roofA: r.above === 'roof' ? num(r.roof) : 0, qty: Math.max(1, Math.round(num(r.qty)) || 1), ...extra,
+    roofA: r.above === 'roof' ? num(r.roof) : 0, qty: (Math.max(1, Math.round(num(r.qty)) || 1)) * floorRepeat(p, r), ...extra,
   };
 }
 

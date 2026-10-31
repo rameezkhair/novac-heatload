@@ -558,3 +558,57 @@ details .basis{margin-top:0}
 .iaq-out{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:5 4}
 .iaq-limit{stroke:var(--bad);stroke-width:1.2;stroke-dasharray:2 3}
 .iaq-disc{margin-top:18px}
+/* floors in the Spaces list: a header row per floor, its rooms indented beneath */
+.rfloor{display:flex;flex-direction:column;border-bottom:1px solid var(--line-strong)}
+.rfloor-h{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;text-align:left;border:0;border-bottom:1px solid var(--line);background:var(--sel);color:var(--fg);padding:9px 12px;cursor:pointer;font:inherit}
+.rfloor-h.static{cursor:default}
+.rfloor-h .nm{font-weight:bold;text-transform:uppercase;letter-spacing:.04em;font-size:12px;align-self:center}
+.rfloor-h .tr{font-variant-numeric:tabular-nums;font-weight:bold}
+.rfloor-h .ty{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.rfloor-h:hover{background:var(--line)}
+.rfloor-h[aria-current="true"]{box-shadow:inset 3px 0 0 var(--accent)}
+.rfloor .ritem{padding-left:22px}
+.rlist .add.sm{font-size:12px;padding:6px 12px 6px 22px;text-align:left;border-bottom:0}
+.floor-btns{display:flex;gap:8px;margin:12px 0 16px}
+/* cooling load picture: building stack and schematic floor plan */
+.load-pic{margin-bottom:16px}
+.load-pic-grid{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.load-pic-bld{flex:1 1 240px;min-width:0}
+.load-pic-plan{flex:2 1 340px;min-width:0}
+.load-pic.single .load-pic-plan{flex-basis:100%}
+.load-pic-bld .hint{margin-top:4px}
+.bld{width:100%;height:auto;display:block;max-height:420px}
+.bld-slab{cursor:pointer}
+.bld-slab polygon{stroke:var(--surface);stroke-width:.8;transition:fill .3s}
+.bld-slab:hover polygon{filter:brightness(1.08)}
+.bld-slab.on polygon{stroke:var(--fg);stroke-width:1.4}
+.bld-label{cursor:pointer}
+.bld-label polyline{stroke:var(--line-strong);stroke-width:1;fill:none}
+.bld-label text{font-size:12px;font-weight:bold;fill:var(--fg)}
+.bld-label text.sub{font-weight:normal;font-size:11px;fill:var(--muted)}
+.bld-label.on text{fill:var(--accent)}
+.bld-ground{fill:var(--sel)}
+.plan-head{font-size:13px;margin-bottom:6px}
+.plan svg{width:100%;height:auto;display:block}
+.plan-outline{fill:var(--surface);stroke:var(--fg);stroke-width:2}
+.plan-room{cursor:pointer}
+.plan-room rect{stroke:var(--surface);stroke-width:1.5;transition:x .35s,y .35s,width .35s,height .35s,fill .35s}
+.plan-room:hover rect,.plan-room.on rect{stroke:var(--fg);stroke-width:2.5}
+.plan-room text{pointer-events:none;font-size:12px}
+.plan-room text.nm{font-weight:bold}
+.plan-room text.v{font-size:11px}
+.plan-info{font-size:12.5px;margin-top:6px;min-height:1.4em}
+.load-pic-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-top:10px}
+.load-pic-foot .hint{margin:0}
+.plan-legend{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.plan-legend .bar{display:inline-block;width:160px;height:10px;border-radius:5px}
+@media (prefers-reduced-motion:reduce){.plan-room rect,.bld-slab polygon{transition:none}}
+.load-pic.single .plan svg{max-height:440px}
+/* drag spaces between floors */
+.ritem[draggable="true"]{cursor:grab}
+.ritem.dragging{opacity:.4}
+.ritem.drop-before{box-shadow:inset 0 3px 0 var(--accent)}
+.rfloor.drop-over{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-soft)}
+.rfloor.drop-over .rfloor-h{background:var(--accent-soft)}
+.rflat{display:flex;flex-direction:column}
+.drag-hint{margin:0;padding:6px 12px;font-size:12px;color:var(--accent);border-bottom:1px solid var(--line)}

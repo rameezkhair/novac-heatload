@@ -480,3 +480,90 @@ describe('indoor air quality', () => {
     expect(host.textContent).not.toMatch(/NaN|undefined|Infinity/);
   });
 });
+
+describe('floors in spaces', () => {
+  it('adds floors, puts rooms on them, repeats typical floors and deletes a floor', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    /* the example sits on its first floor */
+    expect($$('.rfloor-h .nm').map(e => e.textContent)).toEqual(['First floor']);
+    const total = () => num($('.rtotal .tr').textContent);
+    const base = total();
+    /* a second floor, with one room added to it */
+    await act(async () => byText('.rlist .add', '+ Add floor').click());
+    expect($$('.rfloor-h .nm').map(e => e.textContent)).toEqual(['First floor', 'Second floor']);
+    await act(async () => byText('.rlist .add', '+ Add room to Second floor').click());
+    expect($$('.rfloor')[1].querySelectorAll('.ritem')).toHaveLength(1);
+    const withRoom = total();
+    expect(withRoom).toBeGreaterThan(base);
+    /* the first floor stands for three identical floors */
+    await act(async () => $$('.rfloor-h')[0].click());
+    await act(async () => setValue($('#f-n'), '3'));
+    expect($$('.rfloor-h .nm')[0].textContent).toBe('First floor ×3');
+    expect(total()).toBeCloseTo(base * 3 + (withRoom - base), 1);
+    /* move a room off the floor from its editor */
+    await act(async () => ($$('.rfloor')[1].querySelector('.ritem') as HTMLElement).click());
+    await act(async () => setValue($('#r-level'), ''));
+    expect(byText('.rfloor-h .nm', 'Not on a floor')).toBeTruthy();
+    /* delete the second floor (now empty), then the first with its rooms */
+    await act(async () => $$('.rfloor-h')[1].click());
+    const del = () => byText('.floor-btns .btn.danger', 'Delete floor') ?? byText('.floor-btns .btn.danger', 'Click again to delete');
+    await act(async () => del().click()); await act(async () => $('.floor-btns .btn.danger').click());
+    expect($$('.rfloor-h .nm').map(e => e.textContent)).toEqual(['First floor ×3', 'Not on a floor']);
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('cooling load picture', () => {
+  it('draws the building and floor plans, live, and opens a room from the plan', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.rtotal').click());
+    expect($$('.bld-slab')).toHaveLength(1);
+    expect($$('.plan-room')).toHaveLength(5);
+    /* a new floor adds a slab; three identical floors add three */
+    await act(async () => byText('.rlist .add', '+ Add floor').click());
+    await act(async () => byText('.rlist .add', '+ Add room to Second floor').click());
+    await act(async () => $$('.rfloor-h')[1].click());
+    await act(async () => setValue($('#f-n'), '3'));
+    expect($$('.plan-room')).toHaveLength(1);
+    await act(async () => $('.rtotal').click());
+    expect($$('.bld-slab')).toHaveLength(4);
+    /* pick the first floor in the building, then open a room from its plan */
+    await act(async () => $$('.bld-label')[0].dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect($('.plan-head').textContent).toContain('First floor');
+    await act(async () => $$('.plan-room')[0].dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect($<HTMLInputElement>('#r-name').value).toBe('Open plan office');
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('dragging spaces between floors', () => {
+  const fire = (el: Element, type: string) => el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+  const names = (i: number) => [...$$('.rfloor')[i].querySelectorAll('.ritem .nm')].map(e => e.textContent);
+  it('moves a space to another floor, places it before a space, and takes it off its floor', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => byText('.rlist .add', '+ Add floor').click());
+    const item = (name: string) => $$('.ritem').find(e => e.querySelector('.nm')!.textContent === name)!;
+    const total = $('.rtotal .tr').textContent;
+    /* Boardroom onto the Second floor */
+    await act(async () => fire(item('Boardroom'), 'dragstart'));
+    expect($('.drag-hint')).toBeTruthy();
+    await act(async () => fire($$('.rfloor')[1], 'dragover'));
+    expect($$('.rfloor')[1].classList.contains('drop-over')).toBe(true);
+    await act(async () => fire($$('.rfloor')[1], 'drop'));
+    expect(names(1)).toEqual(['Boardroom']);
+    expect(names(0)).toEqual(['Open plan office', 'Manager office ×2', 'Reception and waiting', 'Corridor']);
+    /* back onto the First floor, before the Open plan office */
+    await act(async () => fire(item('Boardroom'), 'dragstart'));
+    await act(async () => fire(item('Open plan office'), 'dragover'));
+    expect(item('Open plan office').classList.contains('drop-before')).toBe(true);
+    await act(async () => fire(item('Open plan office'), 'drop'));
+    expect(names(0)).toEqual(['Boardroom', 'Open plan office', 'Manager office ×2', 'Reception and waiting', 'Corridor']);
+    /* the Not on a floor zone appears while dragging */
+    await act(async () => fire(item('Corridor'), 'dragstart'));
+    const zone = $$('.rfloor').find(e => e.getAttribute('aria-label') === 'Not on a floor')!;
+    await act(async () => fire(zone, 'dragover')); await act(async () => fire(zone, 'drop'));
+    expect(names(2)).toEqual(['Corridor']);
+    /* moving spaces between floors that are not repeated leaves the building total unchanged */
+    expect($('.rtotal .tr').textContent).toBe(total);
+  });
+});

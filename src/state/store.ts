@@ -22,6 +22,8 @@ function normalise(s: Draft<AppState>) {
     const c = CODESETS.find(c => c[3] === p.cbasis); p.codeset = c ? c[0] : 'safat-s-40';
   }
   if (!s.rooms.find(r => r.id === s.sel)) s.sel = s.rooms[0]?.id;
+  /* a room whose floor was deleted is no longer on a floor */
+  s.rooms.forEach(r => { if (r.level && !p.floors?.some(f => f.id === r.level)) delete r.level; });
 }
 
 function load(): AppState {

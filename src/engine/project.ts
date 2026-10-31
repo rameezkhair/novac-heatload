@@ -189,6 +189,8 @@ export function exampleState(): AppState {
     exampleRoom('Reception and waiting', 'lobby', 40, { E: [18, 10] }, { roof: 40, ach: 'door' }, ez),
     exampleRoom('Corridor', 'corridor', 30, {}, { roof: 30, ach: 'press' }, ez),
   ];
+  p.floors = [{ id: 'f1', name: 'First floor', n: 1 }];
+  rooms.forEach(r => { r.level = 'f1'; });
   return { version: 2, project: p, rooms, sel: rooms[0].id, example: true };
 }
 export function newProjectState(): AppState {
@@ -231,6 +233,7 @@ function migrateRoom(r: any, ez: number): Room {
     src: Object.assign(defaultSrc(t), r.src || {}),
     ...(typeof r.sched === 'string' ? { sched: r.sched } : {}),
     ...(r.exh !== undefined ? { exh: r.exh } : {}),
+    ...(typeof r.level === 'string' ? { level: r.level } : {}),
   };
   if (!r.src) {
     out.src.people = 'typ';
@@ -265,6 +268,7 @@ export function migrate(s: any): AppState {
   /* code sets with no skylight SHGC used to inherit the previous pick; give them the ASHRAE value */
   const types = (l: any): PartType[] => Array.isArray(l) ? l.map((t: any) => ({ id: String(t.id), name: String(t.name ?? ''), u: t.u ?? '', ...(Array.isArray(t.layers) ? { layers: t.layers } : {}) })) : [];
   p.partTypes = types(sp.partTypes); p.wallTypes = types(sp.wallTypes);
+  if (Array.isArray(sp.floors)) p.floors = sp.floors.filter((f: any) => f && f.id).map((f: any) => ({ id: String(f.id), name: String(f.name ?? ''), n: f.n ?? 1 })); else delete p.floors;
   if (['estidama', 'barjeel'].includes(p.cbasis) && (p.src.shgcSky || '').startsWith('safat')) p.src.shgcSky = 'a901';
   resolveProject(p);
   const ez = ezOf(p);
