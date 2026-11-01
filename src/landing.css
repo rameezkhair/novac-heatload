@@ -234,3 +234,6 @@ html{scroll-behavior:smooth;scroll-padding-top:72px}
 .addon-h{margin:24px 0 10px;color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .pro-group+.addon-h{margin-top:0}
 .pro-tools .tag+.tag{margin-left:4px}
+.pro-tools .tag.avail{background:rgba(46,125,50,.14);color:#2E7D32}
+.feat-link{display:inline-block;margin-top:10px;color:var(--accent);font-weight:600;font-size:14px;text-decoration:none}
+.feat-link:hover{text-decoration:underline}

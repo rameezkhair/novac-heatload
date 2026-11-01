@@ -1,5 +1,6 @@
 import type { Layer } from './materials';
 import type { WeatherRef } from './weather/types';
+import type { DuctSystem } from './duct/duct';
 
 /* A numeric input may be blank while the user is typing; the engine reads blanks as 0 via num(). */
 export type Num = number | '';
@@ -72,6 +73,8 @@ export interface Project {
   /* indoor air quality settings; rooms, outdoor air and the cooling system come from the rest of the project */
   iaq?: IaqSettings;
   floors?: Floor[];
+  /* duct sizing add-on: supply duct systems, each a tree of sections from the unit to the room terminals */
+  ducts?: DuctSystem[];
   src: ProjectSrc;
 }
 /* ASHRAE 62.1 system type: auto follows the project (FAHU = 100% outdoor air, one room = single zone, otherwise multiple-zone recirculating) */

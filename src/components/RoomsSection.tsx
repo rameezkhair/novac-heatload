@@ -35,7 +35,7 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
     setView({ k: 'room' });
     update(s => { const n = newRoom('Room ' + (s.rooms.length + 1), 'office', ezOf(s.project as AppState['project'])); if (level) n.level = level; s.rooms.push(n); s.sel = n.id; });
   };
-  const addFloor = () => {
+  const addFloor = (assignRoomId?: string) => {
     /* the next floor name after the highest one in use, never a duplicate */
     const id = newId(), first = !floors.length, names = new Set(floors.map(x => x.name));
     let i = Math.max(-1, ...floors.map(x => FLOOR_NAMES.indexOf(x.name))) + 1, name = FLOOR_NAMES[i] ?? `Floor ${i}`;
@@ -44,8 +44,12 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
       const fl = (s.project.floors ??= []); fl.push({ id, name, n: 1 });
       /* the first floor takes the rooms already entered */
       if (first) s.rooms.forEach(x => { if (!x.level) x.level = id; });
+      if (assignRoomId) {
+        const room = s.rooms.find(x => x.id === assignRoomId);
+        if (room) room.level = id;
+      }
     });
-    setView({ k: 'floor', id });
+    setView(assignRoomId ? { k: 'room' } : { k: 'floor', id });
     toast(first && state.rooms.length ? `Added ${name} with the existing rooms` : `Added ${name}`);
   };
   /* drag a space onto a floor to move it there, or onto a space to place it just before that one ('' = not on a floor) */
@@ -83,7 +87,7 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
   const loose = state.rooms.filter(x => !x.level || !floors.some(f => f.id === x.level));
 
   return <section>
-    <SecHead n={5} title="Spaces" sub="Each load item has a source list. Changing a value by hand switches it to Custom." />
+    <SecHead n={4} title="Spaces" sub="Each load item has a source list. Changing a value by hand switches it to Custom." />
     <div className={'workspace' + (shown === 'total' ? ' is-total' : '')}>
       <nav className="rlist" aria-label="Rooms">
         {floors.map(f => {
@@ -106,14 +110,14 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
           <span className="ty">{fmt(d.T.u / 1000, 2)} kW · {d.T.q} space{d.T.q === 1 ? '' : 's'} · {fmt(d.T.a, 0)} m²</span>
         </button>}
         {!floors.length && <button type="button" className="add" onClick={() => add()}>+ Add room</button>}
-        <button type="button" className="add" onClick={addFloor}>+ Add floor</button>
+        <button type="button" className="add" onClick={() => addFloor()}>+ Add floor</button>
       </nav>
-      {shown === 'total' ? <><div className="editor"><LoadPicture d={d} onOpen={open} /><PlantRooms d={d} onOpen={open} /></div>
+      {shown === 'total' ? <><div className="editor"><LoadPicture d={d} onOpen={open} /></div>
         <aside className="result" aria-live="polite"><PlantResult d={d} /></aside></>
         : shown === 'floor' && floor ? <><div className="editor"><FloorEditor key={floor.id} store={store} d={d} id={floor.id} onOpen={open} onGone={() => setView({ k: 'room' })} /></div>
           <aside className="result" aria-live="polite"><FloorResult d={d} id={floor.id} /></aside></> : <>
       <div className="editor">
-        {r ? <RoomEditor key={r.id} r={r} d={d} edit={edit}
+        {r ? <RoomEditor key={r.id} r={r} d={d} edit={edit} onAddFloor={() => addFloor(r.id)}
           onDup={() => update(s => { const i = s.rooms.findIndex(y => y.id === s.sel); const c = JSON.parse(JSON.stringify(s.rooms[i])); c.id = newId(); c.name = s.rooms[i].name + ' (copy)'; s.rooms.splice(i + 1, 0, c); s.sel = c.id; })}
           onDel={() => { update(s => { const i = s.rooms.findIndex(y => y.id === s.sel); s.rooms.splice(i, 1); s.sel = (s.rooms[Math.max(0, i - 1)] || {}).id; }); toast('Room deleted'); }} />
           : <div className="empty">No rooms yet.<br /><br /><button className="btn primary" type="button" onClick={() => add(floors[0]?.id)}>Add the first room</button></div>}
@@ -249,7 +253,7 @@ function PlantResult({ d }: { d: Computed }) {
       <div>
         <div className="oa-box" style={{ marginTop: 0 }}>
           <div className="oa-h"><span>Fresh air cooling load</span><span className={'pill ' + (p.fahu ? 'ok' : 'warn')}>{p.fahu ? 'Treated in FAHU' : 'Handled by room units'}</span></div>
-          <div className="oa-v"><b>{fmt(fa / 3517, 2)}</b> TR · {fmt(fa / 1000, 2)} kW{p.fahu && T.rec ? ' net of energy recovery' : ''}</div>
+          <div className="big"><span className="big-num">{fmt(fa / 3517, 2)}</span><span className="big-unit">TR · {fmt(fa / 1000, 2)} kW{p.fahu && T.rec ? ' net of energy recovery' : ''}</span></div>
           <dl className="kv">
             <dt>Fresh air</dt><dd>{fmt(T.oaq, 0)} L/s · {fmt(T.oaq * 2.119, 0)} CFM</dd>
             <dt>Sensible</dt><dd>{fmt(T.oaS / 1000, 2)} kW</dd>
@@ -260,7 +264,6 @@ function PlantResult({ d }: { d: Computed }) {
           </dl>
         </div>
         {!p.fahu && <div className="sub" style={{ marginTop: 8 }}>Room unit selection: {fmt(T.u / 3517, 2)} TR ({fmt(T.u / 1000, 2)} kW) room plus fresh air, all spaces</div>}
-        {b.prof && <HourlyChart c={b.prof} title="Building room load" />}
       </div>
       <div className="bars" style={{ marginTop: 0 }}>
         {b.items.map(([l, v, lat]) => <div key={l} className={'bar-row' + (lat ? ' lat' : '')}><span>{l}</span><span className="track"><span className={'fill' + (lat ? ' lat' : '')} style={{ width: Math.max(0, v / max * 100).toFixed(1) + '%' }} /></span><span className="v">{fmt(v / 1000, 2)} kW</span></div>)}
@@ -271,20 +274,19 @@ function PlantResult({ d }: { d: Computed }) {
   </div>;
 }
 
-function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: (fn: RoomFn, group?: string) => void; onDup: () => void; onDel: () => void }) {
+function RoomEditor({ r, d, edit, onAddFloor, onDup, onDel }: { r: Room; d: Computed; edit: (fn: RoomFn, group?: string) => void; onAddFloor: () => void; onDup: () => void; onDel: () => void }) {
   const t = typeOf(r.type), ez = ezOf(d.p), ch = roomChecks(r, d.res[r.id], ez);
   const marks: Partial<Record<RoomPick, Mark>> = { people: ch.people, oa: ch.oa, light: ch.light };
   const pick = (k: RoomPick) => <PickField id={'r-' + k} label={RMETA[k][0]} unit={RMETA[k][1]} step={RMETA[k][2]} opts={ROOMOPTS[k](r, t, ez)} showV={SHOWV[k]} src={r.src[k]} value={r[k]} mark={marks[k]}
     onSrc={v => edit(x => { x.src[k] = v; })} onValue={v => edit(x => { x[k] = v; x.src[k] = 'custom'; }, 'r.' + k)} />;
-  const set = (k: 'qty' | 'height' | 'area' | 'sky', g = true) => (v: Num) => edit(x => { x[k] = v; }, g ? 'r.' + k : undefined);
+  const set = (k: 'height' | 'area' | 'sky', g = true) => (v: Num) => edit(x => { x[k] = v; }, g ? 'r.' + k : undefined);
   return <>
     <h3>Edit room</h3>
     <div className="fgrid3">
       <label className="fld" htmlFor="r-name" style={{ gridColumn: 'span 2' }}><span className="fl">Room name</span><span className="in-u"><input id="r-name" type="text" value={r.name} onChange={e => { const v = e.target.value; edit(x => { x.name = v; }, 'r.name'); }} /></span></label>
-      <Field id="r-qty" label="Identical rooms" unit="qty" step={1} value={r.qty} onChange={set('qty')} />
       {(d.p.floors?.length ?? 0) > 0 && <label className="fld" htmlFor="r-level" style={{ gridColumn: 'span 3' }}><span className="fl">Floor</span><span className="in-u"><select id="r-level" value={r.level ?? ''}
-        onChange={e => { const v = e.target.value; edit(x => { if (v) x.level = v; else delete x.level; }); }}>
-        {d.p.floors!.map(f => <option key={f.id} value={f.id}>{f.name || 'Untitled floor'}{Math.round(num(f.n)) > 1 ? ` (×${Math.round(num(f.n))})` : ''}</option>)}<option value="">Not on a floor</option></select></span></label>}
+        onChange={e => { const v = e.target.value; if (v === '__add_floor__') onAddFloor(); else edit(x => { if (v) x.level = v; else delete x.level; }); }}>
+        {d.p.floors!.map(f => <option key={f.id} value={f.id}>{f.name || 'Untitled floor'}{Math.round(num(f.n)) > 1 ? ` (×${Math.round(num(f.n))})` : ''}</option>)}<option value="__add_floor__">+ Add floor…</option></select></span></label>}
       <label className="fld" htmlFor="r-type" style={{ gridColumn: 'span 2' }}><span className="fl">Room type</span><span className="in-u"><select id="r-type" value={r.type} onChange={e => { const v = e.target.value; edit(x => changeType(x as Room, v, ez)); }}>
         {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></span></label>
       <Field id="r-height" label="Ceiling height" unit="m" step={0.1} value={r.height} onChange={set('height')} />
@@ -552,26 +554,5 @@ function RoomResult({ r, d }: { r: Room; d: Computed }) {
       <div className="bar-row tot-row"><span><b>Room total</b></span><span className="muted" style={{ fontSize: 11 }}>{fmt(c.roomS / 1000, 2)} sensible + {fmt(c.roomL / 1000, 2)} latent</span><span className="v"><b>{fmt(rm / 1000, 2)} kW</b></span></div>
       <div className="legend"><span><i style={{ background: 'var(--bar)' }} />Sensible load</span><span><i style={{ background: 'var(--lat)' }} />Latent load</span></div>
     </div>
-    <HourlyChart c={c} />
   </>;
-}
-
-/* heat balance: room load in each hour of the peak month, and the peak of each month */
-function HourlyChart({ c, title = 'Room load' }: { c: RoomLoad; title?: string }) {
-  if (!c.profS || !c.profL || c.pkM == null) return null;
-  const tot = (m: number, i: number) => (c.profS![m * 24 + i] + c.profL![m * 24 + i]) / 1000;
-  const day = Array.from({ length: 24 }, (_, i) => tot(c.pkM!, i));
-  const mon = MONTHS.map((_, m) => Math.max(...Array.from({ length: 24 }, (_, i) => tot(m, i))));
-  const max = Math.max(...day, ...mon, 0.001), H = 56;
-  const bars = (v: number[], w: number, hi: number, label: (i: number) => string, every: number) => <svg viewBox={`0 0 ${v.length * w} ${H + 13}`} className="hb-svg" role="img"
-    aria-label={v.map((x, i) => `${label(i)} ${fmt(x, 2)} kW`).join(', ')}>
-    {v.map((x, i) => { const h = Math.max(0, x / max * H); return <rect key={i} x={i * w + 1} y={H - h} width={w - 2} height={h} rx={1} fill={i === hi ? 'var(--accent)' : 'var(--bar)'} />; })}
-    {v.map((_, i) => (i + 1) % every === 0 || every === 1 ? <text key={i} x={i * w + w / 2} y={H + 11} textAnchor="middle" fontSize={9} fill="var(--muted)">{label(i)}</text> : null)}
-  </svg>;
-  return <div className="hb-chart">
-    <div className="eyebrow">{title} by hour · {MONTHS[c.pkM]} 21 · peak {fmt(day[c.pkH! - 1], 2)} kW at {String(c.pkH).padStart(2, '0')}:00</div>
-    {bars(day, 10, c.pkH! - 1, i => String(i + 1), 6)}
-    <div className="eyebrow">Peak {title.toLowerCase()} by month</div>
-    {bars(mon, 20, c.pkM, i => MONTHS[i][0], 1)}
-  </div>;
 }

@@ -38,7 +38,8 @@ describe('app', () => {
   it('keeps the Pro tools locked until Pro is unlocked', async () => {
     PRO.unlocked = false;
     await act(async () => root.render(<ToastProvider><App key="locked" /></ToastProvider>));
-    expect($$('.workflow-step')).toHaveLength(5);
+    /* five core steps and the duct sizing add-on, which is open without Pro */
+    expect($$('.workflow-step')).toHaveLength(6);
     const pro = $$('.workflow-pro .workflow-soon');
     expect(pro).toHaveLength(15);
     expect(pro.slice(0, 4).map(e => e.querySelector('.workflow-status')!.textContent)).toEqual(['Locked · coming soon', 'Locked · coming soon', 'Coming soon', 'Coming soon']);
@@ -58,10 +59,12 @@ describe('app', () => {
   });
 
   it('navigates through the calculator steps and ticks a step once it has been filled in', async () => {
-    expect($$('.workflow-step')).toHaveLength(7);
+    expect($$('.workflow-step')).toHaveLength(8);
     expect($('.workflow-step[data-step="0"]').getAttribute('aria-current')).toBe('step');
     expect($$('.workflow-step.is-complete')).toHaveLength(0);
-    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['In progress', 'Not started', 'Not started', 'Not started', 'Not started', 'Not started', 'Not started']);
+    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['In progress', 'Not started', 'Not started', 'Not started', 'Not started', 'Not started', 'Available']);
+    /* the heat load summary is the final, results step: no progress status and no tick */
+    expect($('.workflow-step[data-step="4"] .workflow-status')).toBeNull();
     expect($('#p-name')).not.toBeNull();
     expect($('#p-toDB')).toBeNull();
     await act(async () => setValue($('#p-client'), 'Acme Holdings'));
@@ -101,7 +104,6 @@ describe('app', () => {
     await act(async () => setValue($('#p-toDB'), ''));
     expect($('.workflow-step[data-step="1"] .workflow-status').textContent).toBe('In progress');
     expect($('.workflow-step[data-step="1"]').classList.contains('is-complete')).toBe(false);
-    expect($('.workflow-step[data-step="4"] .workflow-status').textContent).toBe('Needs input');
     await act(async () => byText('button', 'Continue').click());
     expect($('.workflow-step[data-step="1"] .workflow-status').textContent).toBe('Needs input');
     expect($('#p-codeset')).not.toBeNull();
@@ -130,9 +132,11 @@ describe('app', () => {
 
   it('filters the ASHRAE assembly reference without changing project U-values', async () => {
     await act(async () => $('.workflow-step[data-step="2"]').click());
+    /* the ASHRAE 90.1 values are a tab of the external wall / roof U-value builder */
+    await act(async () => (Array.from($$('details.uvb')[0].querySelectorAll('.uvb-tabs button')).find(b => b.textContent === 'ASHRAE 90.1 by zone') as HTMLButtonElement).click());
     const projectUWall = $<HTMLInputElement>('#p-uWall').value;
-    await act(async () => setValue($('#assembly-zone'), '3'));
-    await act(async () => setValue($('#assembly-surface'), 'Above-grade wall'));
+    await act(async () => setValue($('#asm-wall-zone'), '3'));
+    await act(async () => setValue($('#asm-wall-surface'), 'Above-grade wall'));
 
     expect($$('.assembly-library tbody tr')).toHaveLength(4);
     expect(host.textContent).toContain('Above-grade wall · MassR-1.3 ci45 mm ci0.698 W/m²K');
@@ -140,22 +144,26 @@ describe('app', () => {
     expect($<HTMLInputElement>('#p-uWall').value).toBe(projectUWall);
     expect(host.textContent).toContain('converted from the I-P edition');
 
-    await act(async () => setValue($('#assembly-use'), 'residential'));
+    await act(async () => setValue($('#asm-wall-use'), 'residential'));
     expect(host.textContent).toContain('Above-grade wall · MassR-1.7 ci60 mm ci0.591 W/m²K');
     expect($<HTMLInputElement>('#p-uWall').value).toBe(projectUWall);
   });
 
   it('adds ASHRAE assemblies as a wall type and applies roof and floor values', async () => {
     await act(async () => $('.workflow-step[data-step="2"]').click());
-    expect($<HTMLSelectElement>('#assembly-zone').value).toBe('0');
+    const ashraeTab = async (i: number) => act(async () => (Array.from($$('details.uvb')[i].querySelectorAll('.uvb-tabs button')).find(b => b.textContent === 'ASHRAE 90.1 by zone') as HTMLButtonElement).click());
+    await ashraeTab(0);
+    expect($<HTMLSelectElement>('#asm-wall-zone').value).toBe('0');
     await act(async () => $('button[aria-label="Add as wall type: Above-grade wall Steel-framed"]').click());
     expect($<HTMLInputElement>('input[aria-label="external wall type 1 name"]').value).toBe('ASHRAE 90.1-2022 CZ0 steel-framed (nonresidential), 80 mm Extruded polystyrene');
     /* thickness follows the chosen insulation: R-2.3 with EPS (λ 0.038) needs 90 mm */
-    await act(async () => setValue($('#assembly-ins'), 'eps'));
+    await act(async () => setValue($('#asm-wall-ins'), 'eps'));
     expect(host.textContent).toContain('Above-grade wall · Steel-framedR-2.390 mm0.704 W/m²K');
     expect($<HTMLInputElement>('input[aria-label="external wall type 1 U-value"]').value).toBe('0.704');
     await act(async () => $('button[aria-label="Use as roof U: Roof Attic and other"]').click());
     expect($<HTMLInputElement>('#p-uRoof').value).toBe('0.153');
+    /* floors are in the partition builder's ASHRAE tab */
+    await ashraeTab(1);
     await act(async () => $('button[aria-label="Use as floor U: Floor Mass"]').click());
     expect($<HTMLInputElement>('#p-uFloor').value).toBe('1.828');
     /* glazing rows set both U and SHGC; an opaque door is added as a wall type */
@@ -188,13 +196,12 @@ describe('app', () => {
     await act(async () => $('.rtotal').click());
     expect($('.rtotal').getAttribute('aria-current')).toBe('true');
     expect($('.result').textContent).toContain('Total plant');
-    /* the total shows the same detail as a room: compliance, fresh air breakdown, components and the hourly profile */
-    ['Sensible heat ratio', 'Supply air (ΔT', 'People', 'Fresh air cooling load', 'Per 100 L/s', 'Glass, solar', 'Room total', 'Building room load by hour']
+    /* the total shows the same detail as a room, without a duplicate hourly chart */
+    ['Sensible heat ratio', 'Supply air (ΔT', 'People', 'Fresh air cooling load', 'Per 100 L/s', 'Glass, solar', 'Room total']
       .forEach(t => expect($('.result').textContent).toContain(t));
-    expect($$('.plant-rooms tbody tr')).toHaveLength($$('.ritem').length);
-    await act(async () => $('.plant-rooms .linkish').click());
-    expect($('#r-area')).not.toBeNull();
-    expect($('.rtotal').getAttribute('aria-current')).toBe('false');
+    expect($('.result').textContent).not.toContain('Building room load by hour');
+    expect($('.result .hb-chart')).toBeNull();
+    expect($('.plant-rooms')).toBeNull();
   });
 
   it('recalculates when a room changes, and undo restores it', async () => {
@@ -320,21 +327,49 @@ describe('app', () => {
 
   it('builds an assembly from UAE materials and saves it as a wall type', async () => {
     await act(async () => $('.workflow-step[data-step="2"]').click());
-    await act(async () => setValue($('#uvb-preset'), 'w-aac'));
-    expect($('.uvb-u').textContent).toContain('0.68 W/m²K');
-    await act(async () => byText('button', '+ Add layer').click());
-    await act(async () => setValue($('select[aria-label="Layer 4 material"]'), 'eps'));
-    await act(async () => setValue($('input[aria-label="Layer 4 thickness"]'), '25'));
-    const u = $('.uvb-u').textContent!.match(/\d+\.\d+/)![0];
-    await act(async () => byText('button', 'Save as external wall type').click());
+    /* one builder in the external wall section, one in the partition section */
+    const [wallB, partB] = $$('details.uvb');
+    expect(wallB.querySelector('summary')!.textContent).toBe('U-value builder · External wall / roof');
+    expect(partB.querySelector('summary')!.textContent).toBe('U-value builder · Partition wall');
+    const inWall = <T extends Element>(s: string) => wallB.querySelector(s) as unknown as T;
+    await act(async () => setValue(inWall<HTMLSelectElement>('select[aria-label="Typical assembly"]'), 'w-aac'));
+    expect(inWall('.uvb-u').textContent).toContain('0.68 W/m²K');
+    await act(async () => (Array.from(wallB.querySelectorAll('button')).find(b => b.textContent === '+ Add layer') as HTMLButtonElement).click());
+    await act(async () => setValue(inWall<HTMLSelectElement>('select[aria-label="Layer 4 material"]'), 'eps'));
+    await act(async () => setValue(inWall<HTMLInputElement>('input[aria-label="Layer 4 thickness"]'), '25'));
+    const u = inWall('.uvb-u').textContent!.match(/\d+\.\d+/)![0];
+    await act(async () => (Array.from(wallB.querySelectorAll('button')).find(b => b.textContent === 'Save as external wall type') as HTMLButtonElement).click());
     expect($<HTMLInputElement>('input[aria-label="external wall type 1 name"]').value).toBe('200 mm AAC block, plastered both sides');
     expect($<HTMLInputElement>('input[aria-label="external wall type 1 U-value"]').value).toBe(u);
+  });
+
+  it('builds a partition from ASHRAE materials and rebuilds a saved type from its layers', async () => {
+    await act(async () => $('.workflow-step[data-step="2"]').click());
+    const partB = $$('details.uvb')[1];
+    const inPart = <T extends Element>(s: string) => partB.querySelector(s) as unknown as T;
+    /* the ASHRAE library filter lists only ASHRAE materials (plus the layer's current one) */
+    await act(async () => (Array.from(partB.querySelectorAll('.uvb-libs button')).find(b => b.textContent === 'ASHRAE') as HTMLButtonElement).click());
+    const groups = Array.from(inPart<HTMLSelectElement>('select[aria-label="Layer 2 material"]').querySelectorAll('optgroup')).map(g => g.label);
+    expect(groups.some(g => g.startsWith('ASHRAE · '))).toBe(true);
+    await act(async () => setValue(inPart<HTMLSelectElement>('select[aria-label="Layer 2 material"]'), 'a-cmu200'));
+    expect(partB.textContent).toContain('ASHRAE');
+    await act(async () => (Array.from(partB.querySelectorAll('button')).find(b => b.textContent === 'Save as partition wall type') as HTMLButtonElement).click());
+    const pu = $<HTMLInputElement>('input[aria-label="partition type 1 U-value"]').value;
+    expect(+pu).toBeGreaterThan(0);
+    /* Layers opens the saved type's layers inline; a thicker layer lowers its U-value */
+    await act(async () => byText('.type-act button', 'Layers').click());
+    const inline = $('.uvb-inline');
+    expect((inline.querySelector('select[aria-label="Layer 2 material"]') as HTMLSelectElement).value).toBe('a-cmu200');
+    await act(async () => setValue(inline.querySelector('select[aria-label="Layer 2 material"]') as HTMLSelectElement, 'a-cmu200-lp'));
+    await act(async () => (Array.from(inline.querySelectorAll('button')).find(b => b.textContent === 'Update this partition wall type') as HTMLButtonElement).click());
+    expect($('.uvb-inline')).toBeNull();
+    expect(+$<HTMLInputElement>('input[aria-label="partition type 1 U-value"]').value).toBeLessThan(+pu);
   });
 
   it('uses the heat balance method throughout the calculator', async () => {
     await act(async () => $('.workflow-step[data-step="3"]').click());
     expect(host.textContent).toMatch(/Peak on [A-Z][a-z]{2} 21 at \d\d:00/);
-    expect($('.hb-chart svg')).not.toBeNull();
+    expect($('.hb-chart')).toBeNull();
     await act(async () => setValue($('#r-sched'), 'day'));
     expect($<HTMLSelectElement>('#r-sched').value).toBe('day');
     await act(async () => $('.workflow-step[data-step="4"]').click());
@@ -347,10 +382,11 @@ describe('app', () => {
     expect(host.textContent).toContain('Heat balance method');
     await act(async () => $('.workflow-step[data-step="3"]').click());
     expect($('#r-sched')).not.toBeNull();
-    expect($('.hb-chart svg')).not.toBeNull();
+    expect($('.hb-chart')).toBeNull();
     await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(plantTR()).toBe(hb);
-    expect(['3', '4'].map(i => $('.workflow-step[data-step="' + i + '"] .workflow-status').textContent)).toEqual(['Complete', 'In progress']);
+    expect($('.workflow-step[data-step="3"] .workflow-status').textContent).toBe('Complete');
+    expect($('.workflow-step[data-step="4"]').classList.contains('is-complete')).toBe(false);
   });
 
   it('shows hourly loads by component for the building, a room and any month', async () => {
@@ -429,11 +465,30 @@ describe('app', () => {
     expect($('.rpt').textContent).not.toMatch(/Compliance checks|design basis checks|Check/);
   });
 
-  it('saves and reopens a project in the browser', async () => {
+  it('saves several projects in the browser with the date and time of saving', async () => {
+    const saved = () => JSON.parse(localStorage.getItem('novac-heatload-projects')!) as { name: string }[];
+    const menu = async () => { if (!$('#projects-menu')) await act(async () => byText('button', 'Projects ▾').click()); };
     await act(async () => setValue($('#p-name'), 'Villa A'));
-    await act(async () => byText('button', 'Projects ▾').click());
-    await act(async () => byText('button', 'Save in browser').click());
-    expect(JSON.parse(localStorage.getItem('novac-heatload-projects')!)[0].name).toBe('Villa A');
+    await menu(); await act(async () => byText('button', 'Save in browser').click());
+    expect(saved().map(p => p.name)).toEqual(['Villa A']);
+    /* saving again updates the same entry */
+    await act(async () => setValue($('#p-name'), 'Villa A rev 1'));
+    await menu(); await act(async () => byText('button', 'Save in browser (update)').click());
+    expect(saved().map(p => p.name)).toEqual(['Villa A rev 1']);
+    /* a copy adds a second entry */
+    await menu(); await act(async () => byText('button', 'Save as new copy in browser').click());
+    expect(saved()).toHaveLength(2);
+    /* a new project does not overwrite the previous one */
+    await act(async () => byText('button', 'New project').click());
+    await act(async () => byText('button', 'Click again to clear all').click());
+    await act(async () => setValue($('#p-name'), 'Office B'));
+    await menu(); await act(async () => byText('button', 'Save in browser').click());
+    expect(saved().map(p => p.name)).toEqual(['Office B', 'Villa A rev 1', 'Villa A rev 1']);
+    await menu();
+    const rows = $$('#projects-menu .saved-list .row');
+    expect(rows).toHaveLength(3);
+    expect(rows[0].querySelector('.dt')!.textContent).toMatch(/^Saved \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} · 1 room · open now$/);
+    expect(byText('#projects-menu h4', 'Saved in this browser (3)')).toBeTruthy();
   });
 
   it('saves back to the same file, and Save as picks a new one', async () => {
@@ -539,16 +594,29 @@ describe('floors in spaces', () => {
     await act(async () => setValue($('#f-n'), '3'));
     expect($$('.rfloor-h .nm')[0].textContent).toBe('First floor ×3');
     expect(total()).toBeCloseTo(base * 3 + (withRoom - base), 1);
-    /* move a room off the floor from its editor */
+    /* the room editor only offers existing floors */
     await act(async () => ($$('.rfloor')[1].querySelector('.ritem') as HTMLElement).click());
-    await act(async () => setValue($('#r-level'), ''));
-    expect(byText('.rfloor-h .nm', 'Not on a floor')).toBeTruthy();
-    /* delete the second floor (now empty), then the first with its rooms */
+    expect([...$<HTMLSelectElement>('#r-level').options].map(option => option.textContent)).toEqual(['First floor (×3)', 'Second floor', '+ Add floor…']);
+    expect($<HTMLSelectElement>('#r-level').selectedOptions[0].textContent).toBe('Second floor');
+    /* delete the second floor and its room, then the first with its rooms */
     await act(async () => $$('.rfloor-h')[1].click());
     const del = () => byText('.floor-btns .btn.danger', 'Delete floor') ?? byText('.floor-btns .btn.danger', 'Click again to delete');
     await act(async () => del().click()); await act(async () => $('.floor-btns .btn.danger').click());
-    expect($$('.rfloor-h .nm').map(e => e.textContent)).toEqual(['First floor ×3', 'Not on a floor']);
+    expect($$('.rfloor-h .nm').map(e => e.textContent)).toEqual(['First floor ×3']);
     expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+
+  it('adds and assigns a floor from the room floor menu', async () => {
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $$('.ritem')[0].click());
+    expect($('#r-qty')).toBeNull();
+    expect(host.textContent).not.toContain('Identical rooms');
+    const floorSelect = $<HTMLSelectElement>('#r-level');
+    expect([...floorSelect.options].map(option => option.textContent)).toEqual(['First floor', '+ Add floor…']);
+    await act(async () => setValue(floorSelect, '__add_floor__'));
+    expect($$('.rfloor-h .nm').map(e => e.textContent)).toEqual(['First floor', 'Second floor']);
+    expect($<HTMLSelectElement>('#r-level').selectedOptions[0].textContent).toBe('Second floor');
+    expect($$('.rfloor')[1].querySelector('.ritem .nm')?.textContent).toBe('Open plan office');
   });
 });
 
@@ -667,5 +735,82 @@ describe('project file links', () => {
     expect($<HTMLInputElement>('#p-name').value).toBe('Shared project');
     expect(location.hash).toBe('');
     expect(listSaved().map(p => p.name)).toContain('Villa Kite Beach');
+  });
+});
+
+describe('duct sizing add-on', () => {
+  it('builds a duct system from the rooms and sizes it', async () => {
+    const step = () => $$('.workflow-step').find(e => e.textContent?.includes('Duct sizing'))!;
+    expect(step()).toBeTruthy();
+    await act(async () => step().click());
+    expect(host.textContent).toContain('Add-on · Duct sizing');
+    await act(async () => byText('button', 'Create from the rooms').click());
+    const rooms = $$('.ritem').length || 5;
+    const rows = $$('.duct-res:not(.duct-comp) tbody tr');
+    expect(rows.length).toBe(rooms + 1);
+    expect(rows.every(r => /\d+ × \d+|Ø\d+/.test(r.textContent || ''))).toBe(true);
+    expect(num($('.duct-kpis .tot.key .v').textContent)).toBeGreaterThan(0);
+    expect($$('.duct-res tr.crit').length).toBe(2);
+    /* round ducts */
+    await act(async () => setValue($<HTMLSelectElement>('.duct-settings select'), 'round'));
+    expect($$('.duct-res:not(.duct-comp) tbody tr').every(r => /Ø\d+/.test(r.textContent || ''))).toBe(true);
+    /* a fitting adds pressure to its section */
+    const before = num($('.duct-kpis .tot.key .v').textContent);
+    const add = $$('.duct-fits select').at(-1) as unknown as HTMLSelectElement;
+    await act(async () => setValue(add, 'elbow-mitre'));
+    expect(num($('.duct-kpis .tot.key .v').textContent)).toBeGreaterThanOrEqual(before);
+  });
+});
+
+describe('duct sizing ASHRAE compliance', () => {
+  it('shows each space against its ASHRAE criterion and duct velocity limit', async () => {
+    await act(async () => $$('.workflow-step').find(e => e.textContent?.includes('Duct sizing'))!.click());
+    await act(async () => byText('button', 'Create from the rooms').click());
+    const rows = $$('.duct-comp tbody tr');
+    expect(rows.length).toBe($$('.duct-res:not(.duct-comp) tbody tr').length - 1);
+    expect(host.textContent).toContain('Open-plan offices');
+    expect(host.textContent).toContain('HVAC Applications (2023), Ch. 49');
+    /* sized to ASHRAE limits, so every space complies */
+    expect(rows.every(r => r.textContent?.includes('Complies'))).toBe(true);
+    /* custom limits far above ASHRAE: sizes shrink and spaces exceed */
+    const limits = $$('.duct-settings label').find(l => l.textContent?.startsWith('Velocity limits'))!.querySelector('select')!;
+    await act(async () => setValue(limits, 'custom'));
+    for (const name of ['Main', 'Branch', 'Run-out']) {
+      const input = $$('.duct-settings label').find(l => l.textContent?.startsWith(name + ' velocity limit'))!.querySelector('input')!;
+      await act(async () => setValue(input, '15'));
+    }
+    expect($$('.duct-comp tbody tr').some(r => r.textContent?.includes('Exceeds ASHRAE limit'))).toBe(true);
+  });
+});
+
+describe('duct sizing with or without a heat load', () => {
+  it('sizes ducts independently, with hand-entered spaces and no project name', async () => {
+    await act(async () => setValue($('#p-name'), ''));
+    await act(async () => $$('.workflow-step').find(e => e.textContent?.includes('Duct sizing'))!.click());
+    expect(host.textContent).toContain('Add-on · Duct sizing');
+    await act(async () => byText('button', 'Start independent sizing').click());
+    expect($$('.duct-res:not(.duct-comp) tbody tr')).toHaveLength(4);
+    /* each hand-entered space has its airflow and room type, and is checked against ASHRAE */
+    expect($$('.duct-comp tbody tr')).toHaveLength(3);
+    expect(host.textContent).toContain('(entered by hand)');
+    expect(host.textContent).toContain('Executive and private offices');
+    const flow = $('input[aria-label="Airflow, L/s"]') as HTMLInputElement;
+    await act(async () => setValue(flow, '400'));
+    expect(num($$('.duct-res:not(.duct-comp) tbody tr')[0].querySelectorAll('td')[1].textContent)).toBe(700);
+  });
+
+  it('loads a heat load project saved in the browser, and its rooms feed the ducts', async () => {
+    const saved = { ...JSON.parse(JSON.stringify(exampleState())), example: false };
+    saved.project.name = 'Tower A heat load';
+    localStorage.setItem('novac-heatload-projects', JSON.stringify([{ id: 'p1', name: 'Tower A heat load', savedAt: new Date().toISOString(), data: saved }]));
+    await act(async () => $$('.workflow-step').find(e => e.textContent?.includes('Duct sizing'))!.click());
+    await act(async () => byText('button', 'Load from this browser').click());
+    expect(host.textContent).toContain('Tower A heat load');
+    await act(async () => byText('.duct-saved button', 'Load').click());
+    expect($('.duct-source b').textContent).toBe('Tower A heat load');
+    await act(async () => byText('button', 'Create from the rooms').click());
+    expect($$('.duct-comp tbody tr').length).toBe(saved.rooms.length);
+    /* the work open before was kept in the browser */
+    expect(listSaved().length).toBe(2);
   });
 });

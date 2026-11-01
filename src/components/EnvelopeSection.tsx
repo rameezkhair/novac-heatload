@@ -1,13 +1,13 @@
 import { CODESETS, LIB, PMETA, SAFAT, type Limits, type PickKey } from '../engine/data';
 import type { Computed } from '../engine/calc';
-import { MONTHS, STATION_SRC, stationOf } from '../engine/climate';
+import { MONTHS, stationOf } from '../engine/climate';
 import { applyCodeset, ezOf, newTypeId, resolveProject, resolveRoom } from '../engine/project';
 import type { Mark, Num, Project } from '../engine/types';
 import { fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { Badge, Field, NumInput, PickField, SecHead, useToast } from './ui';
-import { AssemblyReferenceLibrary } from './AssemblyReferenceLibrary';
 import { UValueBuilder } from './UValueBuilder';
+import { useState } from 'react';
 
 export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; d: Computed; marks: Record<string, Mark>; limits: Limits }) {
   const { update } = store, p = d.p, T = d.T, toast = useToast();
@@ -35,7 +35,7 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
   const band = T.wwr <= 40 ? '≤40%' : T.wwr < 60 ? '40–60%' : '≥60%';
 
   return <section>
-    <SecHead n={4} title="Building envelope" sub="Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance." />
+    <SecHead n={3} title="Building envelope" sub="Pick a code value or choose Custom. Badges show whether each value meets the standard selected for compliance." />
     <div className="codebar">
       <label className="fld" htmlFor="p-codeset"><span className="fl">Envelope code · fills all values and sets the compliance basis</span>
         <span className="in-u"><select id="p-codeset" value={p.codeset} onChange={e => { const v = e.target.value; let lbl = ''; update(s => { lbl = applyCodeset(s.project as Project, v)?.[1] || ''; }); toast('Applied: ' + lbl); }}>
@@ -54,17 +54,15 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
           {hbm('aWall', 'Wall outside solar absorptance', 0.05)}{hbm('aRoof', 'Roof outside solar absorptance', 0.05)}{hbm('gRefl', 'Ground reflectance', 0.05)}
           {hbm('frP', 'People, radiant fraction', 0.05)}{hbm('frL', 'Lighting, radiant fraction', 0.05)}{hbm('frE', 'Equipment, radiant fraction', 0.05)}
       </div>
-      <p className="hint">Each room is solved hour by hour on the 21st of every month (ASHRAE Fundamentals Ch. 18 heat balance): sun on each wall, roof and window, conduction through
-        the layers with their thermal mass, long-wave exchange with the sky, radiant and convective internal gains, and the room air balance. The peak is the highest hour of the year.
-        Weather: {STATION_SRC}, {stationOf(p.location).name} (WMO {stationOf(p.location).wmo}); {MONTHS[stationOf(p.location).db.indexOf(Math.max(...stationOf(p.location).db))]} uses the project design dry bulb
-        ({fmt(d.e.To, 1)} °C) and daily range ({fmt(num(p.dr), 1)} K), other months follow the ASHRAE monthly 0.4% values. Absorptance: about 0.45 light, 0.7 medium, 0.9 dark (ASHRAE Ch. 18).
-        The selectors provide ASHRAE starting values; choose Custom when project data is available. *Lighting radiant fraction varies with luminaire and return-air arrangement; verify it against the fixture and ASHRAE Fundamentals Ch. 18 Table 3. Occupant and equipment recommendations follow Table 14.</p>
+      <p className="hint">Each room is calculated hour by hour on the 21st of every month (ASHRAE Fundamentals Ch. 18): sun and outdoor air heat each wall, roof and window, the heat passes in through the layers, and the room air takes it up with the internal gains. The highest hour is the peak.
+        Weather: {stationOf(p.location).name} (ASHRAE), design day in {MONTHS[stationOf(p.location).db.indexOf(Math.max(...stationOf(p.location).db))]} at {fmt(d.e.To, 1)} °C, {fmt(num(p.dr), 1)} K range. *Check the lighting radiant fraction against the luminaire.</p>
     </fieldset>
     {/* external and partition U-values side by side, glazing across the full width below */}
     <div className="env-pair">
       <fieldset><legend>External walls &amp; roof · U-values</legend>
         <div className="fgrid">{pick('uWall')}{pick('uRoof')}</div>
         <TypeList store={store} kind="wallTypes" noun="external wall type" def={p.uWall} limit={L.uWall ?? undefined} limitName={L.name} />
+        <UValueBuilder store={store} kinds={['wall', 'roof']} />
       </fieldset>
       <fieldset><legend>Partitions &amp; adjacent spaces · U-values</legend>
         <div className="fgrid">
@@ -72,6 +70,7 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
           {f('tAdj', 'Unconditioned space', '°C', 0.5)}
         </div>
         <TypeList store={store} kind="partTypes" noun="partition type" def={p.uPart} />
+        <UValueBuilder store={store} kinds={['partition']} />
         <p className="hint">Partition and exposed floor / ceiling U-values are project-specific. Typical starting values are filled in.</p>
       </fieldset>
     </div>
@@ -82,9 +81,6 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
         </> : 'Enter wall and glass areas in the rooms to see the glazing ratio.'}</p>
         {p.cbasis === 'estidama' && <p className="hint">Estidama publishes no skylight SHGC; the ASHRAE 90.1 value is used.</p>}
     </fieldset>
-    {/* builds the U-values used by the external wall, partition and roof inputs above */}
-    <UValueBuilder store={store} />
-    <AssemblyReferenceLibrary store={store} />
     <div className="groups">
       <fieldset><legend>System &amp; margins</legend><div className="fgrid">
         {f('tSupply', 'Supply air temp', '°C', 0.5)}{f('diversity', 'Plant diversity', '%', 1)}{f('sfS', 'Margin, sensible', '%', 1)}{f('sfL', 'Margin, latent', '%', 1)}
@@ -107,6 +103,9 @@ function TypeList({ store, kind, noun, def, limit, limitName }: {
   store: Store; kind: 'wallTypes' | 'partTypes'; noun: string; def: Num; limit?: number; limitName?: string;
 }) {
   const types = store.state.project[kind], { update } = store;
+  /* the type being rebuilt from its layers, if any */
+  const [layersOf, setLayersOf] = useState<string | null>(null);
+  const asm = kind === 'wallTypes' ? 'wall' : 'partition';
   const mark = (u: Num): Mark => limit == null || u === '' ? null : num(u) <= limit
     ? ['ok', `Within the ${limitName} limit of ${limit} W/m²K`, 'Complies'] : ['bad', `Above the ${limitName} limit of ${limit} W/m²K`, 'Fails'];
   const remove = (id: string) => update(s => {
@@ -119,13 +118,16 @@ function TypeList({ store, kind, noun, def, limit, limitName }: {
   });
   return <div className="types">
     {types.length > 0 && <div className="tbl-wrap"><table className="exp ptbl">
-      <colgroup><col /><col style={{ width: '34%' }} /><col style={{ width: 40 }} /></colgroup>
+      <colgroup><col /><col style={{ width: '34%' }} /><col style={{ width: 118 }} /></colgroup>
       <thead><tr><th>{noun[0].toUpperCase() + noun.slice(1)}</th><th>U-value (W/m²K)</th><th></th></tr></thead>
       <tbody>{types.map((t, i) => <tr key={t.id}>
         <td><input type="text" aria-label={`${noun} ${i + 1} name`} placeholder="e.g. 200 mm block" value={t.name} onChange={e => { const v = e.target.value; update(s => { s.project[kind][i].name = v; }, kind + '.n.' + t.id); }} /></td>
         <td><span className="ucell"><NumInput label={`${noun} ${i + 1} U-value`} min={0} step={0.01} value={t.u} onChange={v => update(s => { s.project[kind][i].u = v; }, kind + '.u.' + t.id)} /><Badge m={mark(t.u)} /></span></td>
-        <td className="n"><button className="btn sm" type="button" aria-label={`Delete ${noun} ${i + 1}`} title="Delete" onClick={() => remove(t.id)}>×</button></td>
+        <td className="n"><span className="type-act">
+          <button className="btn sm" type="button" aria-pressed={layersOf === t.id} title="Build or edit this type's U-value from material layers" onClick={() => setLayersOf(layersOf === t.id ? null : t.id)}>{t.layers?.length ? 'Layers' : 'Build'}</button>
+          <button className="btn sm" type="button" aria-label={`Delete ${noun} ${i + 1}`} title="Delete" onClick={() => { if (layersOf === t.id) setLayersOf(null); remove(t.id); }}>×</button></span></td>
       </tr>)}</tbody></table></div>}
+    {layersOf && types.some(t => t.id === layersOf) && <UValueBuilder key={layersOf} store={store} kinds={[asm]} target={{ kind: asm, id: layersOf }} onDone={() => setLayersOf(null)} />}
     <button className="btn sm" type="button" onClick={() => update(s => { s.project[kind].push({ id: newTypeId(), name: '', u: def }); })}>+ Add {noun}</button>
     <p className="hint">{types.length ? 'Pick the type for each wall in the Spaces step. Anything left on Default uses the value above.' : `Add a ${noun} when the building has more than one construction.`}</p>
   </div>;

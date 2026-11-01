@@ -21,7 +21,9 @@ const ACTION: Partial<Record<AssemblySurface, string>> = {
 };
 const ZONES = ['0', '1', '2', '3', '4', '5', '6', '7', '8'];
 
-export function AssemblyReferenceLibrary({ store }: { store: Store }) {
+/* ASHRAE 90.1 prescriptive envelope values by climate zone, shown inside a U-value builder: surfaces are the elements
+   that builder covers, and idp keeps the control ids unique when two builders are on the page */
+export function AssemblyReferenceLibrary({ store, surfaces, idp }: { store: Store; surfaces: AssemblySurface[]; idp: string }) {
   const toast = useToast();
   /* the UAE is climate zone 0B (ASHRAE 169 Table A-6) */
   const [zone, setZone] = useState('0');
@@ -30,7 +32,7 @@ export function AssemblyReferenceLibrary({ store }: { store: Store }) {
   const [ins, setIns] = useState('xps');
   const insMat = matOf(ins)!;
   const references = ASSEMBLY_REFERENCES.filter(reference =>
-    reference[0] === Number(zone) && (surface === 'All' || reference[1] === surface),
+    reference[0] === Number(zone) && surfaces.includes(reference[1]) && (surface === 'All' || reference[1] === surface),
   );
   const useLabel = USE_OPTIONS.find(o => o.value === use)!.label.toLowerCase();
 
@@ -52,32 +54,31 @@ export function AssemblyReferenceLibrary({ store }: { store: Store }) {
       : `${surf} U-value set to ${u} W/m²K`);
   };
 
-  return <details className="assembly-library">
-    <summary>ASHRAE 90.1-2022 envelope requirements · zones 0 to 8, all elements</summary>
-    <div className="body">
+  return <div className="assembly-library">
+    <div>
       <p className="hint" style={{ marginTop: 0 }}>
-        ASHRAE 90.1-2022 prescriptive envelope tables (5.5-0 to 5.5-8) for every climate zone: roofs, walls, floors, slabs, opaque doors, glazing and skylights.
-        Sharjah, Ajman, Umm Al Quwain, Fujairah and MOEI projects use climate zone 0. Apply a value to the project, or add a wall or door as an external wall type.
+        ASHRAE 90.1-2022 prescriptive envelope tables (5.5-0 to 5.5-8) for every climate zone.
+        Sharjah, Ajman, Umm Al Quwain, Fujairah and MOEI projects use climate zone 0. Use the button on a row to apply its value to the project.
       </p>
       <div className="fgrid4 uvb-top">
-        <label className="fld" htmlFor="assembly-zone"><span className="fl">Climate zone</span>
-          <span className="in-u"><select id="assembly-zone" value={zone} onChange={event => setZone(event.target.value)}>
+        <label className="fld" htmlFor={idp + '-zone'}><span className="fl">Climate zone</span>
+          <span className="in-u"><select id={idp + '-zone'} value={zone} onChange={event => setZone(event.target.value)}>
             {ZONES.map(z => <option key={z} value={z}>Zone {z}{z === '0' ? ' (UAE, 0B)' : ''}</option>)}
           </select></span>
         </label>
-        <label className="fld" htmlFor="assembly-use"><span className="fl">Building use</span>
-          <span className="in-u"><select id="assembly-use" value={use} onChange={event => setUse(event.target.value as BuildingUse)}>
+        <label className="fld" htmlFor={idp + '-use'}><span className="fl">Building use</span>
+          <span className="in-u"><select id={idp + '-use'} value={use} onChange={event => setUse(event.target.value as BuildingUse)}>
             {USE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select></span>
         </label>
-        <label className="fld" htmlFor="assembly-surface"><span className="fl">Element</span>
-          <span className="in-u"><select id="assembly-surface" value={surface} onChange={event => setSurface(event.target.value as AssemblySurface | 'All')}>
+        <label className="fld" htmlFor={idp + '-surface'}><span className="fl">Element</span>
+          <span className="in-u"><select id={idp + '-surface'} value={surface} onChange={event => setSurface(event.target.value as AssemblySurface | 'All')}>
             <option value="All">All elements</option>
-            {SURFACE_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+            {SURFACE_LIST.filter(s => surfaces.includes(s)).map(s => <option key={s} value={s}>{s}</option>)}
           </select></span>
         </label>
-        <label className="fld" htmlFor="assembly-ins"><span className="fl">Insulation for thickness</span>
-          <span className="in-u"><select id="assembly-ins" value={ins} onChange={event => setIns(event.target.value)}>
+        <label className="fld" htmlFor={idp + '-ins'}><span className="fl">Insulation for thickness</span>
+          <span className="in-u"><select id={idp + '-ins'} value={ins} onChange={event => setIns(event.target.value)}>
             {INSULATIONS.map(id => { const m = matOf(id)!; return <option key={id} value={id}>{m.name}, λ {m.k}</option>; })}
           </select></span>
         </label>
@@ -108,5 +109,5 @@ export function AssemblyReferenceLibrary({ store }: { store: Store }) {
         solar reflectance ≥ 0.55 with emittance ≥ 0.75, or SRI ≥ 64 (§5.5.3.1.4). Insulation thickness = R × λ of the chosen insulation, rounded up to 5 mm;
         use the certified λ of the actual product. UAE stations in ASHRAE 169 Table A-6, all zone 0B: {UAE_STATIONS.map(s => s[0]).join(', ')}.</p>
     </div>
-  </details>;
+  </div>;
 }

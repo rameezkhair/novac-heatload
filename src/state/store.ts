@@ -80,11 +80,14 @@ export function listSaved(): SavedProject[] {
   try { const raw = localStorage.getItem(LIBRARY); const l = raw ? JSON.parse(raw) : []; return Array.isArray(l) ? l : []; } catch { return []; }
 }
 function writeSaved(l: SavedProject[]) { localStorage.setItem(LIBRARY, JSON.stringify(l)); }
+/* saves a new entry, or updates the entry with this id; the latest save is listed first.
+   Throws when the browser's storage is full. */
 export function saveToLibrary(s: AppState, id?: string): SavedProject {
-  const l = listSaved(), name = s.project.name || 'Untitled project';
-  const item: SavedProject = { id: id || 'p' + Date.now().toString(36), name, savedAt: new Date().toISOString(), data: s };
-  const i = l.findIndex(x => x.id === item.id);
-  if (i >= 0) l[i] = item; else l.unshift(item);
-  writeSaved(l); return item;
+  const name = s.project.name || 'Untitled project';
+  const item: SavedProject = { id: id || 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, savedAt: new Date().toISOString(), data: s };
+  writeSaved([item, ...listSaved().filter(x => x.id !== item.id)]);
+  return item;
 }
+/* saving time, e.g. "1 Nov 2026, 14:32" */
+export const savedWhen = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 export function deleteSaved(id: string) { writeSaved(listSaved().filter(x => x.id !== id)); }

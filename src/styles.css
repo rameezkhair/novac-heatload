@@ -204,11 +204,7 @@ thead th{background:var(--band);color:var(--band-fg);font-weight:bold;font-size:
 tfoot td{font-weight:bold;border-top:2px solid var(--fg);border-bottom:0}
 td input{width:84px;border:1px solid var(--line-strong);border-radius:3px;background:var(--field);color:var(--fg);font:inherit;padding:5px 7px;text-align:right;font-variant-numeric:tabular-nums}
 .muted{color:var(--muted)}
-.lib-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;margin-top:6px}
-.lib-grid h4{margin:0 0 8px;font-size:12px;letter-spacing:.02em;text-transform:capitalize;color:var(--muted)}
 .lib td{white-space:normal}
-.refs{font-size:12.5px;line-height:1.6;color:var(--muted);max-width:90ch}
-.refs a{color:var(--fg)}
 
 /* text-led tables: left-aligned text, right-aligned numbers, headers match their columns */
 table.tl{table-layout:fixed;min-width:720px}
@@ -442,7 +438,6 @@ details .basis{margin-top:0}
   .tot:nth-child(-n+2){border-bottom:1px solid var(--line)}
   .fgrid3,.fgrid4,.fgrid,.env-pair{grid-template-columns:minmax(0,1fr)}
   .wcgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .lib-grid{grid-template-columns:minmax(0,1fr)}
   .chk{grid-template-columns:96px minmax(0,1fr)}
   .chk .tx{grid-column:1/-1}
   .rpt{padding:18px 16px}
@@ -647,9 +642,9 @@ details .basis{margin-top:0}
 
 /* Total load view: the plant summary runs as a full-width band above the breakdown */
 .workspace.is-total{grid-template-columns:230px minmax(0,1fr)}
-.workspace.is-total>.rlist{grid-row:1/span 2}
+.workspace.is-total>.rlist{grid-row:1}
 .workspace.is-total>.result{grid-column:2;grid-row:1;position:static}
-.workspace.is-total>.editor{grid-column:2;grid-row:2}
+.workspace.is-total>.editor{grid-column:1/-1;grid-row:2}
 .plant-band{display:flex;flex-direction:column;gap:14px}
 .pb-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 24px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .pb-head h3{margin:0}
@@ -667,7 +662,16 @@ details .basis{margin-top:0}
   .pb-head{align-items:flex-start}
 }
 /* Total load view: fresh air, hourly profile and component breakdown side by side under the tiles */
-.pb-lower{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start}
+.pb-lower{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+/* fresh air as one row of figures (wrapping on narrow screens); the components below in two columns */
+.pb-lower .oa-box .kv{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 0}
+.pb-lower .oa-box .kv dt{margin-right:8px;white-space:nowrap}
+.pb-lower .oa-box .kv dd{text-align:left;margin-right:28px;white-space:nowrap}
+.pb-lower .oa-box .kv dd:last-child{margin-right:0}
+.pb-lower .bars{display:block;columns:2 300px;column-gap:32px}
+.pb-lower .bar-row{break-inside:avoid;margin-bottom:7px}
+.pb-lower .bar-row.tot-row,.pb-lower .legend{column-span:all}
+@media (max-width:760px){.pb-lower .oa-box .kv{display:grid;grid-template-columns:auto minmax(0,1fr)}.pb-lower .oa-box .kv dt,.pb-lower .oa-box .kv dd{margin-right:0}}
 .pb-tiles dd .cmark,.pb-tiles dd .pill{margin-left:6px;font-size:11px;font-weight:normal;vertical-align:middle}
 /* methods library */
 .lib{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;align-items:start}
@@ -757,3 +761,89 @@ body.app .digest-sec{margin-top:22px}
 .digest-novac{margin:10px 0 0;padding:8px 12px;border-left:3px solid #C9A24A;background:var(--bg);font-size:13px;line-height:1.5}
 .lib-print .digest-novac{background:#FAF6EC}
 @media (max-width:560px){.digest-sec li{grid-template-columns:minmax(0,1fr);gap:2px}}
+/* projects saved in this browser: name, then date and time of saving */
+.menu-pop .saved-list{max-height:min(320px,50vh);overflow-y:auto}
+.menu-pop .row .nm{display:grid;gap:1px}
+.menu-pop .row .nm b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600}
+.menu-pop .row .nm .dt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-pop .row.cur{background:var(--accent-soft);border-radius:6px}
+/* phones: Pro and add-on titles wrap onto two lines instead of being cut off */
+@media (max-width:760px){.workflow-pro .workflow-title{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25}}
+/* duct sizing add-on */
+.duct-empty{max-width:640px;padding:18px;border:1px dashed var(--line-strong);border-radius:8px;background:var(--surface)}
+.duct-empty p{margin:0 0 12px;line-height:1.55}
+.btns-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.duct-systems{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.duct-systems button{padding:6px 12px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--fg);font:inherit;font-size:13px;cursor:pointer}
+.duct-systems button[aria-selected="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.duct-systems .add{border-style:dashed;color:var(--muted)}
+.duct-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+@media (max-width:1100px){.duct-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.duct-kpis .v.sm{font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+.duct-errors{margin-bottom:12px;padding:10px 12px;border:1px solid #E7B4AA;border-radius:8px;background:#FBE9E7;color:#A3341F;font-size:13px}
+.duct-errors p{margin:0}
+.duct-settings{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px;margin:0 0 16px}
+.duct-settings label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.duct-settings input,.duct-settings select{width:100%;box-sizing:border-box}
+.duct-settings .hint,.duct-settings .btns-row{grid-column:1/-1;margin:0}
+.duct-h{margin:18px 0 8px;font-size:15px}
+.duct-tbl{font-size:12.5px}
+.duct-tbl th,.duct-tbl td{vertical-align:top;white-space:nowrap}
+.duct-tbl td input[type="text"]{width:150px}
+.duct-tbl td input[type="number"]{width:64px}
+.duct-tbl tr.crit td{background:rgba(201,162,74,.12)}
+.duct-serves{display:flex;flex-direction:column;gap:4px}
+.duct-mini{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
+.duct-fits{display:grid;gap:4px;min-width:300px}
+.duct-fit{display:flex;align-items:center;gap:4px}
+.duct-fit .nm{flex:1;min-width:0;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.duct-fit .x{color:var(--muted)}
+.duct-fit input[type="number"]{width:52px!important}
+.duct-act{display:flex;flex-direction:column;gap:4px}
+.duct-tbl td select[aria-label="Connected from"]{max-width:150px}
+.duct-res td.n,.duct-res th.n{text-align:right;font-variant-numeric:tabular-nums}
+.duct-res .pill{display:inline-block;margin:0 4px 2px 0;white-space:normal}
+@media (max-width:760px){.duct-kpis{grid-template-columns:minmax(0,1fr)}}
+.duct-tbl th,.duct-tbl td{text-align:left}
+.duct-tbl input,.duct-tbl select{text-align:left}
+.duct-res td.n,.duct-res th.n{text-align:right}
+.duct-fit .nm{max-width:190px}
+.duct-tbl td input[type="text"]{width:136px}
+.duct-serves select{max-width:170px}
+.duct-fits{min-width:0}
+/* duct sizing: heat load project panel and the ways to start */
+.duct-source{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:start;margin-bottom:14px;padding:12px 14px;border:1px solid var(--line);border-left:3px solid #C9A24A;border-radius:8px;background:var(--surface)}
+.duct-source .k{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.duct-source .sm{font-size:12px;margin-top:2px}
+.duct-source .btns-row{margin:0;justify-content:flex-end}
+.duct-saved{grid-column:1/-1;display:grid;gap:4px;max-height:260px;overflow-y:auto}
+.duct-saved .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 8px;border-top:1px solid var(--line);font-size:13px}
+.duct-start{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.duct-start article{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.duct-start h3{margin:0;font-size:15px}
+.duct-start p{margin:0;flex:1;color:var(--muted);font-size:13px;line-height:1.55}
+@media (max-width:760px){.duct-source{grid-template-columns:minmax(0,1fr)}.duct-source .btns-row{justify-content:flex-start}.duct-start{grid-template-columns:minmax(0,1fr)}}
+/* U-value builder inside the wall and partition sections */
+.type-act{display:inline-flex;gap:4px}
+.uvb-libs{display:inline-flex;border:1px solid var(--line-strong);border-radius:6px;overflow:hidden}
+.uvb-libs button{padding:5px 10px;border:0;border-right:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;font-size:12px;cursor:pointer}
+.uvb-libs button:last-child{border-right:0}
+.uvb-libs button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.uvb-lib{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.03em;vertical-align:middle;white-space:nowrap}
+.uvb-lib.ash{background:rgba(37,99,235,.12);color:#1D4ED8}
+.uvb-lib.uae{background:rgba(201,162,74,.16);color:#8A6A1F}
+.uvb-inline{margin-top:10px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:var(--bg)}
+/* in the narrower wall and partition sections: the material fills its cell with the library badge under it, and the name gets its own row */
+.uvb-tbl td select{width:100%;max-width:100%}
+.uvb-tbl .uvb-lib{display:table;margin:3px 0 0}
+.uvb-res{grid-template-columns:130px 130px auto;justify-content:start}
+.uvb-res>label:first-child{grid-column:1/-1}
+.uvb-res>.btn{align-self:end}
+.uvb-tabs{display:flex;gap:4px;margin:10px 12px 0;border-bottom:1px solid var(--line)}
+.uvb-tabs button{padding:7px 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:-1px}
+.uvb-tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:#C9A24A}
+/* ASHRAE 90.1 tab inside the narrower wall and partition sections */
+.uvb .assembly-library .fgrid4{grid-template-columns:repeat(2,minmax(0,1fr))}
+.uvb .assembly-library table{table-layout:auto}
+.uvb .assembly-library col{width:auto!important}
+.uvb .assembly-library td .btn{white-space:nowrap}
