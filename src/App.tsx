@@ -199,7 +199,7 @@ export default function App() {
       <div className="wrap">
         <div className="app-identity">
           <a className="app-brand" href="/" aria-label="NOVAC home">
-            <img className="logo" src="novac-thermal-mark.svg" alt="" aria-hidden="true" />
+            <img className="logo" src="/novac-thermal-mark.svg" alt="" aria-hidden="true" />
             <span>NOVAC</span>
           </a>
           <div className="app-heading">
