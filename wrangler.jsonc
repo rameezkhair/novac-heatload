@@ -1,0 +1,9 @@
+// Cloudflare Workers deployment: NOVAC is a static site, so the Worker only serves the Vite build in dist/
+// (index.html is the landing page, app.html the calculator). Cloudflare runs `npm run build`, then `npx wrangler deploy`.
+{
+  "name": "novac-heatloadcalculator",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
