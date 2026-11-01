@@ -40,7 +40,7 @@ export function Support({ onLibrary }: { onLibrary: () => void }) {
       <article>
         <h3>Common questions</h3>
         <p>Pricing, calculation method, supported codes and where your projects are stored.</p>
-        <a className="btn" href="./#faq">Read the FAQ</a>
+        <a className="btn" href="/#faq">Read the FAQ</a>
       </article>
     </div>
   </section>;
