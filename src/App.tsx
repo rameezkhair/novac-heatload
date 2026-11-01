@@ -123,7 +123,7 @@ export default function App() {
     toast(`Loaded ${incoming.project.name || 'project'}${kept ? '. Your previous project is in Projects, saved in this browser' : ''}`);
   };
   const openFromHash = () => {
-    /* app.html#ducts opens the duct sizer directly */
+    /* #ducts opens the duct sizer directly */
     if (location.hash === '#ducts') { history.replaceState(null, '', location.pathname + location.search); if (PRO.ducts) { setView('calc'); setActiveStep(DUCT); } return; }
     const enc = projectInHash(location.hash);
     if (!enc) return;
