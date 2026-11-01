@@ -80,7 +80,7 @@ export function EnvelopeSection({ store, d, marks, limits: L }: { store: Store; 
           Project glazing ratio: {fmt(T.wwr, 0)}% of external wall ({SAFAT} {band} band).{T.roof > 0 ? ` Roof glazing: ${fmt(T.skyPct, 0)}% of roof.` : ''}{p.autoBand !== false && anySafat ? ` ${SAFAT} glazing values follow this band automatically.` : ''}{' '}
           <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', whiteSpace: 'nowrap' }}><input type="checkbox" checked={p.autoBand !== false} onChange={e => setP('autoBand', e.target.checked)} /> Auto-select band</label>
         </> : 'Enter wall and glass areas in the rooms to see the glazing ratio.'}</p>
-        {['estidama', 'barjeel'].includes(p.cbasis) && <p className="hint">Estidama and Barjeel publish no skylight SHGC; the ASHRAE 90.1 value is used.</p>}
+        {p.cbasis === 'estidama' && <p className="hint">Estidama publishes no skylight SHGC; the ASHRAE 90.1 value is used.</p>}
     </fieldset>
     {/* builds the U-values used by the external wall, partition and roof inputs above */}
     <UValueBuilder store={store} />

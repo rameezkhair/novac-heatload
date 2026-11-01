@@ -20,7 +20,7 @@ export function HourlySection({ d, store }: { d: Computed; store: Store }) {
   const [scope, setScope] = useState('all');
   const [basis, setBasis] = useState<'design' | 'weather'>('design');
   if (!rooms.length || !T.blk) return <section>
-    <SecHead n={7} title="Hourly analysis" />
+    <SecHead title="Hourly analysis" />
     <p className="hint">Add a room to see its hourly loads.</p>
   </section>;
   /* a deleted room falls back to the whole building */
@@ -30,7 +30,7 @@ export function HourlySection({ d, store }: { d: Computed; store: Store }) {
     {rooms.map(r => <option key={r.id} value={r.id}>{r.name || 'Untitled'}{res[r.id].qty > 1 ? ' (one of ' + res[r.id].qty + ')' : ''}</option>)}
   </select></span></label>;
   return <section className="hourly">
-    <SecHead n={7} title="Hourly analysis" sub="Heat balance loads hour by hour, by component" />
+    <SecHead title="Hourly analysis" sub="Heat balance loads hour by hour, by component" />
     <div className="seg" role="group" aria-label="Weather for the hourly analysis">
       <button type="button" aria-pressed={basis === 'design'} onClick={() => setBasis('design')}>Design days <span>sizing, code conditions</span></button>
       <button type="button" aria-pressed={basis === 'weather'} onClick={() => setBasis('weather')}>Real weather year <span>8,760 hours, actual loads and energy</span></button>
@@ -168,7 +168,7 @@ export function ElectricalKpis({ d, basis: b }: { d: Computed; basis: LoadBasis 
 
 /* recommended efficiency, authority requirements and the electrical input of the cooling plant */
 function ElectricalCard({ d, store, el, month, room, hover, setHover, loads, idPrefix }: { d: Computed; store: Store; el: ReturnType<typeof electrical>; month: number; room: boolean; hover: number | null; setHover: (hour: number | null) => void; loads: ReturnType<typeof hours>; idPrefix: string }) {
-  const p = d.p, sys = (p.sys || 'ducted') as SysId, kW = el.peakKW, reqs = requirements(sys, kW), rec = recommended(sys, kW);
+  const p = d.p, sys = (p.sys || 'ducted') as SysId, kW = el.peakKW, reqs = requirements(sys, kW, p.location), rec = recommended(sys, kW, p.location);
   const set = (k: 'sys' | 'effOpt' | 'effCop' | 'aux' | 'fahu', v: unknown) => store.update(s => { (s.project as Record<string, unknown>)[k] = v; }, 'p.' + k);
   const q = el.q, max = Math.max(...el.kWe, 0.001), W = 760, Ht = 150, ml = 44, mt = 14, mb = 22, ph = Ht - mt - mb, bw = (W - ml - 8) / 24;
   const step = (() => { const raw = max / 3, pw = 10 ** Math.floor(Math.log10(raw || 1)), f = raw / pw; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pw; })();
@@ -195,7 +195,7 @@ function ElectricalCard({ d, store, el, month, room, hover, setHover, loads, idP
     </div>
     <p className="hint" style={{ marginTop: 0 }}><b>Recommended:</b> {rec.label} ({rec.metric} {rec.value}, {rec.cond}). {sys === 'split' || sys === 'window'
       ? 'ESMA star labels are mandatory for sale in the UAE; specify the highest star rating available.'
-      : 'Equipment must meet the ESMA minimum (mandatory federally) and, where the project code adopts it, ASHRAE 90.1-2022; the stricter full-load value is recommended.'}</p>
+      : p.location === 'rak' ? 'Equipment must meet the ESMA minimum (mandatory federally) and the Barjeel V1.3 minimum (Ras Al Khaimah); the stricter full-load value is recommended.' : 'Equipment must meet the ESMA minimum (mandatory federally) and, where the project code adopts it, ASHRAE 90.1-2022; the stricter full-load value is recommended.'}</p>
     {local && <p className="hint"><b>Local authority:</b> {local.authority}: {local.target} ({local.source}). <a href={local.href} target="_blank" rel="noopener">Source</a></p>}
     <p className="hint"><b>Edition:</b> ESMA values are from UAE.S 5010-1:2019 and 5010-5:2019. Cabinet Resolution 157/2025 introduced the 2025 editions (in force November 2025, with a transition period);
       their thresholds were not publicly available to check, so confirm the current label class on the product certificate.</p>

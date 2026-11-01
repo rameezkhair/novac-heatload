@@ -23,9 +23,9 @@ const setIaq = (store: Store, k: keyof IaqSettings, v: unknown) => store.update(
 export function IaqSection({ d, store }: { d: Computed; store: Store }) {
   const [tab, setTab] = useState<Tab>('vent');
   const tabs: [Tab, string][] = [['vent', 'Ventilation'], ['cont', 'Contaminants'], ['filt', 'Filtration']];
-  if (!d.rooms.length) return <section><SecHead n={8} title="Indoor air quality" /><p className="hint">Add a room in Spaces to design its ventilation and air quality.</p></section>;
+  if (!d.rooms.length) return <section><SecHead title="Indoor air quality" /><p className="hint">Add a room in Spaces to design its ventilation and air quality.</p></section>;
   return <section className="iaq">
-    <SecHead n={8} title="Indoor air quality" sub="Ventilation to ASHRAE 62.1, indoor contaminant levels and filtration, on the project's rooms and air systems" />
+    <SecHead title="Indoor air quality" sub="Ventilation to ASHRAE 62.1, indoor contaminant levels and filtration, on the project's rooms and air systems" />
     <div className="cl-tabs iaq-tabs" role="tablist">{tabs.map(([id, l]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{l}</button>)}</div>
     {tab === 'vent' && <Ventilation d={d} store={store} />}
     {tab === 'cont' && <Contaminants d={d} store={store} />}

@@ -84,7 +84,7 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
 
   return <section>
     <SecHead n={5} title="Spaces" sub="Each load item has a source list. Changing a value by hand switches it to Custom." />
-    <div className="workspace">
+    <div className={'workspace' + (shown === 'total' ? ' is-total' : '')}>
       <nav className="rlist" aria-label="Rooms">
         {floors.map(f => {
           const rooms = state.rooms.filter(x => x.level === f.id), t = sum(rooms), n = Math.max(1, Math.round(num(f.n)) || 1);
@@ -194,27 +194,81 @@ function PlantRooms({ d, onOpen, only }: { d: Computed; onOpen: (id: string) => 
   </>;
 }
 
+/* building totals of the room panel: load components, compliance across spaces and the coincident hourly profile, all × quantity */
+function buildingDetail(d: Computed) {
+  const { p, res, rooms } = d, ez = ezOf(p), sum = (f: (c: RoomLoad) => number) => rooms.reduce((a, r) => a + f(res[r.id]) * res[r.id].qty, 0);
+  const items: [string, number, boolean?][] = [['Walls', sum(c => c.walls)], ['Roof', sum(c => c.roof)], ['Glass, solar', sum(c => c.gSol)], ['Glass, conduction', sum(c => c.gCond)],
+    ['Wall partitions', sum(c => c.partW)], ['Ceiling partitions', sum(c => c.partC)], ['Floor partitions / exposed floor', sum(c => c.partF)],
+    ['People, sensible', sum(c => c.pS)], ['People, latent', sum(c => c.pL), true], ['Lighting', sum(c => c.light)], ['Equipment', sum(c => c.equip)],
+    ['Infiltration, sensible', sum(c => c.infS)], ['Infiltration, latent', sum(c => c.infL), true], ['Safety margin, sensible', sum(c => c.mS)], ['Safety margin, latent', sum(c => c.mL), true]];
+  const fails = (k: 'oa' | 'people' | 'light') => rooms.filter(r => { const m = roomChecks(r, res[r.id], ez)[k]; return m && m[0] !== 'ok'; }).map(r => r.name || 'Untitled');
+  const mark = (bad: string[], what: string): Mark => bad.length ? ['bad', `${what} not met in: ${bad.join(', ')}`, `${bad.length} space${bad.length === 1 ? '' : 's'} below`] : ['ok', `${what} met in every space`];
+  const lightAll = rooms.some(r => roomChecks(r, res[r.id], ez).light);
+  /* light: area-weighted average W/m² across the spaces */
+  const lpd = d.T.a ? rooms.reduce((a, r) => a + num(r.light) * res[r.id].A * res[r.id].qty, 0) / d.T.a : 0;
+  let prof: RoomLoad | null = null;
+  if (d.T.blk && rooms.every(r => res[r.id].profS && res[r.id].profL)) {
+    const S = new Array(288).fill(0), L = new Array(288).fill(0);
+    rooms.forEach(r => { const c = res[r.id]; for (let i = 0; i < 288; i++) { S[i] += c.profS![i] * c.qty; L[i] += c.profL![i] * c.qty; } });
+    prof = { profS: S, profL: L, pkM: d.T.blk.m, pkH: d.T.blk.h } as unknown as RoomLoad;
+  }
+  return { items, oa: mark(fails('oa'), 'Minimum fresh air'), people: mark(fails('people'), 'Minimum occupancy'), light: lightAll ? mark(fails('light'), 'Lighting allowance') : null, lpd, prof };
+}
+
 function PlantResult({ d }: { d: Computed }) {
-  const { p, T } = d, fa = p.fahu ? T.fahuW : T.oa, rm = T.s + T.l, div = num(p.diversity);
-  return <>
-    <div className="eyebrow">Total plant · all spaces</div>
-    <h3>{p.name || 'Project'}</h3>
-    <div className="big"><span className="big-num">{fmt(T.plant / 3517, 2)}</span><span className="big-unit">TR</span></div>
-    <div className="sub">{fmt(T.plant / 1000, 2)} kW plant load{div !== 100 ? ` at ${fmt(div, 0)}% diversity` : ''}</div>
-    {T.blk && <div className="sub">Block peak on {MONTHS[T.blk.m]} 21 at {String(T.blk.h).padStart(2, '0')}:00 · {fmt((T.blk.s + T.blk.l) / 3517, 2)} TR coincident</div>}
-    <dl className="kv">
-      <dt>Room load (excl. fresh air)</dt><dd>{fmt(rm / 3517, 2)} TR · {fmt(rm / 1000, 2)} kW</dd>
-      <dt>Sensible / latent</dt><dd>{fmt(T.s / 1000, 2)} / {fmt(T.l / 1000, 2)} kW</dd>
-      <dt>Sensible heat ratio</dt><dd>{fmt(T.s / (rm || 1), 2)}</dd>
-      <dt>Fresh air load{p.fahu && T.rec ? ' (net)' : ''}</dt><dd>{fmt(fa / 3517, 2)} TR · {fmt(fa / 1000, 2)} kW</dd>
-      <dt>Fresh air</dt><dd>{fmt(T.oaq, 0)} L/s · {fmt(T.oaq * 2.119, 0)} CFM · {p.fahu ? 'FAHU' : 'room units'}</dd>
-      {T.rec ? <><dt>Energy recovered</dt><dd>{fmt(T.rec / 1000, 2)} kW</dd></> : null}
-      <dt>Supply air</dt><dd>{fmt(T.sa, 0)} L/s · {fmt(T.sa * 2.119, 0)} CFM</dd>
-      <dt>Spaces / area</dt><dd>{T.q} · {fmt(T.a, 0)} m²</dd>
-      <dt>People</dt><dd>{fmt(T.n, 0)}</dd>
-      <dt>Load density</dt><dd>{fmt(T.a ? T.plant / T.a : 0, 0)} W/m² · {T.plant ? fmt(T.a / (T.plant / 3517), 1) : '–'} m²/TR</dd>
+  const { p, e, T } = d, fa = p.fahu ? T.fahuW : T.oa, rm = T.s + T.l, div = num(p.diversity), b = buildingDetail(d);
+  const max = Math.max(...b.items.map(i => i[1]), 1);
+  /* full-width summary: the plant total across the top, then one tile per figure, wrapping so every value shows in full */
+  const tile = (k: string, v: ReactNode, s?: string) => <div className="pt"><dt>{k}</dt><dd>{v}</dd>{s && <dd className="pt-s">{s}</dd>}</div>;
+  return <div className="plant-band">
+    <div className="pb-head">
+      <div>
+        <div className="eyebrow">Total plant · all spaces</div>
+        <h3>{p.name || 'Project'}</h3>
+      </div>
+      <div className="big"><span className="big-num">{fmt(T.plant / 3517, 2)}</span><span className="big-unit">TR</span></div>
+      <div className="pb-subs">
+        <div className="sub">{fmt(T.plant / 1000, 2)} kW plant load{div !== 100 ? ` at ${fmt(div, 0)}% diversity` : ''}</div>
+        {T.blk && <div className="sub">Block peak on {MONTHS[T.blk.m]} 21 at {String(T.blk.h).padStart(2, '0')}:00 · {fmt((T.blk.s + T.blk.l) / 3517, 2)} TR coincident</div>}
+      </div>
+    </div>
+    <dl className="pb-tiles">
+      {tile('Room load (excl. fresh air)', `${fmt(rm / 3517, 2)} TR`, `${fmt(rm / 1000, 2)} kW`)}
+      {tile('Sensible / latent', `${fmt(T.s / 1000, 2)} / ${fmt(T.l / 1000, 2)} kW`)}
+      {tile('Sensible heat ratio', fmt(T.s / (rm || 1), 2))}
+      {tile('Room load density', `${fmt(T.a ? rm / T.a : 0, 0)} W/m²`, rm ? `${fmt(T.a / (rm / 3517), 1)} m²/TR` : '–')}
+      {tile('Plant load density', `${fmt(T.a ? T.plant / T.a : 0, 0)} W/m²`, T.plant ? `${fmt(T.a / (T.plant / 3517), 1)} m²/TR` : '–')}
+      {tile(`Supply air (ΔT ${fmt(num(p.tiDB) - num(p.tSupply), 1)} K)`, `${fmt(T.sa, 0)} L/s`, `${fmt(T.sa * 2.119, 0)} CFM`)}
+      {tile('Fresh air', <>{fmt(T.oaq, 0)} L/s <Badge m={b.oa} /></>, `${fmt(T.oaq * 2.119, 0)} CFM · ${p.fahu ? 'FAHU' : 'room units'}`)}
+      {tile('People', <>{fmt(T.n, 0)} <Badge m={b.people} /></>)}
+      {b.light && tile('Lighting', <>{fmt(b.lpd, 1)} W/m² <Badge m={b.light} /></>, 'area-weighted average')}
+      {tile('Spaces / area', `${T.q} · ${fmt(T.a, 0)} m²`)}
+      {T.dcv.length > 0 && tile('Demand controlled ventilation', <span className="pill req">Required, H.4.8.3</span>, T.dcv.join(', '))}
     </dl>
-  </>;
+    <div className="pb-lower">
+      <div>
+        <div className="oa-box" style={{ marginTop: 0 }}>
+          <div className="oa-h"><span>Fresh air cooling load</span><span className={'pill ' + (p.fahu ? 'ok' : 'warn')}>{p.fahu ? 'Treated in FAHU' : 'Handled by room units'}</span></div>
+          <div className="oa-v"><b>{fmt(fa / 3517, 2)}</b> TR · {fmt(fa / 1000, 2)} kW{p.fahu && T.rec ? ' net of energy recovery' : ''}</div>
+          <dl className="kv">
+            <dt>Fresh air</dt><dd>{fmt(T.oaq, 0)} L/s · {fmt(T.oaq * 2.119, 0)} CFM</dd>
+            <dt>Sensible</dt><dd>{fmt(T.oaS / 1000, 2)} kW</dd>
+            <dt style={{ color: 'var(--lat)' }}>Latent</dt><dd style={{ color: 'var(--lat)' }}>{fmt(T.oaL / 1000, 2)} kW</dd>
+            {T.rec ? <><dt>Energy recovered</dt><dd>{fmt(T.rec / 1000, 2)} kW</dd></> : null}
+            <dt>Design</dt><dd>{fmt(e.Tv, 1)}/{num(p.vWB)} °C → {num(p.tiDB)} °C, {num(p.tiRH)}%</dd>
+            <dt>Per 100 L/s</dt><dd>{T.oaq ? fmt(T.oa / T.oaq * 100 / 1000, 2) : '–'} kW</dd>
+          </dl>
+        </div>
+        {!p.fahu && <div className="sub" style={{ marginTop: 8 }}>Room unit selection: {fmt(T.u / 3517, 2)} TR ({fmt(T.u / 1000, 2)} kW) room plus fresh air, all spaces</div>}
+        {b.prof && <HourlyChart c={b.prof} title="Building room load" />}
+      </div>
+      <div className="bars" style={{ marginTop: 0 }}>
+        {b.items.map(([l, v, lat]) => <div key={l} className={'bar-row' + (lat ? ' lat' : '')}><span>{l}</span><span className="track"><span className={'fill' + (lat ? ' lat' : '')} style={{ width: Math.max(0, v / max * 100).toFixed(1) + '%' }} /></span><span className="v">{fmt(v / 1000, 2)} kW</span></div>)}
+        <div className="bar-row tot-row"><span><b>Room total</b></span><span className="muted" style={{ fontSize: 11 }}>{fmt(T.s / 1000, 2)} sensible + {fmt(T.l / 1000, 2)} latent</span><span className="v"><b>{fmt(rm / 1000, 2)} kW</b></span></div>
+        <div className="legend"><span><i style={{ background: 'var(--bar)' }} />Sensible load</span><span><i style={{ background: 'var(--lat)' }} />Latent load</span></div>
+      </div>
+    </div>
+  </div>;
 }
 
 function RoomEditor({ r, d, edit, onDup, onDel }: { r: Room; d: Computed; edit: (fn: RoomFn, group?: string) => void; onDup: () => void; onDel: () => void }) {
@@ -503,7 +557,7 @@ function RoomResult({ r, d }: { r: Room; d: Computed }) {
 }
 
 /* heat balance: room load in each hour of the peak month, and the peak of each month */
-function HourlyChart({ c }: { c: RoomLoad }) {
+function HourlyChart({ c, title = 'Room load' }: { c: RoomLoad; title?: string }) {
   if (!c.profS || !c.profL || c.pkM == null) return null;
   const tot = (m: number, i: number) => (c.profS![m * 24 + i] + c.profL![m * 24 + i]) / 1000;
   const day = Array.from({ length: 24 }, (_, i) => tot(c.pkM!, i));
@@ -515,9 +569,9 @@ function HourlyChart({ c }: { c: RoomLoad }) {
     {v.map((_, i) => (i + 1) % every === 0 || every === 1 ? <text key={i} x={i * w + w / 2} y={H + 11} textAnchor="middle" fontSize={9} fill="var(--muted)">{label(i)}</text> : null)}
   </svg>;
   return <div className="hb-chart">
-    <div className="eyebrow">Room load by hour · {MONTHS[c.pkM]} 21 · peak {fmt(day[c.pkH! - 1], 2)} kW at {String(c.pkH).padStart(2, '0')}:00</div>
+    <div className="eyebrow">{title} by hour · {MONTHS[c.pkM]} 21 · peak {fmt(day[c.pkH! - 1], 2)} kW at {String(c.pkH).padStart(2, '0')}:00</div>
     {bars(day, 10, c.pkH! - 1, i => String(i + 1), 6)}
-    <div className="eyebrow">Peak room load by month</div>
+    <div className="eyebrow">Peak {title.toLowerCase()} by month</div>
     {bars(mon, 20, c.pkM, i => MONTHS[i][0], 1)}
   </div>;
 }

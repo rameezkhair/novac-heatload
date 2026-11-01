@@ -45,7 +45,7 @@ export function designPeak(d: Computed, scope: string) {
 export function designReq(p: Project, kW: number): Req {
   const sys = (p.sys || 'ducted') as SysId;
   if (p.effOpt === 'custom' && num(p.effCop) > 0) return { id: 'custom', src: 'ESMA', label: 'Custom (manufacturer data)', cop: num(p.effCop), kind: 'full', t: 35, metric: 'COP', value: `${num(p.effCop)} W/W`, cond: 'Full load at 35 °C outdoor', ref: 'Project value' };
-  return requirements(sys, kW).find(r => r.id === p.effOpt) || recommended(sys, kW);
+  return requirements(sys, kW, p.location).find(r => r.id === p.effOpt) || recommended(sys, kW, p.location);
 }
 
 /* electrical input by hour (kW) for a scope and month, with the plant sized on the scope's design peak */

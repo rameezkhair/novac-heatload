@@ -26,7 +26,7 @@ export const ROOMOPTS: Record<RoomPick, (r: Room | null, t: RoomType, ez: number
   people: (r, t) => {
     const A = num(r?.area), o: RoomOpt[] = [];
     if (t.dbc) o.push({ id: 'dbc', label: `DBC Table B.2, ${t.dbc[1]}: ${t.dbc[0]} m²/person`, v: Math.ceil(A / t.dbc[0]) });
-    const vr = VENT_BY[t.vent]; if (vr && vr.dens > 0) o.push({ id: 'a621', label: `ASHRAE 62.1-2022 default, ${fmtM2(100 / vr.dens)} m²/person`, v: Math.ceil(A * vr.dens / 100) });
+    const vr = VENT_BY[t.vent]; if (vr && vr.dens > 0) o.push({ id: 'a621', label: `ASHRAE 62.1-2025 default, ${fmtM2(100 / vr.dens)} m²/person`, v: Math.ceil(A * vr.dens / 100) });
     o.push({ id: 'typ', label: t.dens > 0 ? `Typical layout, ${fmtM2(t.dens)} m²/person` : 'Typical: unoccupied', v: t.dens > 0 ? Math.ceil(A / t.dens) : 0 });
     return o;
   },
@@ -44,7 +44,7 @@ export const ROOMOPTS: Record<RoomPick, (r: Room | null, t: RoomType, ez: number
     { id: 'est-r', cat: 'Estidama PBRS baseline', label: 'Residential', v: 2.7 }],
   oa: (r, _t, ez) => {
     const n = num(r?.people), A = num(r?.area), H = num(r?.height) || 3;
-    const o: RoomOpt[] = VENT.map(v => ({ id: v.id, cat: 'DBC H.4.10.2 · ASHRAE 62.1-2022 Table 6-1 · ' + v.cat, label: `${v.label} (${v.rp} L/s·p + ${v.ra} L/s·m², ÷ Ez ${ez})`, v: Math.round((v.rp * n + v.ra * A) / ez * 10) / 10 }));
+    const o: RoomOpt[] = VENT.map(v => ({ id: v.id, cat: 'DBC H.4.10.2 · ASHRAE 62.1-2025 Table 6-1 · ' + v.cat, label: `${v.label} (${v.rp} L/s·p + ${v.ra} L/s·m², ÷ Ez ${ez})`, v: Math.round((v.rp * n + v.ra * A) / ez * 10) / 10 }));
     o.push({ id: 'a622', cat: 'DBC H.4.10.2 · ASHRAE 62.2-2019 · dwelling units', label: 'Whole-dwelling ventilation (0.15 L/s·m² + 3.5 L/s per occupant)', v: Math.round((0.15 * A + 3.5 * n) * 10) / 10 });
     A170.forEach(([id, l, oa, tot]) => o.push({ id: 'a170-' + id, cat: 'DBC H.4.10.2 · ASHRAE 170-2021 Table 7-1 · healthcare (DHA)', label: `${l} (${oa} ACH outdoor, ${tot} ACH total)`, v: Math.round(oa * A * H / 3.6 * 10) / 10 }));
     return o;
@@ -60,6 +60,10 @@ export const ROOMOPTS: Record<RoomPick, (r: Room | null, t: RoomType, ez: number
     if (r) {
       const env = envelopeArea(r), V = num(r.area) * num(r.height);
       if (env > 0 && V > 0) o.push({ id: 'dbc50', cat: 'DBC H.4.9.1 · airtightness', label: '5 m³/h·m² at 50 Pa, ÷20 for natural conditions', v: Math.round(5 * env / 20 / V * 100) / 100 });
+      /* DoE CLM §5.3: untested buildings take 2.03 L/s·m² of envelope at 75 Pa; ASHRAE 90.1 conversion to operating conditions
+         Q = 0.112 × I75 × S, with S the room's share of the envelope (external walls, roof, exposed or ground floor) */
+      const S = env + (r.above === 'roof' ? num(r.roof) || num(r.area) : 0) + (r.below === 'outdoor' || r.below === 'ground' ? num(r.area) : 0);
+      if (S > 0 && V > 0) o.push({ id: 'clm75', cat: 'DoE CLM §5.3 · Abu Dhabi', label: 'Untested envelope: 2.03 L/s·m² at 75 Pa × 0.112', v: Math.round(0.112 * 2.03 * S * 3.6 / V * 100) / 100 });
     }
     o.push({ id: 'press', cat: 'DBC H.4.9.1 · airtightness', label: 'Pressurised building or interior room', v: 0 },
       { id: 'typ', cat: 'Typical estimate', label: 'Perimeter room, typical estimate', v: 0.3 }, { id: 'door', cat: 'Typical estimate', label: 'Entrance with frequent door use', v: 1 });
@@ -269,7 +273,8 @@ export function migrate(s: any): AppState {
   const types = (l: any): PartType[] => Array.isArray(l) ? l.map((t: any) => ({ id: String(t.id), name: String(t.name ?? ''), u: t.u ?? '', ...(Array.isArray(t.layers) ? { layers: t.layers } : {}) })) : [];
   p.partTypes = types(sp.partTypes); p.wallTypes = types(sp.wallTypes);
   if (Array.isArray(sp.floors)) p.floors = sp.floors.filter((f: any) => f && f.id).map((f: any) => ({ id: String(f.id), name: String(f.name ?? ''), n: f.n ?? 1 })); else delete p.floors;
-  if (['estidama', 'barjeel'].includes(p.cbasis) && (p.src.shgcSky || '').startsWith('safat')) p.src.shgcSky = 'a901';
+  if (p.cbasis === 'estidama' && (p.src.shgcSky || '').startsWith('safat')) p.src.shgcSky = 'a901';
+  if (p.cbasis === 'barjeel' && (p.src.shgcSky || '').startsWith('safat')) p.src.shgcSky = 'barjeel';
   resolveProject(p);
   const ez = ezOf(p);
   const rooms = s.rooms.map((r: any) => migrateRoom(r, ez));

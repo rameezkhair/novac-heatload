@@ -28,7 +28,7 @@ export const ventSrcLabel = (p: Project) => p.src.vent === 'custom' ? 'Custom va
 export function oaRequired(r: Room, ez: number) {
   const t = typeOf(r.type), id = r.src.oa !== 'custom' ? r.src.oa : (t.oaDef || t.vent);
   const opts = ROOMOPTS.oa(r, t, ez), o = opts.find(x => x.id === id) || opts.find(x => x.id === t.vent);
-  const ref = id === 'a622' ? 'ASHRAE 62.2-2019' : String(id).startsWith('a170-') ? 'ASHRAE 170-2021' : 'ASHRAE 62.1-2022';
+  const ref = id === 'a622' ? 'ASHRAE 62.2-2019' : String(id).startsWith('a170-') ? 'ASHRAE 170-2021' : 'ASHRAE 62.1-2025 Table 6-1';
   return { q: o ? o.v : 0, ref };
 }
 export interface RoomChecks { people: Mark; oa: Mark; light: Mark }
@@ -133,15 +133,20 @@ export function projectChecks(p: Project, T: Totals, rooms: Room[]): { marks: Re
   } else if (ib === 'safat') {
     out.tiDB = ti >= 22.5 && ti <= 25.5 ? ['ok', `${ti === 24 ? '24 °C, ' : 'in 22.5–25.5 °C band, '}${SAFAT} 501.03 / 402.01`] : ['bad', `outside 22.5–25.5 °C, ${SAFAT} 402.01`];
     out.tiRH = Math.abs(rh - 50) <= 5 ? ['ok', `50 ±5%, ${SAFAT} 501.03`] : ['bad', `outside 50 ±5%, ${SAFAT} 501.03`];
+  } else if (ib === 'barjeel') {
+    out.tiDB = Math.abs(ti - 24) <= 1 ? ['ok', '24 ±1 °C, Barjeel 301.02 / 401.02'] : ['bad', 'outside 24 ±1 °C, Barjeel 301.02 / 401.02'];
+    out.tiRH = Math.abs(rh - 50) <= 10 ? ['ok', '50 ±10%, Barjeel 301.02 / 401.02'] : ['bad', 'outside 50 ±10%, Barjeel 301.02 / 401.02'];
   } else {
     out.tiDB = Math.abs(ti - 24) <= 1.5 ? ['ok', '24 ±1.5 °C, DBC Table H.2'] : ['bad', 'outside 24 ±1.5 °C, DBC Table H.2'];
     out.tiRH = Math.abs(rh - 50) <= 5 ? ['ok', '50 ±5%, DBC Table H.2'] : ['bad', 'outside 50 ±5%, DBC Table H.2'];
   }
-  out.sfS = num(p.sfS) <= 10 ? ['ok', '≤ 10%, DBC H.4.6.3'] : ['bad', 'exceeds 10%, DBC H.4.6.3'];
-  out.sfL = num(p.sfL) <= 5 ? ['ok', '≤ 5%, DBC H.4.6.3'] : ['bad', 'exceeds 5%, DBC H.4.6.3'];
+  /* Barjeel sets the same safety factor and energy recovery limits as the DBC; RAK projects cite Barjeel */
+  const rak = p.location === 'rak', sfRef = rak ? 'Barjeel 301.02 / 401.02' : 'DBC H.4.6.3', ervRef = rak ? 'Barjeel 401.03' : 'DBC H.4.8.2';
+  out.sfS = num(p.sfS) <= 10 ? ['ok', `≤ 10%, ${sfRef}`] : ['bad', `exceeds 10%, ${sfRef}`];
+  out.sfL = num(p.sfL) <= 5 ? ['ok', `≤ 5%, ${sfRef}`] : ['bad', `exceeds 5%, ${sfRef}`];
   if (num(p.dr) >= 5 && num(p.dr) <= 18) out.dr = ['ok', 'Within the typical UAE daily range of 5–18 K', 'In range'];
   if (num(p.elev) >= -5 && num(p.elev) <= 1950) out.elev = ['ok', 'Within the typical UAE site elevation range of −5–1,950 m', 'In range'];
-  if (p.erv) { out.ervS = num(p.ervS) >= 70 ? ['ok', '≥ 70%, DBC H.4.8.2'] : ['bad', 'below 70%, DBC H.4.8.2']; out.ervShare = num(p.ervShare) >= 50 ? ['ok', '≥ 50%, DBC H.4.8.2'] : ['bad', 'below 50%, DBC H.4.8.2']; }
+  if (p.erv) { out.ervS = num(p.ervS) >= 70 ? ['ok', `≥ 70%, ${ervRef}`] : ['bad', `below 70%, ${ervRef}`]; out.ervShare = num(p.ervShare) >= 50 ? ['ok', `≥ 50%, ${ervRef}`] : ['bad', `below 50%, ${ervRef}`]; }
   /* plausibility marks override the basis marks on the same field when worse */
   const worst: Record<string, Mark> = {};
   outdoorPlaus(p, ee).forEach(([k, l, t]) => { if (!worst[k] || l === 'bad') worst[k] = [l, t]; });
@@ -189,7 +194,7 @@ export function allChecks(d: Computed, marks: Record<string, Mark>, L: Limits): 
   gen('DBC H.4.6.6 / H.4.6.7', 'External loads use orientation, construction U-values and shading factors (Part E, E.5.3). Occupancy per DBC B.5.1; lighting and equipment are project values, otherwise ASHRAE 90.1 recommendations.');
   const oaLow: string[] = [], pplLow: string[] = [], lpdHigh: string[] = [];
   rooms.forEach(r => { const ch = roomChecks(r, res[r.id], ez); if (ch.oa && ch.oa[0] === 'bad') oaLow.push(r.name); if (ch.people && ch.people[0] !== 'ok') pplLow.push(r.name); if (ch.light && ch.light[0] === 'bad') lpdHigh.push(r.name); });
-  add(oaLow.length ? 'bad' : 'ok', 'DBC H.4.10.2', oaLow.length ? `Fresh air below the ASHRAE 62.1 / 62.2 / 170 minimum in: ${oaLow.join(', ')}.` : 'Fresh air in every room meets DBC H.4.10.2: ASHRAE 62.1-2022 Table 6-1 (with Ez), ASHRAE 62.2 for dwellings, ASHRAE 170 for healthcare.');
+  add(oaLow.length ? 'bad' : 'ok', 'DBC H.4.10.2', oaLow.length ? `Fresh air below the ASHRAE 62.1 / 62.2 / 170 minimum in: ${oaLow.join(', ')}.` : 'Fresh air in every room meets DBC H.4.10.2: ASHRAE 62.1-2025 Table 6-1 (with Ez), ASHRAE 62.2 for dwellings, ASHRAE 170 for healthcare.');
   add(pplLow.length ? 'warn' : 'ok', 'DBC B.5.1 / Table B.2', pplLow.length ? `Occupancy below the DBC Table B.2 or ASHRAE default density in: ${pplLow.join(', ')}. DBC H.4.10.2 asks for B.2 densities where possible.` : 'Occupancy meets DBC Table B.2 (or the ASHRAE default where B.2 has no entry).');
   if (lpdHigh.length) add('bad', 'ASHRAE 90.1-2022 LPD', `Lighting exceeds the space-by-space allowance in: ${lpdHigh.join(', ')}.`);
   if (T.oaq > 1000) {
@@ -209,6 +214,40 @@ export function allChecks(d: Computed, marks: Record<string, Mark>, L: Limits): 
   const kit = rooms.filter(r => r.type === 'kitchen');
   add(kit.length ? 'req' : 'na', 'DBC H.4.12.15.3', kit.length ? `Commercial kitchen (${kit.map(r => r.name || 'Kitchen').join(', ')}): make-up air 75–95% of extract, kitchen about −0.25 Pa, building +1.25 to +5.0 Pa, make-up air within 6 °C of the space; ASHRAE 154:2016 and DW/172.` : 'No commercial kitchen in the room list.');
   add(kW > 350 ? 'req' : 'na', 'DBC H.5.2.4', kW > 350 ? `Plant load ${fmt(kW, 0)} kW is above 350 kW: recover and reuse AC condensate.` : `Plant load ${fmt(kW, 0)} kW is not above 350 kW.`);
+  /* Ras Al Khaimah: Barjeel V1.3 replaces the DBC clauses it covers. Fundamental (301) = villas and buildings up to
+     1,000 m² BUA; Comprehensive (401) = larger, hospitality and public buildings. */
+  if (p.location === 'rak') {
+    const drop = new Set(['DBC Table H.2', 'DBC Table H.3', 'DBC H.4.6.3', 'DBC H.4.8.1', 'DBC H.4.8.2', 'DBC H.4.9.1']);
+    for (let i = rows.length - 1; i >= 0; i--) if (drop.has(rows[i][1])) rows.splice(i, 1);
+    const fund = p.cbasis === 'barjeel-f', tier = fund ? '301' : '401';
+    if (fund && T.a > 1000) add('warn', 'Barjeel Table 3', `Floor area ${fmt(T.a, 0)} m² is above 1,000 m². Fundamental applies to villas and buildings up to 1,000 m² BUA; other buildings use Comprehensive (Table 11).`);
+    const okIn = Math.abs(ti - 24) <= 1 && Math.abs(rh - 50) <= 10;
+    add(okIn ? 'ok' : 'bad', `Barjeel ${tier}.02`, okIn ? `Indoor design ${ti} °C / ${rh}% RH is within 24 °C ±1 and 50% ±10.` : `Indoor design ${ti} °C / ${rh}% RH is outside 24 °C ±1 and 50% ±10 for regularly occupied rooms.`);
+    add(okSF ? 'ok' : 'bad', `Barjeel ${tier}.02`, okSF ? `Safety factors ${num(p.sfS)}% / ${num(p.sfL)}% are within 10% sensible / 5% latent.` : `Safety factors ${num(p.sfS)}% / ${num(p.sfL)}% exceed 10% sensible / 5% latent.`);
+    gen(`Barjeel ${tier}.03`, `Equipment to the minimum efficiencies of Tables ${fund ? '4–7' : '12–15'}: unitary, multi-split, VRF and heat pumps at T3, chillers at T1. Each control area has its own thermostat, and central plant shuts down when all areas are satisfied. Guideline: window and non-ducted units at least ESMA 2-star (UAE.S 5010-1:2019); ducted, packaged, multi-split and VRF at least 6% above UAE.S 5010-5:2019.`);
+    if (fund) add('na', 'Barjeel 301.03', 'Fundamental tier: no energy recovery requirement.');
+    else if (T.oaq > 1000) {
+      const modelled = p.fahu && p.erv && num(p.ervS) >= 70 && num(p.ervShare) >= 50;
+      add(modelled ? 'ok' : 'req', 'Barjeel 401.03', `Outdoor air is ${fmt(T.oaq, 0)} L/s, above 1,000 L/s. Energy recovery on at least 50% of exhaust air at 70% or higher sensible recovery efficiency is required (fume hoods, toxic or flammable exhaust and kitchen hoods exempt).${modelled ? ' Modelled in the FAHU load.' : ' Turn it on in section 3.'}`);
+    } else add('na', 'Barjeel 401.03', `Outdoor air is ${fmt(T.oaq, 0)} L/s, not above 1,000 L/s.`);
+    gen(`Barjeel ${tier}.04`, fund ? 'Light fittings LED or at least ESMA 3-star.' : 'Light fittings LED or at least ESMA 4-star. Government buildings: lighting power density ≤ 8.8 W/m². Occupancy sensors in offices, and in residential and government corridors, staircases and public toilets; automatic exterior lighting controls.');
+    if (fund) gen('Barjeel 301.05', 'Air leakage site inspection at about 60% completion of the building envelope. Investment and government-funded villas: sample air-tightness testing to Table 8 (ATTMA L1/L2, CIBSE TM23 or ISO 9972).');
+    else {
+      const test = kW >= 1000 || T.a > 5000;
+      add(test ? 'req' : 'na', 'Barjeel 401.06', `${test ? `${kW >= 1000 ? `Cooling load ${fmt(kW, 0)} kW is 1 MW or more` : `Floor area ${fmt(T.a, 0)} m² is above 5,000 m²`}: air-tightness test required, ≤ 7.5 m³/h per m² of envelope at 50 Pa.` : 'Below 5,000 m² and 1 MW: air-tightness test required only for government buildings (≤ 7.5 m³/h·m² at 50 Pa).'} Air leakage site inspection at about 60% envelope completion.`);
+    }
+  }
+  /* Abu Dhabi and Al Ain: DoE Cooling Load Manual (DoE_PR_P04_001, May 2026) */
+  if (p.location === 'abudhabi' || p.location === 'alain') {
+    const sf = num(p.sfS) + num(p.sfL);
+    add(!okSF ? 'bad' : sf > 0 ? 'warn' : 'ok', 'DoE CLM §7.1', !okSF ? `Safety factors ${num(p.sfS)}% / ${num(p.sfL)}% exceed the 10% sensible / 5% latent tolerance (CIBSE Design Guide for Abu Dhabi).`
+      : sf > 0 ? `Safety factors ${num(p.sfS)}% / ${num(p.sfL)}% are within 10% / 5%, but the manual discourages default margins: justify each one and do not apply them again at plant selection.` : 'No safety factor applied, as the manual recommends.');
+    add(p.fahu ? 'na' : 'req', 'DoE CLM §2.2', p.fahu ? 'Outdoor air is treated by a FAHU at the Table 2 condition.' : 'Untreated fresh air: calculate the space load at both the peak sensible (Table 1) and peak latent (Table 2) conditions and size each space on the higher result.');
+    gen('DoE CLM §5.3', 'Infiltration per zone, not one building-wide ACH. Without an airtightness test (ASTM E779), take 2.03 L/s·m² at 75 Pa and convert with I = 0.112 × I75 × S / A(walls).');
+    gen('DoE CLM §5.2.3', 'Keep the building at positive pressure: about 10% more outdoor air than exhaust and relief, or differential-pressure control.');
+    gen('DoE CLM §7.2', 'Size the central plant on the diversified demand load (Table 4): coincident solar peak, internal gain and infiltration diversity, ventilation load at the plant peak condition, safety factors removed.');
+    gen('DoE CLM §1', 'Benchmark the design with the Cooling Load Verification Tool (CLVT); a design more than ±10% from the CLVT benchmark needs written justification.');
+  }
   const key = (c: string) => { const m = /^DBC H\.([\d.]+)/.exec(c); return m ? m[1].split('.').map(Number) : null; };
   const cmp = (x: number[], y: number[]) => { for (let i = 0; i < Math.max(x.length, y.length); i++) { const dd = (x[i] || 0) - (y[i] || 0); if (dd) return dd; } return 0; };
   const head = rows.filter(r => !key(r[1])), dbc = rows.filter(r => key(r[1])).sort((a, b) => cmp(key(a[1])!, key(b[1])!));

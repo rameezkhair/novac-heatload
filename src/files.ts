@@ -6,7 +6,7 @@ export function downloadFile(filename: string, data: string, type: string) {
 }
 
 /* render an element to a Letter-size PDF and download it; the library is loaded only when first used */
-export async function downloadPdf(filename: string, el: HTMLElement) {
+export async function downloadPdf(filename: string, el: HTMLElement, avoid = ['.room', 'table', '.chart', '.kpis']) {
   const { default: html2pdf } = await import('html2pdf.js');
   await html2pdf().set({
     filename,
@@ -14,7 +14,7 @@ export async function downloadPdf(filename: string, el: HTMLElement) {
     image: { type: 'jpeg', quality: 0.95 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: '#FFFFFF', windowWidth: 816 },
     jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-    pagebreak: { mode: ['css', 'legacy'], avoid: ['.room', 'table', '.chart', '.kpis'] },
+    pagebreak: { mode: ['css', 'legacy'], avoid },
   }).from(el).save();
 }
 
@@ -40,15 +40,17 @@ type Pickers = {
 };
 const pickers = () => window as unknown as Partial<Pickers>;
 export const canSaveInPlace = () => typeof pickers().showSaveFilePicker === 'function';
-const PROJECT_TYPES = [{ description: 'NOVAC project', accept: { 'application/json': ['.json'] } }];
+/* projects save as .novac.html pages; older .novac.json files still open */
+const SAVE_TYPES = [{ description: 'NOVAC project', accept: { 'text/html': ['.html'] } }];
+const OPEN_TYPES = [{ description: 'NOVAC project', accept: { 'text/html': ['.html'], 'application/json': ['.json'] } }];
 const cancelled = (e: unknown) => e instanceof DOMException && e.name === 'AbortError';
 
 /* resolves to the handle written to, 'download' for the fallback, or null if cancelled */
 export async function saveProjectFile(handle: FileHandle | null, suggestedName: string, data: string): Promise<FileHandle | 'download' | null> {
   const p = pickers();
-  if (!p.showSaveFilePicker) { downloadFile(suggestedName, data, 'application/json'); return 'download'; }
+  if (!p.showSaveFilePicker) { downloadFile(suggestedName, data, 'text/html'); return 'download'; }
   try {
-    const h = handle ?? await p.showSaveFilePicker({ suggestedName, types: PROJECT_TYPES });
+    const h = handle ?? await p.showSaveFilePicker({ suggestedName, types: SAVE_TYPES });
     const w = await h.createWritable(); await w.write(data); await w.close();
     return h;
   } catch (e) { if (cancelled(e)) return null; throw e; }
@@ -57,9 +59,9 @@ export async function saveProjectFile(handle: FileHandle | null, suggestedName: 
 /* resolves to the file's text and its handle (null without the picker API), or null if cancelled */
 export async function openProjectFile(): Promise<{ text: string; handle: FileHandle | null } | null> {
   const p = pickers();
-  if (!p.showOpenFilePicker) { const text = await pickFile('.json,application/json'); return text == null ? null : { text, handle: null }; }
+  if (!p.showOpenFilePicker) { const text = await pickFile('.html,.json,text/html,application/json'); return text == null ? null : { text, handle: null }; }
   try {
-    const [h] = await p.showOpenFilePicker({ types: PROJECT_TYPES });
+    const [h] = await p.showOpenFilePicker({ types: OPEN_TYPES });
     return { text: await (await h.getFile()).text(), handle: h };
   } catch (e) { if (cancelled(e)) return null; throw e; }
 }

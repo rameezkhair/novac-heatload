@@ -3,6 +3,7 @@
    - UAE.S 5010-1:2019 (ESMA), household non-ducted ACs: star rating by EER at T3 (46 °C), Table 1; annual energy = input kW × 2000 h (cl. 8)
    - UAE.S 5010-5:2019 (ESMA), commercial and central ACs: MEPS for ducted/packaged (EER, T3), multi-split (IPLV), VRF (CSPF, T3)
      and chillers (full-load COP, T1); CSPF per ISO 16358-1 Annex F (Annex 2), T3 reference bin hours Table F.2
+   - Barjeel V1.3 (RAK Municipality) 301.03 / 401.03, Tables 4–7 / 12–15, Ras Al Khaimah projects only: unitary and VRF at T3, chillers at T1
    - ANSI/ASHRAE/IES 90.1-2022 Tables 6.8.1-1 (unitary AC), 6.8.1-3 (chillers, Path A and B), 6.8.1-8 (VRF), AHRI rating conditions
    Both ESMA texts are the 2019 versions notified to the WTO (TBT notifications ARE 19_1430 / 19_1431). */
 
@@ -26,7 +27,7 @@ export const kwTrToCop = (kwtr: number) => 3.51685 / kwtr;
 /* one requirement or rating level.
    kind 'full': full-load efficiency at outdoor temperature t (°C); 'seasonal': an annual-average metric (SEER, IEER, IPLV, CSPF) */
 export interface Req {
-  id: string; src: 'ESMA' | 'ASHRAE 90.1-2022'; label: string; cop: number; kind: 'full' | 'seasonal'; t: number;
+  id: string; src: 'ESMA' | 'Barjeel V1.3' | 'ASHRAE 90.1-2022'; label: string; cop: number; kind: 'full' | 'seasonal'; t: number;
   metric: string; value: string; cond: string; ref: string;
 }
 const E1 = 'UAE.S 5010-1:2019 Table 1', E5 = 'UAE.S 5010-5:2019', A1 = 'ASHRAE 90.1-2022 Table 6.8.1-1', A3 = 'ASHRAE 90.1-2022 Table 6.8.1-3', A8 = 'ASHRAE 90.1-2022 Table 6.8.1-8';
@@ -38,8 +39,39 @@ const star = (sys: string, n: number, eer: number, ref: string): Req => ({
 const full = (id: string, src: Req['src'], label: string, cop: number, t: number, metric: string, value: string, cond: string, ref: string): Req => ({ id, src, label, cop, kind: 'full', t, metric, value, cond, ref });
 const seas = (id: string, src: Req['src'], label: string, cop: number, metric: string, value: string, cond: string, ref: string): Req => ({ id, src, label, cop, kind: 'seasonal', t: 35, metric, value, cond, ref });
 
-/* requirements for a system of a given capacity (kW of cooling), best first within each source */
-export function requirements(sys: SysId, kW: number): Req[] {
+/* Barjeel V1.3 minimums for Ras Al Khaimah (RC = rated capacity, kW): Table 4 unitary EER and Table 5 VRF CSPF / multi-split IPLV at T3,
+   Table 7 chillers COP and IPLV at T1. Non-ducted and window minimums equal ESMA 2 stars. */
+const BJ = 'Barjeel V1.3 Tables 4–7 / 12–15';
+function barjeel(sys: SysId, kW: number): Req[] {
+  const bj = (id: string, label: string, cop: number, t: number, metric: string, value: string, cond: string, ref: string, kind: Req['kind'] = 'full'): Req => ({ id, src: 'Barjeel V1.3', label, cop, kind, t, metric, value, cond, ref: `${BJ}, ${ref}` });
+  if (sys === 'split' || sys === 'window') { const e = sys === 'split' ? 8.31 : 7.51; return [bj('barjeel', 'Barjeel minimum (equals ESMA 2 stars)', eerToCop(e), 46, 'EER', `≥ ${e} Btu/h·W`, T3, sys === 'split' ? 'non-ducted AC' : 'window AC')]; }
+  if (sys === 'ducted') { const e = kW < 40 ? 8.80 : kW < 70 ? 8.59 : kW < 223 ? 8.27 : 7.95; return [bj('barjeel', 'Barjeel minimum', eerToCop(e), 46, 'EER', `≥ ${e.toFixed(2)} Btu/h·W`, T3, 'ducted split and packaged')]; }
+  if (sys === 'vrf') {
+    const c = kW < 40 ? 14.84 : kW < 220 ? 13.78 : 13.25, i = kW < 40 ? 4.59 : kW < 220 ? 4.45 : 4.35;
+    return [bj('barjeel-cspf', 'Barjeel minimum, VRF', c / BTU_W, 35, 'CSPF', `≥ ${c} Btu/h·W`, `${T3}, ISO 16358`, 'VRF', 'seasonal'),
+      bj('barjeel-iplv', 'Barjeel minimum, multi-split', i, 35, 'IPLV', `≥ ${i}`, `${T3}, ISO 15042`, 'multi-split', 'seasonal')];
+  }
+  if (sys === 'acchiller') {
+    const i = kW < 528 ? 4.05 : 4.14;
+    return [bj('barjeel', 'Barjeel minimum, full load', 2.97, 35, 'COP', '≥ 2.97 W/W', T1, 'air-cooled chiller with condenser'),
+      bj('barjeel-iplv', 'Barjeel minimum, part load', i, 35, 'IPLV', `≥ ${i}`, 'AHRI 550/590 integrated part load', 'air-cooled chiller with condenser', 'seasonal')];
+  }
+  const pd = kW < 264 ? [4.69, 5.87] : kW < 528 ? [4.99, 6.29] : kW < 1055 ? [5.33, 6.52] : kW < 2110 ? [5.77, 6.77] : [6.23, 7.04], cf = kW < 528 ? [6.36, 6.77] : [6.89, 7.04];
+  return [bj('barjeel-pd', 'Barjeel minimum, screw / scroll, full load', pd[0], 35, 'COP', `≥ ${pd[0]} W/W`, T1, 'water-cooled rotary and scroll'),
+    bj('barjeel-pd-iplv', 'Barjeel minimum, screw / scroll, part load', pd[1], 35, 'IPLV', `≥ ${pd[1]}`, 'AHRI 550/590 integrated part load', 'water-cooled rotary and scroll', 'seasonal'),
+    bj('barjeel-cf', 'Barjeel minimum, centrifugal, full load', cf[0], 35, 'COP', `≥ ${cf[0]} W/W`, T1, 'water-cooled centrifugal'),
+    bj('barjeel-cf-iplv', 'Barjeel minimum, centrifugal, part load', cf[1], 35, 'IPLV', `≥ ${cf[1]}`, 'AHRI 550/590 integrated part load', 'water-cooled centrifugal', 'seasonal')];
+}
+
+/* requirements for a system of a given capacity (kW of cooling), best first within each source; loc 'rak' adds Barjeel after ESMA */
+export function requirements(sys: SysId, kW: number, loc = ''): Req[] {
+  const r = esmaAshrae(sys, kW);
+  if (loc !== 'rak') return r;
+  /* split and window keep the five ESMA stars first, so the best label stays recommended */
+  const at = sys === 'split' || sys === 'window' ? 5 : r.filter(x => x.src === 'ESMA').length;
+  return [...r.slice(0, at), ...barjeel(sys, kW), ...r.slice(at)];
+}
+function esmaAshrae(sys: SysId, kW: number): Req[] {
   const btu = kW * 1000 * BTU_W, tons = kW / 3.51685, r: Req[] = [];
   if (sys === 'split' || sys === 'window') {
     const b = sys === 'split' ? [10.31, 9.71, 9.01, 8.31, 7.70] : [9.01, 8.51, 8.01, 7.51, 6.80];
@@ -97,8 +129,8 @@ export function requirements(sys: SysId, kW: number): Req[] {
 
 /* the efficiency recommended for design: the highest ESMA star for ACs, otherwise the stricter of the ESMA and ASHRAE 90.1 full-load values
    compared at 35 °C (ESMA T3 values converted with the ISO 16358 temperature curve) */
-export function recommended(sys: SysId, kW: number): Req {
-  const r = requirements(sys, kW), s = SYSTEMS.find(x => x.id === sys)!;
+export function recommended(sys: SysId, kW: number, loc = ''): Req {
+  const r = requirements(sys, kW, loc), s = SYSTEMS.find(x => x.id === sys)!;
   if (sys === 'split' || sys === 'window') return r[0];
   const fulls = r.filter(x => x.kind === 'full' && !x.id.includes('-b'));
   if (!fulls.length) return r[0];

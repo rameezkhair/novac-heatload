@@ -6,6 +6,10 @@ import App from '../src/App';
 import { ToastProvider } from '../src/components/ui';
 import { num } from '../src/engine/util';
 import { NET } from '../src/engine/weather/providers';
+import { PRO } from '../src/pro';
+import { exampleState } from '../src/engine/project';
+import { listSaved } from '../src/state/store';
+import { projectFromFile } from '../src/projectFile';
 import { fakeOpenMeteo } from './weatherFixture';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -24,41 +28,72 @@ const setValue = (el: HTMLInputElement | HTMLSelectElement, v: string) => {
 const plantTR = () => $('.tot.key .v').textContent!;
 
 beforeEach(async () => {
-  localStorage.clear(); location.hash = '';
+  localStorage.clear(); location.hash = ''; PRO.unlocked = true;
   host = document.createElement('div'); document.body.appendChild(host);
   await act(async () => { root = createRoot(host); root.render(<ToastProvider><App /></ToastProvider>); });
 });
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
 
 describe('app', () => {
-  it('renders the example project', async () => {
+  it('keeps the Pro tools locked until Pro is unlocked', async () => {
+    PRO.unlocked = false;
+    await act(async () => root.render(<ToastProvider><App key="locked" /></ToastProvider>));
+    expect($$('.workflow-step')).toHaveLength(5);
+    const pro = $$('.workflow-pro .workflow-soon');
+    expect(pro).toHaveLength(15);
+    expect(pro.slice(0, 4).map(e => e.querySelector('.workflow-status')!.textContent)).toEqual(['Locked · coming soon', 'Locked · coming soon', 'Coming soon', 'Coming soon']);
+    expect(pro.every(e => (e as HTMLButtonElement).disabled)).toBe(true);
     await act(async () => $('.workflow-step[data-step="4"]').click());
+    expect($('.tot.key')).not.toBeNull();
+    expect(byText('button', 'Continue')).toBeUndefined();
+    expect($('.room-load-table')).not.toBeNull();
+  });
+
+  it('renders the example project', async () => {
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     expect($$('.ritem').map(e => e.querySelector('.nm')!.textContent)).toEqual(['Open plan office', 'Boardroom', 'Manager office ×2', 'Reception and waiting', 'Corridor']);
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(plantTR()).toMatch(/^\d+\.\dTR$/);
     expect(host.textContent).not.toMatch(/NaN|undefined/);
   });
 
-  it('navigates through the calculator steps and counts valid defaults as complete', async () => {
-    expect($$('.workflow-step')).toHaveLength(8);
+  it('navigates through the calculator steps and ticks a step once it has been filled in', async () => {
+    expect($$('.workflow-step')).toHaveLength(7);
     expect($('.workflow-step[data-step="0"]').getAttribute('aria-current')).toBe('step');
-    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete', 'Complete']);
+    expect($$('.workflow-step.is-complete')).toHaveLength(0);
+    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['In progress', 'Not started', 'Not started', 'Not started', 'Not started', 'Not started', 'Not started']);
     expect($('#p-name')).not.toBeNull();
     expect($('#p-toDB')).toBeNull();
+    await act(async () => setValue($('#p-client'), 'Acme Holdings'));
+    expect($('.workflow-step[data-step="0"] .workflow-status').textContent).toBe('Complete');
     await act(async () => byText('button', 'Continue').click());
     expect($('#p-toDB')).not.toBeNull();
-    await act(async () => byText('button', 'Continue').click());
     expect($('.psy-wrap')).not.toBeNull();
-
+    expect($('.workflow-step[data-step="1"] .workflow-title').textContent).toBe('Design conditions');
+    expect($('.psy-wrap').closest('section')!.querySelector('.sec-head .n')).toBeNull();
     await act(async () => $('.workflow-step[data-step="3"]').click());
+    expect($('.workflow-step[data-step="1"] .workflow-status').textContent).toBe('Not started');
+    await act(async () => $('.workflow-step[data-step="1"]').click());
+    await act(async () => byText('button', 'Continue').click());
+    expect($('.workflow-step[data-step="1"] .workflow-status').textContent).toBe('Complete');
+    expect($('.psy-wrap')).toBeNull();
+    expect($('#p-codeset')).not.toBeNull();
+
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     expect($('#p-codeset')).not.toBeNull();
     expect($('.psy-wrap')).toBeNull();
     await act(async () => byText('button', 'Continue').click());
     expect($('#r-area')).not.toBeNull();
     await act(async () => byText('button', 'Continue').click());
     expect($('.tot.key')).not.toBeNull();
+    expect($('.room-load-table')).not.toBeNull();
+    expect($$('.room-load-table tbody tr')).toHaveLength(5);
+    expect([...$('.sec-head').parentElement!.querySelectorAll('.room-load-table, .totals')][0].classList.contains('room-load-table')).toBe(true);
+    await act(async () => byText('button', 'Continue').click());
+    expect($('.workflow-step[aria-current="step"] .workflow-title').textContent).toBe('Hourly analysis');
     await act(async () => byText('button', 'Previous').click());
-    expect($('#r-area')).not.toBeNull();
+    expect($('.tot.key')).not.toBeNull();
+    expect($('.room-load-table')).not.toBeNull();
   });
 
   it('removes completion when a required design value is cleared without locking navigation', async () => {
@@ -66,10 +101,11 @@ describe('app', () => {
     await act(async () => setValue($('#p-toDB'), ''));
     expect($('.workflow-step[data-step="1"] .workflow-status').textContent).toBe('In progress');
     expect($('.workflow-step[data-step="1"]').classList.contains('is-complete')).toBe(false);
-    expect($('.workflow-step[data-step="5"] .workflow-status').textContent).toBe('Needs input');
+    expect($('.workflow-step[data-step="4"] .workflow-status').textContent).toBe('Needs input');
     await act(async () => byText('button', 'Continue').click());
     expect($('.workflow-step[data-step="1"] .workflow-status').textContent).toBe('Needs input');
-    expect($('.psy-wrap')).not.toBeNull();
+    expect($('#p-codeset')).not.toBeNull();
+    expect($('.psy-wrap')).toBeNull();
   });
 
   it('requires a project name before leaving project details', async () => {
@@ -78,7 +114,7 @@ describe('app', () => {
     await act(async () => byText('button', 'Continue').click());
     expect($('#p-name')).not.toBeNull();
     expect($('#p-name-err')!.textContent).toContain('Enter a project name');
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     expect($('#r-area')).toBeNull();
     await act(async () => setValue($('#p-name'), 'Villa A'));
     await act(async () => setValue($('#p-client'), 'Acme Holdings'));
@@ -93,7 +129,7 @@ describe('app', () => {
   });
 
   it('filters the ASHRAE assembly reference without changing project U-values', async () => {
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     const projectUWall = $<HTMLInputElement>('#p-uWall').value;
     await act(async () => setValue($('#assembly-zone'), '3'));
     await act(async () => setValue($('#assembly-surface'), 'Above-grade wall'));
@@ -110,7 +146,7 @@ describe('app', () => {
   });
 
   it('adds ASHRAE assemblies as a wall type and applies roof and floor values', async () => {
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     expect($<HTMLSelectElement>('#assembly-zone').value).toBe('0');
     await act(async () => $('button[aria-label="Add as wall type: Above-grade wall Steel-framed"]').click());
     expect($<HTMLInputElement>('input[aria-label="external wall type 1 name"]').value).toBe('ASHRAE 90.1-2022 CZ0 steel-framed (nonresidential), 80 mm Extruded polystyrene');
@@ -132,7 +168,7 @@ describe('app', () => {
   });
 
   it('has no Dubai Municipality material directory on the envelope step', async () => {
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     expect($('#p-codeset')).not.toBeNull();
     expect(host.textContent).not.toContain('Dubai Municipality materials');
   });
@@ -148,10 +184,13 @@ describe('app', () => {
   });
 
   it('shows the total plant summary from the Total load row', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     await act(async () => $('.rtotal').click());
     expect($('.rtotal').getAttribute('aria-current')).toBe('true');
     expect($('.result').textContent).toContain('Total plant');
+    /* the total shows the same detail as a room: compliance, fresh air breakdown, components and the hourly profile */
+    ['Sensible heat ratio', 'Supply air (ΔT', 'People', 'Fresh air cooling load', 'Per 100 L/s', 'Glass, solar', 'Room total', 'Building room load by hour']
+      .forEach(t => expect($('.result').textContent).toContain(t));
     expect($$('.plant-rooms tbody tr')).toHaveLength($$('.ritem').length);
     await act(async () => $('.plant-rooms .linkish').click());
     expect($('#r-area')).not.toBeNull();
@@ -159,11 +198,11 @@ describe('app', () => {
   });
 
   it('recalculates when a room changes, and undo restores it', async () => {
-    await act(async () => $('.workflow-step[data-step="5"]').click());
-    const before = plantTR();
     await act(async () => $('.workflow-step[data-step="4"]').click());
+    const before = plantTR();
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     await act(async () => setValue($('#r-area'), '240'));
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(plantTR()).not.toBe(before);
     await act(async () => { dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })); });
     expect(plantTR()).toBe(before);
@@ -172,18 +211,18 @@ describe('app', () => {
   it('applies the emirate code set', async () => {
     await act(async () => $('.workflow-step[data-step="1"]').click());
     await act(async () => setValue($('#p-location'), 'abudhabi'));
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     /* outside Dubai no primary-source authority limits are catalogued, so the envelope becomes project inputs */
     expect($<HTMLSelectElement>('#p-codeset').value).toBe('custom');
     expect(host.textContent).toContain('No authority limits apply');
     expect(host.textContent).not.toMatch(/null|NaN|undefined/);
     /* a reference-only code can still be chosen to compare against */
     await act(async () => setValue($('#p-codeset'), 'estidama'));
-    expect(host.textContent).toContain('Estidama and Barjeel publish no skylight SHGC');
+    expect(host.textContent).toContain('Estidama publishes no skylight SHGC');
   });
 
   it('adds a wall partition and uses its gain', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     await act(async () => byText('button', '+ Add wall partition').click());
     const area = $$('input.expr').find(i => i.getAttribute('aria-label') === 'Area') as HTMLInputElement;
     await act(async () => setValue(area, '4*3'));
@@ -191,9 +230,9 @@ describe('app', () => {
   });
 
   it('adds external wall and partition types and uses them in a space', async () => {
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     const before = plantTR();
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     await act(async () => byText('button', '+ Add external wall type').click());
     await act(async () => setValue($('input[aria-label="external wall type 1 name"]'), 'Curtain wall spandrel'));
     await act(async () => setValue($('input[aria-label="external wall type 1 U-value"]'), '2.5'));
@@ -202,7 +241,7 @@ describe('app', () => {
     await act(async () => setValue($('input[aria-label="partition type 1 name"]'), 'Glass partition'));
     await act(async () => setValue($('input[aria-label="partition type 1 U-value"]'), '5.7'));
 
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     const walls = $$('select').filter(s => / wall type$/.test(s.getAttribute('aria-label') || ''));
     expect(walls).toHaveLength(8);
     /* the first facing with wall area in the example room */
@@ -215,7 +254,7 @@ describe('app', () => {
     await act(async () => setValue(pt, pt.querySelectorAll('option')[1].getAttribute('value')!));
     expect(pt.closest('tr')!.querySelector<HTMLInputElement>('input[aria-label="U-value"]')!.value).toBe('5.7');
 
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(plantTR()).not.toBe(before);
     await act(async () => byText('button', 'Generate report').click());
     expect($('.rpt').textContent).toContain('External wall type: Curtain wall spandrel');
@@ -223,7 +262,7 @@ describe('app', () => {
   });
 
   it('works out wall and glass areas in the pop-up calculator', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     await act(async () => $$('button').filter(b => b.textContent === 'L × H')[0].click());
     const dlg = document.querySelector('[role="dialog"]') as HTMLElement;
     expect(dlg.getAttribute('aria-label')).toBe('Area calculator · N wall');
@@ -240,7 +279,7 @@ describe('app', () => {
   });
 
   it('has an area calculator on floor area and partitions', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     const dialog = () => document.querySelector('[role="dialog"]') as HTMLElement;
     const fill = async (what: string, vals: Record<string, string>) => {
       for (const [k, v] of Object.entries(vals)) await act(async () => setValue(dialog().querySelector(`input[aria-label="${what} ${k}"]`) as HTMLInputElement, v));
@@ -259,7 +298,7 @@ describe('app', () => {
   });
 
   it('converts feet to metres in the area calculators', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     const dialog = () => document.querySelector('[role="dialog"]') as HTMLElement;
     const btn = (t: string) => Array.from(dialog().querySelectorAll('button')).find(b => b.textContent === t) as HTMLElement;
     const inp = (l: string) => dialog().querySelector(`input[aria-label="${l}"]`) as HTMLInputElement;
@@ -280,7 +319,7 @@ describe('app', () => {
   });
 
   it('builds an assembly from UAE materials and saves it as a wall type', async () => {
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     await act(async () => setValue($('#uvb-preset'), 'w-aac'));
     expect($('.uvb-u').textContent).toContain('0.68 W/m²K');
     await act(async () => byText('button', '+ Add layer').click());
@@ -293,39 +332,39 @@ describe('app', () => {
   });
 
   it('uses the heat balance method throughout the calculator', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     expect(host.textContent).toMatch(/Peak on [A-Z][a-z]{2} 21 at \d\d:00/);
     expect($('.hb-chart svg')).not.toBeNull();
     await act(async () => setValue($('#r-sched'), 'day'));
     expect($<HTMLSelectElement>('#r-sched').value).toBe('day');
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     const hb = plantTR();
     expect(host.textContent).toContain('Coincident block load');
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     expect(host.textContent).not.toContain('Orientation factors');
     expect($('#p-aWall')).not.toBeNull();
     expect($('#p-method')).toBeNull();
     expect(host.textContent).toContain('Heat balance method');
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     expect($('#r-sched')).not.toBeNull();
     expect($('.hb-chart svg')).not.toBeNull();
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(plantTR()).toBe(hb);
-    expect($$('.workflow-step .workflow-status').every(e => e.textContent === 'Complete')).toBe(true);
+    expect(['3', '4'].map(i => $('.workflow-step[data-step="' + i + '"] .workflow-status').textContent)).toEqual(['Complete', 'In progress']);
   });
 
   it('shows hourly loads by component for the building, a room and any month', async () => {
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     expect($('.hr-req .pill.ok').textContent).toBe('Recommended');
     /* the FAHU selector here and the checkbox in the envelope step are the same setting */
     const fahu = $<HTMLSelectElement>('#summary-el-fahu');
     const was = fahu.value;
     await act(async () => setValue(fahu, was === 'fahu' ? 'room' : 'fahu'));
     expect($('.totals').textContent).toContain(was === 'fahu' ? 'in room units' : 'FAHU');
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     expect($<HTMLInputElement>('#p-fahu').checked).toBe(was !== 'fahu');
     await act(async () => $<HTMLInputElement>('#p-fahu').click());
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     expect($<HTMLSelectElement>('#summary-el-fahu').value).toBe(was);
     await act(async () => setValue($('#summary-el-sys'), 'split'));
     expect($<HTMLSelectElement>('#summary-el-eff').selectedOptions[0].textContent).toContain('ESMA 5 stars');
@@ -351,7 +390,7 @@ describe('app', () => {
       const actual = $$('.hr-kpis')[0].querySelectorAll('.tot')[1].querySelector('.v')!.textContent!;
       expect(Number(actual.replace(/[^\d.]/g, '')).toFixed(1)).toBe(Number(kw($$('button.tot.pick')[i]).replace(/[^\d.]/g, '')).toFixed(1));
     }
-    await act(async () => $('.workflow-step[data-step="6"]').click());
+    await act(async () => $('.workflow-step[data-step="5"]').click());
     expect($$('.hr-hours tbody tr')).toHaveLength(24);
     expect($$('.hr-hours tr.pk')).toHaveLength(1);
     expect($$('.hr-legend li')).toHaveLength(8);
@@ -362,7 +401,7 @@ describe('app', () => {
     await act(async () => byText('.hr-mon-l', 'Oct').closest('button')!.click());
     expect($<HTMLSelectElement>('#hr-month').value).toBe('9');
     expect(host.textContent).not.toMatch(/NaN|undefined/);
-    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $('.workflow-step[data-step="2"]').click());
     expect($('#p-method')).toBeNull();
   });
 
@@ -401,7 +440,7 @@ describe('app', () => {
     const written: Record<string, string> = {}, picked: string[] = [];
     const handle = (name: string) => ({ name, getFile: async () => new File([written[name] ?? ''], name),
       createWritable: async () => ({ write: async (d: string) => { written[name] = d; }, close: async () => {} }) });
-    const names = ['a.novac.json', 'b.novac.json'];
+    const names = ['a.novac.html', 'b.novac.html'];
     (window as any).showSaveFilePicker = async () => { const n = names[picked.length]; picked.push(n); return handle(n); };
     try {
       const save = async (as = false) => {
@@ -410,13 +449,13 @@ describe('app', () => {
       };
       await act(async () => setValue($('#p-name'), 'Villa A'));
       await save(); await save();
-      expect(picked).toEqual(['a.novac.json']);
-      expect(JSON.parse(written['a.novac.json']).project.name).toBe('Villa A');
+      expect(picked).toEqual(['a.novac.html']);
+      expect((projectFromFile(written['a.novac.html']) as any).project.name).toBe('Villa A');
       await act(async () => setValue($('#p-name'), 'Villa B'));
       await save(true);
-      expect(picked).toEqual(['a.novac.json', 'b.novac.json']);
-      expect(JSON.parse(written['b.novac.json']).project.name).toBe('Villa B');
-      expect(JSON.parse(written['a.novac.json']).project.name).toBe('Villa A');
+      expect(picked).toEqual(['a.novac.html', 'b.novac.html']);
+      expect((projectFromFile(written['b.novac.html']) as any).project.name).toBe('Villa B');
+      expect((projectFromFile(written['a.novac.html']) as any).project.name).toBe('Villa A');
     } finally { delete (window as any).showSaveFilePicker; }
   });
 });
@@ -427,7 +466,7 @@ describe('real weather year', () => {
     const f = vi.fn(async (_url: string) => new Response(JSON.stringify(fakeOpenMeteo(2025)), { status: 200 }));
     vi.stubGlobal('fetch', f);
     try {
-      await act(async () => $('.workflow-step[data-step="6"]').click());
+      await act(async () => $('.workflow-step[data-step="5"]').click());
       await act(async () => $$('.seg button')[1].click());
       for (let i = 0; i < 50 && !$('#wx-year'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
       expect($('.wx-status').textContent).toContain('No weather year loaded yet');
@@ -456,9 +495,9 @@ describe('real weather year', () => {
 
 describe('indoor air quality', () => {
   it('calculates ventilation, writes it to the rooms and the loads follow', async () => {
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     const before = num(plantTR());
-    await act(async () => $('.workflow-step[data-step="7"]').click());
+    await act(async () => $('.workflow-step[data-step="6"]').click());
     for (let i = 0; i < 50 && !$('.iaq-zones'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
     expect($$('.iaq-zones tbody tr')).toHaveLength(5);
     expect($('.iaq-kpis').textContent).toContain('System outdoor air intake, Vot');
@@ -468,10 +507,10 @@ describe('indoor air quality', () => {
     expect(apply.disabled).toBe(false);
     await act(async () => apply.click());
     expect(apply.disabled).toBe(true);
-    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(num(plantTR())).toBeGreaterThan(before);
     /* contaminants and filtration on the same rooms */
-    await act(async () => $('.workflow-step[data-step="7"]').click());
+    await act(async () => $('.workflow-step[data-step="6"]').click());
     await act(async () => byText('.iaq-tabs button', 'Contaminants').click());
     expect($$('.iaq-cont tbody tr')).toHaveLength(9);
     expect($('.iaq-cont').textContent).toContain('Ventilation indicator');
@@ -483,7 +522,7 @@ describe('indoor air quality', () => {
 
 describe('floors in spaces', () => {
   it('adds floors, puts rooms on them, repeats typical floors and deletes a floor', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     /* the example sits on its first floor */
     expect($$('.rfloor-h .nm').map(e => e.textContent)).toEqual(['First floor']);
     const total = () => num($('.rtotal .tr').textContent);
@@ -515,7 +554,7 @@ describe('floors in spaces', () => {
 
 describe('cooling load picture', () => {
   it('draws the building and floor plans, live, and opens a room from the plan', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     await act(async () => $('.rtotal').click());
     expect($$('.bld-slab')).toHaveLength(1);
     expect($$('.plan-room')).toHaveLength(5);
@@ -540,7 +579,7 @@ describe('dragging spaces between floors', () => {
   const fire = (el: Element, type: string) => el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
   const names = (i: number) => [...$$('.rfloor')[i].querySelectorAll('.ritem .nm')].map(e => e.textContent);
   it('moves a space to another floor, places it before a space, and takes it off its floor', async () => {
-    await act(async () => $('.workflow-step[data-step="4"]').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
     await act(async () => byText('.rlist .add', '+ Add floor').click());
     const item = (name: string) => $$('.ritem').find(e => e.querySelector('.nm')!.textContent === name)!;
     const total = $('.rtotal .tr').textContent;
@@ -565,5 +604,68 @@ describe('dragging spaces between floors', () => {
     expect(names(2)).toEqual(['Corridor']);
     /* moving spaces between floors that are not repeated leaves the building total unchanged */
     expect($('.rtotal .tr').textContent).toBe(total);
+  });
+});
+
+describe('library, forum, community chat and support', () => {
+  it('opens from the header links, shows each category and returns to the calculator', async () => {
+    const link = (t: string) => byText('.app-links button', t);
+    await act(async () => link('Library').click());
+    expect($('#workflow-stepper')).toBeNull();
+    expect(link('Library').getAttribute('aria-pressed')).toBe('true');
+    expect($$('.lib-cat h4').map(e => e.textContent)).toEqual(['Methods', 'Regulations', 'ASHRAE standards', 'General']);
+    expect(host.textContent).toContain('ASHRAE heat balance method (Fundamentals Ch. 18)');
+    await act(async () => byText('.lib-nav button', 'Authorities by emirate').click());
+    expect(host.textContent).toContain('Dubai Municipality (DM)');
+    await act(async () => byText('.lib-nav button', 'Abu Dhabi Cooling Load Manual (2026)').click());
+    expect(host.textContent).toContain('46.1 °C / 29.4 °C');
+    expect($$('.dg-kind.shall').length).toBeGreaterThan(5);
+    expect($<HTMLAnchorElement>('.digest-meta a').href).toContain('doe.gov.ae');
+    await act(async () => byText('.lib-nav button', 'Dubai Building Code, Part H.4 HVAC').click());
+    expect(host.textContent).toContain('22.5–25.5 °C');
+    expect(host.textContent).toContain('H.4.13');
+    await act(async () => byText('.lib-nav button', 'ASHRAE 62.1-2022 Ventilation Rate Procedure').click());
+    expect(host.textContent).toContain('Vbz = Rp × Pz + Ra × Az');
+    await act(async () => byText('.lib-nav button', 'ASHRAE 90.1-2022 climate zone 0 requirements').click());
+    expect(host.textContent).toContain('1.78 L/s·m²');
+    await act(async () => byText('.lib-nav button', "Al Sa'fat – Dubai Green Building System").click());
+    expect(host.textContent).toContain('1.5 / 0.25 / 0.25');
+    await act(async () => byText('.lib-nav button', 'Envelope limits').click());
+    expect(host.textContent).toContain('Barjeel V1.3 301.01 / 401.01');
+    expect(host.textContent).not.toContain('ASHRAE 90.1-2022 Table 5.5-0');
+    await act(async () => byText('.lib-nav button', 'ASHRAE 62.1-2025 ventilation rates (Table 6-1)').click());
+    expect(host.textContent).toContain('Office space');
+    expect(byText('button', 'Download PDF')).toBeTruthy();
+    expect($$('button').some(b => /Download (all|full library)/.test(b.textContent || ''))).toBe(false);
+    await act(async () => $$('.lib-nav button').filter(b => b.textContent === 'Official documents')[0].click());
+    expect($$('.lib-docs a').map(a => new URL((a as HTMLAnchorElement).href).hostname)).toEqual(['www.dm.gov.ae', 'www.dm.gov.ae', 'www.doe.gov.ae', 'www.dmt.gov.ae', 'reem.rak.ae']);
+    await act(async () => $$('.lib-nav button').filter(b => b.textContent === 'Official documents')[1].click());
+    expect($$('.lib-docs a').every(a => (a as HTMLAnchorElement).href.startsWith('https://www.ashrae.org/'))).toBe(true);
+    await act(async () => link('Forum').click());
+    expect($$('.app-links button').map(e => e.textContent)).toEqual(['Library', 'Forum', 'Community chat', 'Support']);
+    expect(host.textContent).toContain('The forum is coming soon');
+    await act(async () => link('Community chat').click());
+    expect(host.textContent).toContain('Community chat is coming soon');
+    await act(async () => link('Support').click());
+    expect($<HTMLAnchorElement>('.support a[href*="github.com"]').href).toContain('/issues');
+    await act(async () => byText('button', 'Open the Library').click());
+    expect(link('Library').getAttribute('aria-pressed')).toBe('true');
+    await act(async () => byText('button', 'Back to calculator').click());
+    expect($('#workflow-stepper')).not.toBeNull();
+  });
+});
+
+describe('project file links', () => {
+  it('opens a project from a #open= link and keeps the previous work in the browser', async () => {
+    await act(async () => setValue($('#p-name'), 'Villa Kite Beach'));
+    const incoming = { ...JSON.parse(JSON.stringify(exampleState())), example: false };
+    incoming.project.name = 'Shared project';
+    const bytes = new TextEncoder().encode(JSON.stringify(incoming));
+    const enc = 'j.' + btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    await act(async () => { location.hash = '#open=' + enc; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect($<HTMLInputElement>('#p-name').value).toBe('Shared project');
+    expect(location.hash).toBe('');
+    expect(listSaved().map(p => p.name)).toContain('Villa Kite Beach');
   });
 });

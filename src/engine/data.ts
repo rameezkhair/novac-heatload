@@ -12,12 +12,12 @@ export interface Loc {
 }
 export const LOC: Record<string, Loc> = {
   dubai: { label: 'Dubai', toDB: 46, toWB: 29, dr: 13.8, elev: 5, vDB: 34, vWB: 32, ref: 'DBC Table H.1', vref: 'DBC H.4.6.4', note: 'Dubai: DBC Table H.1, 46 °C DB / 29 °C WB, 13.8 K daily range, 25° N, climate zone 0B; outdoor air system DBC H.4.6.4, 34 °C DB / 32 °C WB.' },
-  abudhabi: { label: 'Abu Dhabi (coastal)', toDB: 46.1, toWB: 29.4, dr: 13, elev: 27, vDB: 35.3, vWB: 30.6, ref: 'DOE Cooling Load Manual Tables 1–2', note: 'Abu Dhabi: DOE Cooling Load Manual, Tables 1 and 2.' },
-  alain: { label: 'Al Ain (inland)', toDB: 48.8, toWB: 28.3, dr: 15, elev: 265, vDB: 35.8, vWB: 28.8, ref: 'DOE Cooling Load Manual Tables 1–2', note: 'Al Ain: DOE Cooling Load Manual, Tables 1 and 2.' },
+  abudhabi: { label: 'Abu Dhabi (coastal)', toDB: 46.1, toWB: 29.4, dr: 13, elev: 27, vDB: 35.3, vWB: 30.6, ref: 'DoE CLM 2026 Tables 1–2', note: 'Abu Dhabi City: DoE Cooling Load Manual (DoE_PR_P04_001, May 2026), Table 1, 46.1 °C DB / 29.4 °C WB, 24.433° N, 27 m, climate zone 0B; Table 2 outdoor air 35.3 °C DB / 30.6 °C WB.' },
+  alain: { label: 'Al Ain (inland)', toDB: 48.8, toWB: 28.3, dr: 15, elev: 265, vDB: 35.8, vWB: 28.8, ref: 'DoE CLM 2026 Tables 1–2', note: 'Al Ain City: DoE Cooling Load Manual (DoE_PR_P04_001, May 2026), Table 1, 48.8 °C DB / 28.3 °C WB, 24.262° N, 265 m, climate zone 0B; Table 2 outdoor air 35.8 °C DB / 28.8 °C WB.' },
   sharjah: { label: 'Sharjah', toDB: 46, toWB: 29, dr: 13.8, elev: 5, vDB: 34, vWB: 32, ref: 'DBC Table H.1 (regional practice)', vref: 'DBC H.4.6.4 (regional practice)' },
   ajman: { label: 'Ajman', toDB: 46, toWB: 29, dr: 13.8, elev: 5, vDB: 34, vWB: 32, ref: 'DBC Table H.1 (regional practice)', vref: 'DBC H.4.6.4 (regional practice)' },
   uaq: { label: 'Umm Al Quwain', toDB: 46, toWB: 29, dr: 13.8, elev: 5, vDB: 34, vWB: 32, ref: 'DBC Table H.1 (regional practice)', vref: 'DBC H.4.6.4 (regional practice)' },
-  rak: { label: 'Ras Al Khaimah', toDB: 46, toWB: 29, dr: 13.8, elev: 5, vDB: 34, vWB: 32, ref: 'DBC Table H.1 (regional practice)', vref: 'DBC H.4.6.4 (regional practice)' },
+  rak: { label: 'Ras Al Khaimah', toDB: 46, toWB: 29, dr: 13.8, elev: 5, vDB: 34, vWB: 32, ref: 'Barjeel V1.3 301.02 / 401.02', vref: 'DBC H.4.6.4 (Barjeel gives no fresh-air condition)' },
   fujairah: { label: 'Fujairah', toDB: 46, toWB: 29, dr: 13.8, elev: 5, vDB: 34, vWB: 32, ref: 'DBC Table H.1 (regional practice)', vref: 'DBC H.4.6.4 (regional practice)' },
   custom: { label: 'Custom', ref: 'Custom values', note: 'Custom conditions. Record your data source.' },
 };
@@ -73,14 +73,14 @@ export const SUBLOC: Record<string, SubLoc[]> = {
 
 /* authority basis per emirate. UAE Fire and Life Safety Code applies in every emirate */
 const FLSC = 'UAE Fire and Life Safety Code (Civil Defence)';
-const AUTH: Record<string, { auth: string; code: string; green: string; util: string; design: string }> = {
+export const AUTH: Record<string, { auth: string; code: string; green: string; util: string; design: string }> = {
   dubai: { auth: 'Dubai Municipality (DM); free zones: DDA, Trakhees, DSO, DIFC', code: 'Dubai Building Code 2021 (DBC)', green: "Al Sa'fat (DM)", util: 'DEWA', design: 'DBC Table H.1 and H.4.6.4' },
-  abudhabi: { auth: 'Department of Municipalities and Transport (DMT); Abu Dhabi City / Al Dhafra Municipality', code: 'Abu Dhabi International Building Codes (ADIBC)', green: 'Estidama Pearl Rating System (DMT)', util: 'TAQA Distribution (ADDC)', design: 'DOE Cooling Load Manual Tables 1–2' },
-  alain: { auth: 'Department of Municipalities and Transport (DMT); Al Ain City Municipality', code: 'Abu Dhabi International Building Codes (ADIBC)', green: 'Estidama Pearl Rating System (DMT)', util: 'TAQA Distribution (AADC)', design: 'DOE Cooling Load Manual Tables 1–2' },
+  abudhabi: { auth: 'Department of Municipalities and Transport (DMT); Abu Dhabi City / Al Dhafra Municipality', code: 'Abu Dhabi International Building Codes (ADIBC)', green: 'Estidama Pearl Rating System (DMT)', util: 'TAQA Distribution (ADDC)', design: 'DoE Cooling Load Manual 2026, Tables 1–2' },
+  alain: { auth: 'Department of Municipalities and Transport (DMT); Al Ain City Municipality', code: 'Abu Dhabi International Building Codes (ADIBC)', green: 'Estidama Pearl Rating System (DMT)', util: 'TAQA Distribution (AADC)', design: 'DoE Cooling Load Manual 2026, Tables 1–2' },
   sharjah: { auth: 'Sharjah Municipality; Sharjah Planning and Survey Department', code: 'Sharjah Municipality building regulations', green: 'SEWA thermal insulation and efficiency requirements; ASHRAE 90.1 envelope', util: 'SEWA', design: 'DBC / ASHRAE values (no emirate design-day table)' },
   ajman: { auth: 'Ajman Municipality and Planning Department (AMPD)', code: 'AMPD building regulations', green: 'MOEI UAE Green Building Codes; ASHRAE 90.1 envelope', util: 'Etihad Water and Electricity (EtihadWE)', design: 'DBC / ASHRAE values (no emirate design-day table)' },
   uaq: { auth: 'Umm Al Quwain Municipality', code: 'UAQ Municipality building regulations', green: 'MOEI UAE Green Building Codes; ASHRAE 90.1 envelope', util: 'Etihad Water and Electricity (EtihadWE)', design: 'DBC / ASHRAE values (no emirate design-day table)' },
-  rak: { auth: 'Ras Al Khaimah Municipality; RAKEZ in its free zone', code: 'RAK Building Regulations and Construction Specifications', green: 'Barjeel Green Building Regulations (RAK Municipality)', util: 'Etihad Water and Electricity (EtihadWE)', design: 'DBC / ASHRAE values (no emirate design-day table)' },
+  rak: { auth: 'Ras Al Khaimah Municipality; RAKEZ in its free zone', code: 'RAK Building Regulations and Construction Specifications', green: 'Barjeel Green Building Regulations (RAK Municipality)', util: 'Etihad Water and Electricity (EtihadWE)', design: 'Barjeel V1.3 301.02 / 401.02: 46 °C DB / 29 °C WB, 25.5° N' },
   fujairah: { auth: 'Fujairah Municipality', code: 'Fujairah Municipality building regulations', green: 'MOEI UAE Green Building Codes; ASHRAE 90.1 envelope', util: 'Etihad Water and Electricity (EtihadWE)', design: 'DBC / ASHRAE values (no emirate design-day table)' },
 };
 export const authLine = (k: string) => {
@@ -90,12 +90,12 @@ export const authLine = (k: string) => {
 /* codes applied automatically when the emirate changes */
 export const AUTO: Record<string, { codeset: string; indoor: string; why: string }> = {
   dubai: { codeset: 'safat-s-40', indoor: 'dbc', why: "Dubai: Al Sa'fat envelope and DBC indoor basis" },
-  abudhabi: { codeset: 'custom', indoor: 'custom', why: 'Abu Dhabi: DOE Cooling Load Manual design conditions; no primary-source envelope or indoor limits are catalogued.' },
-  alain: { codeset: 'custom', indoor: 'custom', why: 'Al Ain: DOE Cooling Load Manual design conditions; no primary-source envelope or indoor limits are catalogued.' },
+  abudhabi: { codeset: 'custom', indoor: 'custom', why: 'Abu Dhabi: DoE Cooling Load Manual 2026 design conditions; no primary-source envelope or indoor limits are catalogued.' },
+  alain: { codeset: 'custom', indoor: 'custom', why: 'Al Ain: DoE Cooling Load Manual 2026 design conditions; no primary-source envelope or indoor limits are catalogued.' },
   sharjah: { codeset: 'custom', indoor: 'custom', why: 'No local authority envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
   ajman: { codeset: 'custom', indoor: 'custom', why: 'No local authority envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
   uaq: { codeset: 'custom', indoor: 'custom', why: 'No local authority envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
-  rak: { codeset: 'custom', indoor: 'custom', why: 'No primary-source Barjeel envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
+  rak: { codeset: 'barjeel', indoor: 'barjeel', why: 'Ras Al Khaimah: Barjeel V1.3 envelope (Comprehensive; pick Fundamental for villas and buildings up to 1,000 m²), indoor and outdoor design conditions' },
   fujairah: { codeset: 'custom', indoor: 'custom', why: 'No local authority envelope, indoor or design-weather values are catalogued. Enter project values or select a reference-only standard.' },
 };
 
@@ -104,12 +104,12 @@ export interface LibOpt { id: string; label: string; v: number; src: string }
 const mk = (a: [string, string, number, string][]): LibOpt[] => a.map(([id, label, v, src]) => ({ id, label, v, src }));
 export type PickKey = 'uWall' | 'uRoof' | 'uGlass' | 'shgc' | 'uSky' | 'shgcSky' | 'ez';
 export const LIB: Record<PickKey, LibOpt[]> = {
-  uWall: mk([['safat-s', SAFAT + ' Bronze/Silver', 0.57, SAFAT + ' 501.01'], ['safat-g', SAFAT + ' Golden/Platinum', 0.42, SAFAT + ' 501.01'], ['estidama', 'Estidama Pearl (Abu Dhabi)', 0.32, 'Estidama PBRS'], ['barjeel', 'Barjeel (Ras Al Khaimah)', 0.48, 'Barjeel'], ['a901-steel', 'ASHRAE 90.1-2022 CZ0, steel-framed', 0.705, A901], ['a901-metal', 'ASHRAE 90.1-2022 CZ0, metal building', 0.533, A901], ['a901-mass', 'ASHRAE 90.1-2022 CZ0, mass wall (concrete / block), nonresidential', 3.293, A901], ['a901-mass-res', 'ASHRAE 90.1-2022 CZ0, mass wall, residential (R-1.0 ci)', 0.857, A901], ['a901-wood', 'ASHRAE 90.1-2022 CZ0, wood-framed and other', 0.505, A901]]),
-  uRoof: mk([['safat', SAFAT + ', all levels', 0.30, SAFAT + ' 501.01'], ['estidama', 'Estidama Pearl', 0.14, 'Estidama PBRS'], ['barjeel', 'Barjeel (RAK)', 0.30, 'Barjeel'], ['a901-deck', 'ASHRAE 90.1-2022 CZ0, insulation above deck', 0.22, A901], ['a901-metal', 'ASHRAE 90.1-2022 CZ0, metal building', 0.233, A901], ['a901-attic', 'ASHRAE 90.1-2022 CZ0, attic and other', 0.153, A901], ['a901-deck-res', 'ASHRAE 90.1-2022 CZ0, insulation above deck, residential', 0.182, A901], ['a901-deck-nocool', 'ASHRAE 90.1-2022 CZ0, above deck without cool roof (Table 5.5.3.1.4)', 0.153, 'ASHRAE 90.1-2022 Table 5.5.3.1.4']]),
-  uGlass: mk([['safat-40', SAFAT + ', glazing ≤40% of wall', 2.1, SAFAT + ' 501.01 B'], ['safat-60', SAFAT + ', glazing >40% or shopfront', 1.9, SAFAT + ' 501.01 B'], ['estidama', 'Estidama Pearl', 2.2, 'Estidama PBRS'], ['barjeel', 'Barjeel (RAK)', 2.2, 'Barjeel'], ['a901-fixed', 'ASHRAE 90.1-2022 CZ0, fixed', 2.84, A901], ['a901-oper', 'ASHRAE 90.1-2022 CZ0, operable', 3.52, A901], ['a901-door', 'ASHRAE 90.1-2022 CZ0, glazed entrance door', 4.713, A901]]),
-  shgc: mk([['safat-40', SAFAT + ', glazing ≤40% (SC 0.40)', 0.35, SAFAT + ' 501.01 B'], ['safat-60', SAFAT + ', glazing 40–60% (SC 0.32)', 0.28, SAFAT + ' 501.01 B'], ['safat-100', SAFAT + ', glazing ≥60% (SC 0.25)', 0.22, SAFAT + ' 501.01 B'], ['safat-shop', SAFAT + ', shopfront above ground (SC 0.76)', 0.66, SAFAT + ' 501.01 B'], ['estidama', 'Estidama Pearl', 0.30, 'Estidama PBRS'], ['barjeel', 'Barjeel (RAK)', 0.30, 'Barjeel'], ['a901-fixed', 'ASHRAE 90.1-2022 CZ0, fixed', 0.22, A901], ['a901-oper', 'ASHRAE 90.1-2022 CZ0, operable', 0.20, A901], ['a901-door', 'ASHRAE 90.1-2022 CZ0, glazed entrance door', 0.20, A901]]),
-  uSky: mk([['safat', SAFAT + ', roof glazing', 1.9, SAFAT + ' 501.01 B'], ['estidama', 'Estidama Pearl', 2.2, 'Estidama PBRS'], ['barjeel', 'Barjeel (RAK)', 1.8, 'Barjeel'], ['a901', 'ASHRAE 90.1-2022 CZ0, skylight', 3.97, A901]]),
-  shgcSky: mk([['safat-10', SAFAT + ', roof glazing ≤10% of roof (SC 0.32)', 0.28, SAFAT + ' 501.01 B'], ['safat-11', SAFAT + ', roof glazing >10% of roof (SC 0.25)', 0.22, SAFAT + ' 501.01 B'], ['a901', 'ASHRAE 90.1-2022 CZ0, skylight', 0.30, A901]]),
+  uWall: mk([['safat-s', SAFAT + ' Bronze/Silver', 0.57, SAFAT + ' 501.01'], ['safat-g', SAFAT + ' Golden/Platinum', 0.42, SAFAT + ' 501.01'], ['estidama', 'Estidama Pearl (Abu Dhabi)', 0.32, 'Estidama PBRS'], ['barjeel', 'Barjeel V1.3 (Ras Al Khaimah), average external wall', 0.48, 'Barjeel V1.3 301.01 / 401.01'], ['a901-steel', 'ASHRAE 90.1-2022 CZ0, steel-framed', 0.705, A901], ['a901-metal', 'ASHRAE 90.1-2022 CZ0, metal building', 0.533, A901], ['a901-mass', 'ASHRAE 90.1-2022 CZ0, mass wall (concrete / block), nonresidential', 3.293, A901], ['a901-mass-res', 'ASHRAE 90.1-2022 CZ0, mass wall, residential (R-1.0 ci)', 0.857, A901], ['a901-wood', 'ASHRAE 90.1-2022 CZ0, wood-framed and other', 0.505, A901]]),
+  uRoof: mk([['safat', SAFAT + ', all levels', 0.30, SAFAT + ' 501.01'], ['estidama', 'Estidama Pearl', 0.14, 'Estidama PBRS'], ['barjeel', 'Barjeel V1.3 (RAK), average roof', 0.30, 'Barjeel V1.3 301.01 / 401.01'], ['a901-deck', 'ASHRAE 90.1-2022 CZ0, insulation above deck', 0.22, A901], ['a901-metal', 'ASHRAE 90.1-2022 CZ0, metal building', 0.233, A901], ['a901-attic', 'ASHRAE 90.1-2022 CZ0, attic and other', 0.153, A901], ['a901-deck-res', 'ASHRAE 90.1-2022 CZ0, insulation above deck, residential', 0.182, A901], ['a901-deck-nocool', 'ASHRAE 90.1-2022 CZ0, above deck without cool roof (Table 5.5.3.1.4)', 0.153, 'ASHRAE 90.1-2022 Table 5.5.3.1.4']]),
+  uGlass: mk([['safat-40', SAFAT + ', glazing ≤40% of wall', 2.1, SAFAT + ' 501.01 B'], ['safat-60', SAFAT + ', glazing >40% or shopfront', 1.9, SAFAT + ' 501.01 B'], ['estidama', 'Estidama Pearl', 2.2, 'Estidama PBRS'], ['barjeel', 'Barjeel V1.3 Comprehensive, whole window incl. frame', 2.2, 'Barjeel V1.3 401.01'], ['barjeel-cp', 'Barjeel V1.3 Fundamental, centre pane', 1.8, 'Barjeel V1.3 301.01'], ['a901-fixed', 'ASHRAE 90.1-2022 CZ0, fixed', 2.84, A901], ['a901-oper', 'ASHRAE 90.1-2022 CZ0, operable', 3.52, A901], ['a901-door', 'ASHRAE 90.1-2022 CZ0, glazed entrance door', 4.713, A901]]),
+  shgc: mk([['safat-40', SAFAT + ', glazing ≤40% (SC 0.40)', 0.35, SAFAT + ' 501.01 B'], ['safat-60', SAFAT + ', glazing 40–60% (SC 0.32)', 0.28, SAFAT + ' 501.01 B'], ['safat-100', SAFAT + ', glazing ≥60% (SC 0.25)', 0.22, SAFAT + ' 501.01 B'], ['safat-shop', SAFAT + ', shopfront above ground (SC 0.76)', 0.66, SAFAT + ' 501.01 B'], ['estidama', 'Estidama Pearl', 0.30, 'Estidama PBRS'], ['barjeel', 'Barjeel V1.3 (RAK), windows', 0.30, 'Barjeel V1.3 301.01 / 401.01'], ['a901-fixed', 'ASHRAE 90.1-2022 CZ0, fixed', 0.22, A901], ['a901-oper', 'ASHRAE 90.1-2022 CZ0, operable', 0.20, A901], ['a901-door', 'ASHRAE 90.1-2022 CZ0, glazed entrance door', 0.20, A901]]),
+  uSky: mk([['safat', SAFAT + ', roof glazing', 1.9, SAFAT + ' 501.01 B'], ['estidama', 'Estidama Pearl', 2.2, 'Estidama PBRS'], ['barjeel', 'Barjeel V1.3 (RAK), skylight centre pane', 1.8, 'Barjeel V1.3 301.01 / 401.01'], ['a901', 'ASHRAE 90.1-2022 CZ0, skylight', 3.97, A901]]),
+  shgcSky: mk([['safat-10', SAFAT + ', roof glazing ≤10% of roof (SC 0.32)', 0.28, SAFAT + ' 501.01 B'], ['safat-11', SAFAT + ', roof glazing >10% of roof (SC 0.25)', 0.22, SAFAT + ' 501.01 B'], ['barjeel', 'Barjeel V1.3 (RAK), skylight', 0.30, 'Barjeel V1.3 301.01 / 401.01'], ['a901', 'ASHRAE 90.1-2022 CZ0, skylight', 0.30, A901]]),
   ez: mk([['ceil-cool', 'Ceiling supply of cool air', 1.0, 'ASHRAE 62.1-2022 Table 6-4'], ['floor-cool-a', 'Floor supply of cool air, throw ≥0.25 m/s at 1.4 m, return ≤5.5 m', 1.05, 'ASHRAE 62.1-2022 Table 6-4'], ['floor-cool-b', 'Floor supply of cool air (displacement), return ≤5.5 m', 1.2, 'ASHRAE 62.1-2022 Table 6-4'], ['floor-cool-c', 'Floor supply of cool air (displacement), return >5.5 m', 1.5, 'ASHRAE 62.1-2022 Table 6-4'], ['makeup-far', 'Makeup supply more than half the space length from exhaust/return', 0.8, 'ASHRAE 62.1-2022 Table 6-4'], ['makeup-near', 'Makeup supply less than half the space length from exhaust/return', 0.5, 'ASHRAE 62.1-2022 Table 6-4']]),
 };
 export const PMETA: Record<PickKey, [string, string, number]> = {
@@ -121,11 +121,12 @@ export const PPICKS: PickKey[] = [...ENVK, 'ez'];
 export const INDOOR = [
   { id: 'dbc', label: 'DBC H.2 · 24 °C/50%', db: 24, rh: 50, src: 'DBC H.4.6.3, Table H.2' },
   { id: 'safat', label: "Al Sa'fat · 24 °C/50%", db: 24, rh: 50, src: SAFAT + ' 501.03 / 402.01' },
+  { id: 'barjeel', label: 'Barjeel · 24 °C/50%', db: 24, rh: 50, src: 'Barjeel V1.3 301.02 / 401.02' },
   { id: 'ashrae', label: 'ASHRAE 55 · 24 °C/50%', db: 24, rh: 50, src: 'ASHRAE 55 (PMV ±0.5), ASHRAE 62.1 §5.12' },
 ];
 
 /* envelope code sets: [id, label, option ids, compliance basis, group].
-   Fix: Estidama and Barjeel publish no skylight SHGC, so they now set the ASHRAE 90.1 value explicitly
+   Fix: Estidama publishes no skylight SHGC, so it sets the ASHRAE 90.1 value explicitly
    instead of silently keeping whatever the previous code set had chosen. */
 type CodeIds = Partial<Record<PickKey, string>>;
 const SAF40: CodeIds = { uWall: 'safat-s', uRoof: 'safat', uGlass: 'safat-40', shgc: 'safat-40', uSky: 'safat', shgcSky: 'safat-10' };
@@ -142,7 +143,8 @@ export const CODESETS: CodeSet[] = [
   ['fz-dso', 'Dubai South / DSO / DIFC: ' + SAFAT + ' envelope, glazing ≤40%', SAF40, 'safat-s', 'Dubai · free zones'],
   ['estidama', 'Reference only · Estidama Pearl values (verify current DMT edition)', { uWall: 'estidama', uRoof: 'estidama', uGlass: 'estidama', shgc: 'estidama', uSky: 'estidama', shgcSky: 'a901' }, 'estidama', 'Reference only · secondary source'],
   ['estidama-aa', 'Reference only · Estidama Pearl values for Al Ain (verify current DMT edition)', { uWall: 'estidama', uRoof: 'estidama', uGlass: 'estidama', shgc: 'estidama', uSky: 'estidama', shgcSky: 'a901' }, 'estidama', 'Reference only · secondary source'],
-  ['barjeel', 'Reference only · Barjeel values (verify current RAK Municipality edition)', { uWall: 'barjeel', uRoof: 'barjeel', uGlass: 'barjeel', shgc: 'barjeel', uSky: 'barjeel', shgcSky: 'a901' }, 'barjeel', 'Reference only · source edition unverified'],
+  ['barjeel', 'Barjeel V1.3 Comprehensive: over 1,000 m² BUA, hospitality, public (401.01)', { uWall: 'barjeel', uRoof: 'barjeel', uGlass: 'barjeel', shgc: 'barjeel', uSky: 'barjeel', shgcSky: 'barjeel' }, 'barjeel', 'Ras Al Khaimah · RAK Municipality'],
+  ['barjeel-f', 'Barjeel V1.3 Fundamental: villas, buildings up to 1,000 m² BUA (301.01)', { uWall: 'barjeel', uRoof: 'barjeel', uGlass: 'barjeel-cp', shgc: 'barjeel', uSky: 'barjeel', shgcSky: 'barjeel' }, 'barjeel-f', 'Ras Al Khaimah · RAK Municipality'],
   ['shj', 'Reference only · ASHRAE 90.1-2022 CZ0 envelope (verify local adoption)', A901S, 'a901', 'Reference only · international standard'],
   ['ajm', 'Reference only · ASHRAE 90.1-2022 CZ0 envelope (verify local adoption)', A901S, 'a901', 'Reference only · international standard'],
   ['uaq', 'Reference only · ASHRAE 90.1-2022 CZ0 envelope (verify local adoption)', A901S, 'a901', 'Reference only · international standard'],
@@ -155,7 +157,7 @@ export const CODESETS: CodeSet[] = [
 ];
 export const CBASIS = [
   { id: 'safat-s', label: SAFAT + ' Bronze/Silver (501.01)' }, { id: 'safat-g', label: SAFAT + ' Golden/Platinum (501.01)' },
-  { id: 'estidama', label: 'Reference only: Estidama Pearl (verify official edition)' }, { id: 'barjeel', label: 'Reference only: Barjeel (verify official edition)' },
+  { id: 'estidama', label: 'Reference only: Estidama Pearl (verify official edition)' }, { id: 'barjeel', label: 'Barjeel V1.3 Comprehensive (401.01)' }, { id: 'barjeel-f', label: 'Barjeel V1.3 Fundamental (301.01)' },
   { id: 'a901', label: 'Reference only: ASHRAE 90.1-2022 climate zone 0' }, { id: 'custom', label: 'Custom; no published UAE limit selected' },
 ];
 export interface Limits { name: string; uWall: number | null; uRoof: number | null; uGlass: number | null; shgc: number | null; uSky: number | null; shgcSky: number | null; band?: string; ez?: undefined }
@@ -167,7 +169,8 @@ export function limitsFor(b: string, wwr: number, skyPct: number): Limits {
     return { name: CBASIS.find(c => c.id === b)!.label, uWall: b === 'safat-g' ? 0.42 : 0.57, uRoof: 0.30, uGlass: band ? 1.9 : 2.1, shgc: [0.35, 0.28, 0.22][band], uSky: 1.9, shgcSky: skyPct > 10 ? 0.22 : 0.28, band: ['glazing ≤40%', 'glazing 40–60%', 'glazing ≥60%'][band] };
   }
   if (b === 'estidama') return { name: 'Estidama Pearl', uWall: 0.32, uRoof: 0.14, uGlass: 2.2, shgc: 0.30, uSky: 2.2, shgcSky: null };
-  if (b === 'barjeel') return { name: 'Barjeel (RAK)', uWall: 0.48, uRoof: 0.30, uGlass: 2.2, shgc: 0.30, uSky: 1.8, shgcSky: null };
+  /* Barjeel V1.3: glazing is 2.2 for the whole window (Comprehensive), 1.8 centre pane (Fundamental); skylights 1.8 centre pane */
+  if (b === 'barjeel' || b === 'barjeel-f') return { name: CBASIS.find(c => c.id === b)!.label, uWall: 0.48, uRoof: 0.30, uGlass: b === 'barjeel' ? 2.2 : 1.8, shgc: 0.30, uSky: 1.8, shgcSky: 0.30 };
   return { name: 'ASHRAE 90.1-2022 CZ0', uWall: 0.705, uRoof: 0.22, uGlass: 2.84, shgc: 0.22, uSky: 3.97, shgcSky: 0.30 };
 }
 
@@ -188,22 +191,24 @@ export const ACT: Activity[] = [
 ];
 export const ACT_BY: Record<string, Activity> = Object.fromEntries(ACT.map(a => [a.id, a]));
 
-/* ASHRAE 62.1-2022 Table 6-1: Rp L/s·person, Ra L/s·m², default occupant density per 100 m² */
+/* ASHRAE 62.1-2025 Table 6-1: Rp L/s·person, Ra L/s·m², default occupant density per 100 m². Densities and names follow
+   addendum w to 62.1-2022 (2024 IBC occupant loads); the office breakroom row was deleted by addendum b. */
 export interface VentRow { cat: string; id: string; label: string; rp: number; ra: number; dens: number }
 const V = (cat: string, id: string, label: string, rp: number, ra: number, dens: number): VentRow => ({ cat, id, label, rp, ra, dens });
 export const VENT: VentRow[] = [
-  V('Office buildings', 'office', 'Office space', 2.5, 0.3, 5), V('Office buildings', 'reception', 'Reception areas', 2.5, 0.3, 30), V('Office buildings', 'mainlobby', 'Main entry lobbies', 2.5, 0.3, 10), V('Office buildings', 'teldata', 'Telephone / data entry', 2.5, 0.3, 60), V('Office buildings', 'breakroom-o', 'Breakrooms (office)', 2.5, 0.6, 50), V('Office buildings', 'storage-dry', 'Occupiable storage, dry materials', 2.5, 0.3, 2),
+  V('Office buildings', 'office', 'Office space', 2.5, 0.3, 5), V('Office buildings', 'reception', 'Reception areas', 2.5, 0.3, 30), V('Office buildings', 'mainlobby', 'Main entry lobbies', 2.5, 0.3, 10), V('Office buildings', 'teldata', 'Telephone / data entry', 2.5, 0.3, 60), V('Office buildings', 'storage-dry', 'Occupiable storage, dry materials', 2.5, 0.3, 2),
   V('General', 'conference', 'Conference / meeting', 2.5, 0.3, 50), V('General', 'breakroom', 'Break rooms', 2.5, 0.3, 25), V('General', 'corridor', 'Corridors', 0, 0.3, 0),
-  V('Educational', 'classroom58', 'Classrooms (ages 5 to 8)', 5, 0.6, 25), V('Educational', 'classroom9', 'Classrooms (age 9 plus)', 5, 0.6, 35), V('Educational', 'lecture', 'Lecture classroom', 3.8, 0.3, 65), V('Educational', 'computerlab', 'Computer lab', 5, 0.6, 25), V('Educational', 'science', 'Science laboratories', 5, 0.9, 25), V('Educational', 'art', 'Art classroom', 5, 0.9, 20), V('Educational', 'daycare', 'Daycare (through age 4)', 5, 0.9, 25), V('Educational', 'media', 'Media center', 5, 0.6, 25), V('Educational', 'multiuse', 'Multiuse assembly', 3.8, 0.3, 100),
-  V('Food and beverage', 'dining', 'Restaurant dining rooms', 3.8, 0.9, 70), V('Food and beverage', 'cafeteria', 'Cafeteria / fast-food dining', 3.8, 0.9, 100), V('Food and beverage', 'bar', 'Bars, cocktail lounges', 3.8, 0.9, 100), V('Food and beverage', 'kitchen', 'Kitchen (cooking)', 3.8, 0.6, 20),
+  V('Educational', 'classroom58', 'Classrooms (ages 5 to 8)', 5, 0.6, 25), V('Educational', 'classroom9', 'Classrooms (age 9 plus)', 5, 0.6, 35), V('Educational', 'lecture', 'Assembly without fixed seats, concentrated (chairs only)', 3.8, 0.3, 65), V('Educational', 'computerlab', 'Information technology equipment facilities (educational)', 5, 0.6, 25), V('Educational', 'science', 'Science laboratories', 5, 0.9, 25), V('Educational', 'art', 'Art classroom', 5, 0.9, 20), V('Educational', 'daycare', 'Daycare (through age 4)', 5, 0.9, 25), V('Educational', 'media', 'Media center', 5, 0.6, 25), V('Educational', 'multiuse', 'Multiuse assembly (tables and chairs)', 3.8, 0.3, 67),
+  V('Food and beverage', 'dining', 'Restaurant dining rooms', 3.8, 0.9, 67), V('Food and beverage', 'cafeteria', 'Cafeteria / fast-food dining', 3.8, 0.9, 67), V('Food and beverage', 'bar', 'Bars, cocktail lounges', 3.8, 0.9, 100), V('Food and beverage', 'kitchen', 'Kitchen (cooking)', 3.8, 0.6, 5),
   V('Hotels and dormitories', 'hotelbed', 'Bedroom / living room', 2.5, 0.3, 10), V('Hotels and dormitories', 'barracks', 'Barracks sleeping areas', 2.5, 0.3, 20), V('Hotels and dormitories', 'hotellobby', 'Lobbies / prefunction', 3.8, 0.3, 30), V('Hotels and dormitories', 'multipurpose', 'Multipurpose assembly', 2.5, 0.3, 120), V('Hotels and dormitories', 'laundry', 'Laundry rooms, central', 2.5, 0.6, 10),
-  V('Public assembly', 'auditorium', 'Auditorium seating area', 2.5, 0.3, 150), V('Public assembly', 'libraries', 'Libraries', 2.5, 0.6, 10), V('Public assembly', 'publobby', 'Lobbies', 2.5, 0.3, 150), V('Public assembly', 'museums', 'Museums / galleries', 3.8, 0.3, 40), V('Public assembly', 'worship', 'Places of religious worship', 2.5, 0.3, 120), V('Public assembly', 'courtroom', 'Courtrooms', 2.5, 0.3, 70),
-  V('Retail', 'sales', 'Sales', 3.8, 0.6, 15), V('Retail', 'mall', 'Mall common areas', 3.8, 0.3, 40), V('Retail', 'supermarket', 'Supermarket', 3.8, 0.3, 8), V('Retail', 'barber', 'Barbershop', 3.8, 0.3, 25), V('Retail', 'beauty', 'Beauty and nail salons', 10, 0.6, 25),
-  V('Sports and entertainment', 'aerobics', 'Health club / aerobics room', 10, 0.3, 40), V('Sports and entertainment', 'healthweight', 'Health club / weight rooms', 10, 0.3, 10), V('Sports and entertainment', 'arena', 'Gym, sports arena (play area)', 10, 0.9, 7), V('Sports and entertainment', 'spectator', 'Spectator areas', 3.8, 0.3, 150), V('Sports and entertainment', 'disco', 'Disco / dance floors', 10, 0.3, 100), V('Sports and entertainment', 'stage', 'Stages, studios', 5, 0.3, 70),
-  V('Miscellaneous', 'bank', 'Banks or bank lobbies', 3.8, 0.3, 15), V('Miscellaneous', 'computer', 'Computer (not printing)', 2.5, 0.3, 4), V('Miscellaneous', 'pharmacy', 'Pharmacy (prep. area)', 2.5, 0.9, 10), V('Miscellaneous', 'manufacturing', 'Manufacturing, no hazardous materials', 5, 0.9, 7), V('Miscellaneous', 'shipping', 'Shipping / receiving', 5, 0.6, 2), V('Miscellaneous', 'sorting', 'Sorting, packing, light assembly', 3.8, 0.6, 7), V('Miscellaneous', 'transport', 'Transportation waiting', 3.8, 0.3, 100), V('Miscellaneous', 'warehouse', 'Warehouses', 5, 0.3, 0),
+  V('Public assembly', 'auditorium', 'Auditorium seating area', 2.5, 0.3, 143), V('Public assembly', 'libraries', 'Libraries', 2.5, 0.6, 10), V('Public assembly', 'publobby', 'Lobbies', 2.5, 0.3, 150), V('Public assembly', 'museums', 'Museums / galleries', 3.8, 0.3, 33), V('Public assembly', 'worship', 'Places of religious worship', 2.5, 0.3, 120), V('Public assembly', 'courtroom', 'Courtrooms', 2.5, 0.3, 70),
+  V('Retail', 'sales', 'Sales', 3.8, 0.6, 15), V('Retail', 'mall', 'Mall common areas', 3.8, 0.3, 33), V('Retail', 'supermarket', 'Supermarket', 3.8, 0.3, 8), V('Retail', 'barber', 'Barbershop', 3.8, 0.3, 7), V('Retail', 'beauty', 'Beauty and nail salons', 10, 0.6, 7),
+  V('Sports and entertainment', 'aerobics', 'Health club / aerobics room', 10, 0.3, 20), V('Sports and entertainment', 'healthweight', 'Health club / weight rooms', 10, 0.3, 10), V('Sports and entertainment', 'arena', 'Gym, sports arena (play area)', 10, 0.9, 7), V('Sports and entertainment', 'spectator', 'Spectator areas', 3.8, 0.3, 143), V('Sports and entertainment', 'disco', 'Disco / dance floors', 10, 0.3, 100), V('Sports and entertainment', 'stage', 'Stages, studios', 5, 0.3, 67),
+  V('Miscellaneous', 'bank', 'Banks or bank lobbies', 3.8, 0.3, 15), V('Miscellaneous', 'computer', 'Information technology equipment facilities (occupiable)', 2.5, 0.3, 3), V('Miscellaneous', 'pharmacy', 'Pharmacy (prep. area)', 2.5, 0.9, 10), V('Miscellaneous', 'manufacturing', 'Manufacturing, no hazardous materials', 5, 0.9, 7), V('Miscellaneous', 'shipping', 'Shipping / receiving', 5, 0.6, 2), V('Miscellaneous', 'sorting', 'Sorting, packing, light assembly', 3.8, 0.6, 7), V('Miscellaneous', 'transport', 'Transportation waiting', 3.8, 0.3, 67), V('Miscellaneous', 'warehouse', 'Warehouses', 5, 0.3, 0),
 ];
 export const VENT_BY: Record<string, VentRow> = Object.fromEntries(VENT.map(v => [v.id, v]));
-export const VENT_ALIAS: Record<string, string> = { health: 'healthweight' };
+/* old ids kept so saved projects still open; breakroom-o was deleted from Table 6-1 by addendum b */
+export const VENT_ALIAS: Record<string, string> = { health: 'healthweight', 'breakroom-o': 'breakroom' };
 
 /* Room types. dbc = DBC Table B.2 occupant load factor [m²/person, use]; a901 = ASHRAE 90.1-2022 space-by-space LPD, W/m² (Tables 9.5.2.1-1/-2);
    lightDef 'typ' keeps the typical design value as the default lighting load, the 90.1 allowance is then the compliance limit and a selectable option */
@@ -276,8 +281,9 @@ export interface DesignOpt { id: string; label: string; db?: number; wb?: number
 export const OUT_OPTS: DesignOpt[] = [
   { id: 'dbc', label: 'DBC H.1 · 46/29', db: 46, wb: 29, src: 'DBC Table H.1' },
   { id: 'safat', label: "Al Sa'fat · 46/29", db: 46, wb: 29, src: SAFAT + ' 501.03' },
-  { id: 'doe-ad', label: 'DOE Abu Dhabi · 46.1/29.4', db: 46.1, wb: 29.4, src: 'DOE CLM Table 1' },
-  { id: 'doe-aa', label: 'DOE Al Ain · 48.8/28.3', db: 48.8, wb: 28.3, src: 'DOE CLM Table 1' },
+  { id: 'barjeel', label: 'Barjeel · 46/29', db: 46, wb: 29, src: 'Barjeel V1.3 301.02 / 401.02' },
+  { id: 'doe-ad', label: 'DoE Abu Dhabi · 46.1/29.4', db: 46.1, wb: 29.4, src: 'DoE CLM 2026 Table 1' },
+  { id: 'doe-aa', label: 'DoE Al Ain · 48.8/28.3', db: 48.8, wb: 28.3, src: 'DoE CLM 2026 Table 1' },
   { id: 'ash-dxb', label: 'ASHRAE Dubai · 43.3/23.6', db: 43.3, wb: 23.6, src: 'ASHRAE Fundamentals 2021' },
   { id: 'ash-auh', label: 'ASHRAE Abu Dhabi · 45.1/23.0', db: 45.1, wb: 23.0, src: 'ASHRAE Fundamentals 2021' },
   { id: 'ash-shj', label: 'ASHRAE Sharjah · 44.3/23.5', db: 44.3, wb: 23.5, src: 'ASHRAE Fundamentals 2021' },
@@ -287,11 +293,11 @@ export const OUT_OPTS: DesignOpt[] = [
 ];
 export const VENT_OPTS: DesignOpt[] = [
   { id: 'dbc', label: 'DBC H.4.6.4 · 34/32', db: 34, wb: 32, src: 'DBC H.4.6.4' },
-  { id: 'doe-ad', label: 'DOE Abu Dhabi · 35.3/30.6', db: 35.3, wb: 30.6, src: 'DOE CLM Table 2' },
-  { id: 'doe-aa', label: 'DOE Al Ain · 35.8/28.8', db: 35.8, wb: 28.8, src: 'DOE CLM Table 2' },
+  { id: 'doe-ad', label: 'DoE Abu Dhabi · 35.3/30.6', db: 35.3, wb: 30.6, src: 'DoE CLM 2026 Table 2' },
+  { id: 'doe-aa', label: 'DoE Al Ain · 35.8/28.8', db: 35.8, wb: 28.8, src: 'DoE CLM 2026 Table 2' },
   { id: 'same', label: 'Same as cooling', src: 'Cooling design condition' },
 ];
-export const LOC_SRC: Record<string, [string, string]> = { dubai: ['dbc', 'dbc'], abudhabi: ['doe-ad', 'doe-ad'], alain: ['doe-aa', 'doe-aa'], sharjah: ['dbc', 'dbc'], ajman: ['dbc', 'dbc'], uaq: ['dbc', 'dbc'], rak: ['dbc', 'dbc'], fujairah: ['dbc', 'dbc'] };
+export const LOC_SRC: Record<string, [string, string]> = { dubai: ['dbc', 'dbc'], abudhabi: ['doe-ad', 'doe-ad'], alain: ['doe-aa', 'doe-aa'], sharjah: ['dbc', 'dbc'], ajman: ['dbc', 'dbc'], uaq: ['dbc', 'dbc'], rak: ['barjeel', 'dbc'], fujairah: ['dbc', 'dbc'] };
 
 /* ASHRAE 2021 climatic design data, 0.4% cooling DB and mean coincident WB (station, WMO) */
 export const ASH04: Record<string, { db: number; wb: number; st: string }> = {
