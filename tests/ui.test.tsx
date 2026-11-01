@@ -715,7 +715,6 @@ describe('library, forum, community chat and support', () => {
     await act(async () => link('Community chat').click());
     expect(host.textContent).toContain('Community chat is coming soon');
     await act(async () => link('Support').click());
-    expect($<HTMLAnchorElement>('.support a[href*="github.com"]').href).toContain('/issues');
     expect($<HTMLAnchorElement>('.support a[href^="mailto:"]').href).toContain('support@novac.ae');
     await act(async () => byText('button', 'Open the Library').click());
     expect(link('Library').getAttribute('aria-pressed')).toBe('true');

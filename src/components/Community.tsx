@@ -2,7 +2,6 @@
    The forum and chat need a server and accounts, so for now they say what is coming. */
 import { SecHead } from './ui';
 
-const ISSUES = 'https://github.com/rameezkhair/novac-heatload/issues';
 export const SUPPORT = 'support@novac.ae';
 
 function Soon({ title, heading, text }: { title: string; heading: string; text: string }) {
@@ -30,7 +29,6 @@ export function Support({ onLibrary }: { onLibrary: () => void }) {
         <h3>Email support</h3>
         <p>Tell us what happened, the step you were on and, if you can, attach your project file (Projects, then Save). We reply at <b>support@novac.ae</b>.</p>
         <a className="btn primary" href={`mailto:${SUPPORT}?subject=${encodeURIComponent('NOVAC support')}`}>Email {SUPPORT}</a>
-        <a className="support-alt" href={ISSUES} target="_blank" rel="noopener noreferrer">Or report it on GitHub</a>
       </article>
       <article>
         <h3>How NOVAC calculates</h3>
