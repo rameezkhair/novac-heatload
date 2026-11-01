@@ -11,6 +11,11 @@ import { exampleState } from '../src/engine/project';
 import { listSaved } from '../src/state/store';
 import { projectFromFile } from '../src/projectFile';
 import { fakeOpenMeteo } from './weatherFixture';
+/* the PDF writer needs a real canvas; the tests only need the PDF it hands back */
+vi.mock('html2pdf.js', () => {
+  const w: any = { set: () => w, from: () => w, save: async () => {}, outputPdf: async () => new Blob(['%PDF'], { type: 'application/pdf' }) };
+  return { default: () => w };
+});
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 /* Node 26 defines its own localStorage global, which hides jsdom's */
@@ -28,7 +33,7 @@ const setValue = (el: HTMLInputElement | HTMLSelectElement, v: string) => {
 const plantTR = () => $('.tot.key .v').textContent!;
 
 beforeEach(async () => {
-  localStorage.clear(); location.hash = ''; PRO.unlocked = true;
+  localStorage.clear(); location.hash = ''; PRO.unlocked = true; PRO.ducts = true;
   host = document.createElement('div'); document.body.appendChild(host);
   await act(async () => { root = createRoot(host); root.render(<ToastProvider><App /></ToastProvider>); });
 });
@@ -36,13 +41,14 @@ afterEach(async () => { await act(async () => root.unmount()); host.remove(); })
 
 describe('app', () => {
   it('keeps the Pro tools locked until Pro is unlocked', async () => {
-    PRO.unlocked = false;
+    PRO.unlocked = false; PRO.ducts = false;
     await act(async () => root.render(<ToastProvider><App key="locked" /></ToastProvider>));
-    /* five core steps and the duct sizing add-on, which is open without Pro */
-    expect($$('.workflow-step')).toHaveLength(6);
+    /* only the five core steps open: the Pro tools and the duct sizing add-on are not open yet */
+    expect($$('.workflow-step')).toHaveLength(5);
     const pro = $$('.workflow-pro .workflow-soon');
-    expect(pro).toHaveLength(15);
-    expect(pro.slice(0, 4).map(e => e.querySelector('.workflow-status')!.textContent)).toEqual(['Locked · coming soon', 'Locked · coming soon', 'Coming soon', 'Coming soon']);
+    expect(pro).toHaveLength(16);
+    expect(pro.slice(0, 4).map(e => e.querySelector('.workflow-status')!.textContent)).toEqual(['Coming soon', 'Coming soon', 'Coming soon', 'Coming soon']);
+    expect(pro.find(e => e.textContent?.includes('Duct sizing'))!.querySelector('.workflow-status')!.textContent).toBe('Coming soon');
     expect(pro.every(e => (e as HTMLButtonElement).disabled)).toBe(true);
     await act(async () => $('.workflow-step[data-step="4"]').click());
     expect($('.tot.key')).not.toBeNull();
@@ -124,6 +130,7 @@ describe('app', () => {
     await act(async () => setValue($('#p-contractor'), 'Build Co'));
     await act(async () => byText('button', 'Continue').click());
     expect($('#p-toDB')).not.toBeNull();
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     await act(async () => byText('button', 'Generate report').click());
     expect($('.rpt').textContent).toContain('ClientAcme Holdings');
     expect($('.rpt').textContent).toContain('ConsultantDesign Co');
@@ -263,6 +270,7 @@ describe('app', () => {
 
     await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(plantTR()).not.toBe(before);
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     await act(async () => byText('button', 'Generate report').click());
     expect($('.rpt').textContent).toContain('External wall type: Curtain wall spandrel');
     expect($('.rpt').textContent).toContain('Wall partition 1 (Glass partition)');
@@ -441,7 +449,18 @@ describe('app', () => {
     expect($('#p-method')).toBeNull();
   });
 
+  it('ends the heat load summary with a conclusion and the report', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    const c = $('.conclusion');
+    expect(c.textContent).toMatch(/Design cooling capacity: [\d.,]+ TR/);
+    expect(c.textContent).toContain('ASHRAE heat balance method');
+    expect(c.textContent).not.toMatch(/NaN|undefined/);
+    await act(async () => $('.workflow-controls').querySelector<HTMLButtonElement>('.btn.primary')!.click());
+    expect($('.rpt').textContent).toContain('Heat Load Calculation Report');
+  });
+
   it('renders the report', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     await act(async () => byText('button', 'Generate report').click());
     const rpt = $('.rpt');
     expect(rpt.textContent).toContain('Heat Load Calculation Report');
@@ -452,8 +471,49 @@ describe('app', () => {
     expect(rpt.textContent).toMatch(/Design hour \(room peak\)[A-Z][a-z]{2} 21, \d\d:00/);
     expect(rpt.textContent).not.toContain('Abbreviations and symbols');
     expect(rpt.textContent).not.toMatch(/NaN|undefined/);
-    await act(async () => byText('button', 'Back to calculator').click());
+    expect(byText('button', 'Email report (PDF)')).toBeDefined();
+    await act(async () => byText('button', 'Back to application').click());
     expect($('#calc')).not.toBeNull();
+  });
+
+  it('asks for an email before emailing the report and saves it only when the newsletter box is ticked', async () => {
+    const fetchMock = vi.fn(async () => new Response('{"ok":true}'));
+    const share = vi.fn(async () => {});
+    vi.stubGlobal('fetch', fetchMock);
+    Object.defineProperty(navigator, 'canShare', { value: () => true, configurable: true });
+    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+    try {
+      await act(async () => $('.workflow-step[data-step="4"]').click());
+      await act(async () => byText('button', 'Generate report').click());
+      const open = async () => act(async () => byText('button', 'Email report (PDF)').click());
+      const dialog = () => document.querySelector<HTMLElement>('.email-ask');
+      const submit = async () => act(async () => { dialog()!.querySelector<HTMLButtonElement>('button[type=submit]')!.click(); });
+      const email = () => dialog()!.querySelector<HTMLInputElement>('#ea-email')!;
+      /* an email is required */
+      await open();
+      await submit();
+      expect(dialog()!.textContent).toContain('Enter a valid email address.');
+      /* without the tick the report is emailed but the address is not stored */
+      await act(async () => setValue(email(), 'eng@example.com'));
+      await submit();
+      expect(dialog()).toBeNull();
+      await vi.waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      expect(fetchMock).not.toHaveBeenCalled();
+      /* with the tick the address is sent to the site's sign-up endpoint */
+      await open();
+      expect(dialog()!.querySelector<HTMLInputElement>('input[type=checkbox]')!.checked).toBe(false);
+      await act(async () => setValue(email(), 'eng@example.com'));
+      await act(async () => dialog()!.querySelector<HTMLInputElement>('input[type=checkbox]')!.click());
+      await submit();
+      await vi.waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe('/api/subscribe');
+      expect(JSON.parse(init.body as string)).toMatchObject({ email: 'eng@example.com', consent: true, source: 'email-report' });
+    } finally {
+      vi.unstubAllGlobals();
+      delete (navigator as any).canShare; delete (navigator as any).share;
+    }
   });
 
   it('shows compliance badges at inputs but hides checks and design basis', async () => {
@@ -461,13 +521,14 @@ describe('app', () => {
     expect(host.textContent).not.toMatch(/Compliance checks|Design basis/);
     expect($$('.cmark').length).toBeGreaterThan(0);
     expect(host.textContent).not.toContain('Show compliance');
+    await act(async () => $('.workflow-step[data-step="4"]').click());
     await act(async () => byText('button', 'Generate report').click());
     expect($('.rpt').textContent).not.toMatch(/Compliance checks|design basis checks|Check/);
   });
 
   it('saves several projects in the browser with the date and time of saving', async () => {
     const saved = () => JSON.parse(localStorage.getItem('novac-heatload-projects')!) as { name: string }[];
-    const menu = async () => { if (!$('#projects-menu')) await act(async () => byText('button', 'Projects ▾').click()); };
+    const menu = async () => { if (!$('#projects-menu')) await act(async () => byText('button', 'Open / Save ▾').click()); };
     await act(async () => setValue($('#p-name'), 'Villa A'));
     await menu(); await act(async () => byText('button', 'Save in browser').click());
     expect(saved().map(p => p.name)).toEqual(['Villa A']);
@@ -499,7 +560,7 @@ describe('app', () => {
     (window as any).showSaveFilePicker = async () => { const n = names[picked.length]; picked.push(n); return handle(n); };
     try {
       const save = async (as = false) => {
-        await act(async () => byText('button', 'Projects ▾').click());
+        await act(async () => byText('button', 'Open / Save ▾').click());
         await act(async () => byText('button', as ? 'Save as…' : 'Save').click());
       };
       await act(async () => setValue($('#p-name'), 'Villa A'));
@@ -718,7 +779,7 @@ describe('library, forum, community chat and support', () => {
     expect($<HTMLAnchorElement>('.support a[href^="mailto:"]').href).toContain('support@novac.ae');
     await act(async () => byText('button', 'Open the Library').click());
     expect(link('Library').getAttribute('aria-pressed')).toBe('true');
-    await act(async () => byText('button', 'Back to calculator').click());
+    await act(async () => byText('button', 'Back to application').click());
     expect($('#workflow-stepper')).not.toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Mark, Num } from '../engine/types';
 import { evalArea } from '../engine/util';
 import { MK } from '../engine/checks';
+import { createPortal } from 'react-dom';
 
 /* ---------- toast ---------- */
 const ToastCtx = createContext<(m: string) => void>(() => {});
@@ -105,4 +106,22 @@ export function CheckTable({ rows }: { rows: [string, string, string, ['ok' | 'b
 }
 export function CountPill({ nb, nw }: { nb: number; nw: number }) {
   return <Pill s={nb ? 'bad' : nw ? 'warn' : 'ok'}>{nb ? MK.bad : nw ? MK.warn : MK.ok} {nb + nw} non-compliant</Pill>;
+}
+
+/* a centred dialog over the page; Escape or the backdrop closes it */
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const back = document.activeElement as HTMLElement | null;
+    box.current?.querySelector('input')?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    addEventListener('keydown', onKey);
+    return () => { removeEventListener('keydown', onKey); back?.focus?.(); };
+  }, [onClose]);
+  return createPortal(<div className="modal-back" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal" role="dialog" aria-modal="true" aria-label={title} ref={box}>
+      <div className="modal-head"><h3>{title}</h3><button className="btn sm" type="button" aria-label="Close" onClick={onClose}>×</button></div>
+      {children}
+    </div>
+  </div>, document.body);
 }

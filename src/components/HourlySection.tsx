@@ -1,10 +1,9 @@
 import { Suspense, lazy, useState, type ReactNode } from 'react';
 import type { Computed } from '../engine/calc';
 import { MONTHS } from '../engine/climate';
-import { efficiencyGuidance } from '../engine/efficiency';
 import { BTU_W, SYSTEMS, capRatio, copAt, copToKwTr, requirements, recommended, type SysId } from '../engine/equipment';
 import { LABELS, electrical, hours, type Hour } from '../engine/hourly';
-import type { Num, Project } from '../engine/types';
+import type { Num } from '../engine/types';
 import { fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
 import { NumInput, SecHead } from './ui';
@@ -175,10 +174,6 @@ function ElectricalCard({ d, store, el, month, room, hover, setHover, loads, idP
   const yMax = Math.ceil(max / step) * step, y = (v: number) => mt + (yMax - v) / yMax * ph;
   const ticks: number[] = []; for (let v = 0; v <= yMax + 1e-9; v += step) ticks.push(v);
   let pk = 0; el.kWe.forEach((x, i) => { if (x > el.kWe[pk]) pk = i; });
-  const fa = p.fahu ? d.T.fahuW / 1000 : 0;
-  /* local authority guidance (Barjeel, ADIECC, Al Sa'fat) for DX equipment, from the efficiency step */
-  const acType = sys === 'vrf' ? 'vrf' : sys === 'ducted' ? 'ducted' : sys === 'split' || sys === 'window' ? 'split' : null;
-  const local = acType ? efficiencyGuidance({ ...p, acType } as Project, kW) : null;
   return <div className="hr-card">
     <h3>Electrical consumption and recommended efficiency <span className="muted">· {room ? 'this room' : 'whole building'}, room cooling load</span></h3>
     <div className="hr-filters">
@@ -193,12 +188,6 @@ function ElectricalCard({ d, store, el, month, room, hover, setHover, loads, idP
       {p.effOpt === 'custom' && <label className="fld" htmlFor={`${idPrefix}-el-cop`} style={{ flex: '0 1 160px', minWidth: 140 }}><span className="fl">COP at 35 °C</span><span className="in-u"><NumInput id={`${idPrefix}-el-cop`} label="Custom COP" min={0} step={0.1} value={(p.effCop ?? '') as Num} onChange={v => set('effCop', v)} /><span className="u">W/W</span></span></label>}
       <label className="fld" htmlFor={`${idPrefix}-el-aux`} style={{ flex: '0 1 200px', minWidth: 160 }}><span className="fl">Fans, pumps, towers allowance</span><span className="in-u"><NumInput id={`${idPrefix}-el-aux`} label="Auxiliary allowance" min={0} step={0.05} value={(p.aux ?? 0) as Num} onChange={v => set('aux', v)} /><span className="u">kW/TR</span></span></label>
     </div>
-    <p className="hint" style={{ marginTop: 0 }}><b>Recommended:</b> {rec.label} ({rec.metric} {rec.value}, {rec.cond}). {sys === 'split' || sys === 'window'
-      ? 'ESMA star labels are mandatory for sale in the UAE; specify the highest star rating available.'
-      : p.location === 'rak' ? 'Equipment must meet the ESMA minimum (mandatory federally) and the Barjeel V1.3 minimum (Ras Al Khaimah); the stricter full-load value is recommended.' : 'Equipment must meet the ESMA minimum (mandatory federally) and, where the project code adopts it, ASHRAE 90.1-2022; the stricter full-load value is recommended.'}</p>
-    {local && <p className="hint"><b>Local authority:</b> {local.authority}: {local.target} ({local.source}). <a href={local.href} target="_blank" rel="noopener">Source</a></p>}
-    <p className="hint"><b>Edition:</b> ESMA values are from UAE.S 5010-1:2019 and 5010-5:2019. Cabinet Resolution 157/2025 introduced the 2025 editions (in force November 2025, with a transition period);
-      their thresholds were not publicly available to check, so confirm the current label class on the product certificate.</p>
     <h4 className="hr-sub">Electrical input by hour, {MONTHS[month]} 21 <span className="muted">· kW</span></h4>
     <p className="hint">{hover != null ? <><b>{hh(hover + 1)}:</b> {fmt(el.kWe[hover], 2)} kW electrical input for {fmt(loads[hover].total / 1000, 2)} kW cooling at {fmt(loads[hover].To, 1)} °C outdoor.</> : <>Peak at {hh(pk + 1)}: <b>{fmt(el.kWe[pk], 2)} kW</b>. Hover a bar to inspect the hour.</>}</p>
     <svg className="hr-el" onMouseLeave={() => setHover(null)} viewBox={`0 0 ${W} ${Ht}`} role="img" aria-label={`Electrical input by hour, peak ${fmt(el.kWe[pk], 1)} kW at ${hh(pk + 1)}. Values in the table below.`}>
@@ -206,17 +195,13 @@ function ElectricalCard({ d, store, el, month, room, hover, setHover, loads, idP
       {el.kWe.map((x, i) => <rect key={i} x={ml + i * bw + 2} width={bw - 4} y={y(x)} height={Math.max(0, y(0) - y(x))} rx={2} fill={i === pk || i === hover ? 'var(--accent)' : 'var(--s1)'} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} tabIndex={0} role="img" aria-label={`${hh(i + 1)} electrical input ${fmt(x, 2)} kW`}><title>{hh(i + 1)}: {fmt(x, 2)} kW</title></rect>)}
       {el.kWe.map((_, i) => (i + 1) % 3 === 0 ? <text key={'t' + i} x={ml + i * bw + bw / 2} y={Ht - 6} textAnchor="middle" className="hr-tick">{i + 1}</text> : null)}
     </svg>
-    <h4 className="hr-sub">Minimum efficiency requirements for this system <span className="muted">· {fmt(kW, 1)} kW ({fmt(kW / 3.51685, 1)} TR, {fmt(kW * 1000 * BTU_W, 0)} Btu/h)</span></h4>
-    <div className="tbl-wrap"><table className="hr-tbl hr-req">
+    {/* reference table: collapsed until the user opens it */}
+    <details className="hr-req-box"><summary>Minimum efficiency requirements for this system <span className="muted">· {fmt(kW, 1)} kW ({fmt(kW / 3.51685, 1)} TR, {fmt(kW * 1000 * BTU_W, 0)} Btu/h)</span></summary>
+    <div className="body"><div className="tbl-wrap"><table className="hr-tbl hr-req">
       <thead><tr><th>Authority / standard</th><th>Requirement</th><th>Metric</th><th>EER Btu/h·W</th><th>COP W/W</th><th>kW/TR</th><th>Rating condition</th><th>Reference</th></tr></thead>
       <tbody>{reqs.map(r => <tr key={r.id} className={r.id === q.id ? 'pk' : undefined}>
         <td>{r.src}</td><td>{r.label}{r.id === rec.id ? <span className="pill ok" style={{ marginLeft: 6 }}>Recommended</span> : null}</td><td>{r.metric} {r.value}</td>
         <td>{fmt(r.cop * BTU_W, 2)}</td><td>{fmt(r.cop, 2)}</td><td>{fmt(copToKwTr(r.cop), 3)}</td><td>{r.cond}</td><td>{r.ref}</td></tr>)}</tbody>
-    </table></div>
-    <p className="hint">Electrical input = cooling load ÷ efficiency at the hour's outdoor temperature. Air-cooled equipment follows the ISO 16358-1 Annex F temperature curve
-      (UAE.S 5010 Annex 2: capacity and power at 29, 35 and 46 °C); fixed-speed units (split, window, ducted DX) include cycling losses with CD = 0.27; seasonal ratings
-      (SEER, IEER, IPLV, CSPF) are applied as a constant average. Annual estimate: ISO 16358 bin method on the UAE T3 reference bins ({fmt(el.binHours, 0)} h, load rising from 0 at 20 °C
-      to the design load at 46 °C). ESMA label basis: rated input × 2000 h/year (UAE.S 5010-1 cl. 8). Room cooling load only{fa > 0 ? `; the FAHU fresh-air load (${fmt(fa, 1)} kW cooling) adds about ${fmt(fa / q.cop, 1)} kW electrical at the same efficiency` : ''}.
-      Ratings exclude chilled-water pumps, AHU fans and cooling towers unless you add an allowance. Sources: UAE.S 5010-1:2019, UAE.S 5010-5:2019 (ESMA), ASHRAE 90.1-2022 Tables 6.8.1-1, -3, -8.</p>
+    </table></div></div></details>
   </div>;
 }

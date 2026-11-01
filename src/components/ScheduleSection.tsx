@@ -1,7 +1,9 @@
 import { LOC } from '../engine/data';
 import type { Computed } from '../engine/calc';
 import { PILL, type Check } from '../engine/checks';
-import { basisRows } from '../engine/report';
+import { basisRows, methodName } from '../engine/report';
+import { subOf } from '../engine/project';
+import type { Mark } from '../engine/types';
 import { MONTHS } from '../engine/climate';
 import { fmt, num } from '../engine/util';
 import { SecHead, useCompliance } from './ui';
@@ -9,7 +11,7 @@ import { useState } from 'react';
 import { ElectricalKpis, ElectricalSummary, type LoadBasis } from './HourlySection';
 import type { Store } from '../state/store';
 
-export function ScheduleSection({ d, checks, store }: { d: Computed; checks: Check[]; store: Store }) {
+export function ScheduleSection({ d, checks, store, marks, needs }: { d: Computed; checks: Check[]; store: Store; marks: Record<string, Mark>; needs: string[] }) {
   const { p, T } = d, showC = useCompliance();
   const nBad = checks.filter(c => c[0] === 'bad').length, nOk = checks.filter(c => c[0] === 'ok').length;
   const scope = p.location === 'dubai' || p.location === 'custom' ? '' : ' DBC applies to Dubai; shown for reference.';
@@ -29,6 +31,7 @@ export function ScheduleSection({ d, checks, store }: { d: Computed; checks: Che
     <fieldset className="power-summary-box"><legend>Cooling efficiency and power requirement</legend>
       <ElectricalSummary d={d} store={store} />
     </fieldset>
+    <Conclusion d={d} marks={marks} needs={needs} />
     {showC && <><details><summary>Compliance checks: {nOk} complying · {nBad} failing</summary>
       <div className="chk-body">{scope && <p className="chk-sum">{scope.trim()}</p>}
         {checks.map(([s, c, t], i) => <div className="chk" key={i}><span className={'pill ' + s}>{s === 'ok' ? '✓ ' : s === 'bad' ? '✗ ' : ''}{PILL[s]}</span><span className="cl">{c}</span><span className="tx">{t}</span></div>)}
@@ -39,6 +42,30 @@ export function ScheduleSection({ d, checks, store }: { d: Computed; checks: Che
         <tbody>{basisRows(p, d).map(([a, b, c]) => <tr key={a}><td>{a}</td><td>{b}</td><td>{c}</td></tr>)}</tbody>
       </table></div></div></details></>}
   </section>;
+}
+
+/* the end of the calculation: the capacity to select, what to resolve before issuing it, and the conditions it rests on */
+function Conclusion({ d, marks, needs }: { d: Computed; marks: Record<string, Mark>; needs: string[] }) {
+  const { p, T } = d, sub = subOf(p);
+  const flags = Object.values(marks).filter(m => m && m[0] !== 'ok') as NonNullable<Mark>[];
+  const nBad = flags.filter(m => m[0] === 'bad').length, nWarn = flags.length - nBad;
+  const sf = num(p.sfS) || num(p.sfL) ? `${fmt(num(p.sfS), 0)}% sensible / ${fmt(num(p.sfL), 0)}% latent safety factors` : 'no safety factors';
+  const notes = [
+    ...(needs.length ? [`Inputs missing in: ${needs.join(', ')}.`] : []),
+    ...(!d.rooms.length ? ['No spaces entered yet.'] : []),
+    ...(nBad ? [`${nBad} input${nBad === 1 ? '' : 's'} marked ✗ in the earlier steps.`] : []),
+    ...(nWarn ? [`${nWarn} input${nWarn === 1 ? '' : 's'} marked ! to confirm in the earlier steps.`] : []),
+  ];
+  return <fieldset className="conclusion"><legend>Results summary</legend>
+    <p className="conc-main">Design cooling capacity: <b>{fmt(T.plant / 3517, 1)} TR</b> ({fmt(T.plant / 1000, 1)} kW)</p>
+    <p className="muted">Room + fresh air{p.fahu ? ' (FAHU)' : ''}, {num(p.diversity) !== 100 ? fmt(num(p.diversity), 0) + '% diversity' : 'no diversity'}, {sf} included.</p>
+    {notes.length
+      ? <ul className="conc-notes" aria-label="Resolve before issuing">{notes.map(n => <li key={n}>{n}</li>)}</ul>
+      : <p className="conc-ok">✓ All inputs are complete and none are flagged.</p>}
+    <p className="conc-basis">{[sub?.label || LOC[p.location]?.label || '',
+      `outdoor ${fmt(num(p.toDB), 1)} °C DB / ${fmt(num(p.toWB), 1)} °C WB`,
+      `indoor ${fmt(num(p.tiDB), 1)} °C / ${fmt(num(p.tiRH), 0)}% RH`, methodName()].filter(Boolean).join(' · ')}</p>
+  </fieldset>;
 }
 
 function RoomLoadSchedule({ d }: { d: Computed }) {

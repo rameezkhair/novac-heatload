@@ -1,9 +1,16 @@
-// Cloudflare Workers deployment: NOVAC is a static site, so the Worker only serves the Vite build in dist/
-// (index.html is the landing page, app.html the calculator). Cloudflare runs `npm run build`, then `npx wrangler deploy`.
+// Cloudflare Workers deployment: the Worker serves the Vite build in dist/ (index.html is the landing page,
+// app.html the calculator) and takes newsletter sign-ups at POST /api/subscribe (worker/index.ts).
+// Cloudflare runs `npm run build`, then `npx wrangler deploy`.
+// Sign-ups are off until a D1 database is bound as DB. To turn them on:
+//   npx wrangler d1 create novac-subscribers
+//   add to this file:  "d1_databases": [{ "binding": "DB", "database_name": "novac-subscribers", "database_id": "<id it printed>" }]
+//   npx wrangler d1 migrations apply novac-subscribers --remote
 {
   "name": "novac-heatloadcalculator",
   "compatibility_date": "2026-09-01",
+  "main": "worker/index.ts",
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    "binding": "ASSETS"
   }
 }

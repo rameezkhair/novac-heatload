@@ -33,7 +33,6 @@ const PRO_ICONS = [
   icon('M6 3h9l4 4v14H6zM9 12l2 2 4-4M9 17h7'),
   icon('M4 21V9l8-6 8 6v12M4 13h16M4 17h16'),
 ];
-const LOCK = icon('M7 11V8a5 5 0 0110 0v3M5 11h14v10H5z');
 /* Pro add-ons, not built yet */
 const ADDONS: [string, ReactNode][] = [
   ['Duct sizing', icon('M3 9h12v6H3zM15 10l6-3v10l-6-3')],
@@ -120,7 +119,7 @@ export default function App() {
     const current = store.state, kept = JSON.stringify(current) !== JSON.stringify(incoming);
     if (kept) { try { saveToLibrary(current, savedId); } catch { /* storage full: the project still loads */ } }
     replace(incoming, f);
-    toast(`Loaded ${incoming.project.name || 'project'}${kept ? '. Your previous project is in Projects, saved in this browser' : ''}`);
+    toast(`Loaded ${incoming.project.name || 'project'}${kept ? '. Your previous project is saved in this browser, under Open / Save' : ''}`);
   };
   const openFromHash = () => {
     /* #ducts opens the duct sizer directly */
@@ -133,7 +132,7 @@ export default function App() {
       const kept = JSON.stringify(current) !== JSON.stringify(incoming);
       if (kept) { try { saveToLibrary(current, savedId); } catch { /* storage full: the incoming project still opens */ } }
       replace(incoming); setView('calc'); setActiveStep(0);
-      toast(`Opened ${incoming.project.name || 'project'}${kept ? '. Your previous project is in Projects, saved in this browser' : ''}`);
+      toast(`Opened ${incoming.project.name || 'project'}${kept ? '. Your previous project is saved in this browser, under Open / Save' : ''}`);
     }, () => toast('Could not open that project file'));
   };
   const openFromHashRef = useRef(openFromHash); openFromHashRef.current = openFromHash;
@@ -184,7 +183,7 @@ export default function App() {
     </button>;
   };
 
-  /* a Pro tool that is locked or not built yet: shown in the Pro row but cannot be opened */
+  /* a Pro tool or add-on that is not open yet: shown as coming soon and cannot be opened */
   const proUnavailable = (title: string, marker: ReactNode, status: string) =>
     <button key={title} className="workflow-soon" type="button" disabled aria-label={`${title}. ${status}`}>
       <span className="workflow-marker" aria-hidden="true">{marker}</span>
@@ -209,10 +208,9 @@ export default function App() {
         </div>
         <div className="app-side">
           <div className="actions app-actions">
+            <ArmButton className="btn danger" label="New project" armedLabel="Click again to clear all" onConfirm={() => { replace(newProjectState()); toast('New project started'); }} />
             <ProjectsMenu store={store} file={file} save={save} replace={replace} savedId={savedId} setSavedId={setSavedId} />
             <button className="btn" type="button" onClick={() => { replace(exampleState()); toast('Example loaded'); }}>Load example</button>
-            <ArmButton className="btn danger" label="New project" armedLabel="Click again to clear all" onConfirm={() => { replace(newProjectState()); toast('New project started'); }} />
-            <button className="btn primary" type="button" onClick={() => showReport(true)}>Generate report</button>
           </div>
           <div className="app-links">
             {VIEWS.map(([id, label]) => <button key={id} type="button" aria-pressed={view === id && !report}
@@ -223,7 +221,7 @@ export default function App() {
     </header>
     {report ? <ReportView state={state} onBack={() => showReport(false)} /> :
       view !== 'calc' ? <main className="wrap">
-        <div className="rbar"><button className="btn" type="button" onClick={() => { setView('calc'); scrollTo(0, 0); }}>Back to calculator</button></div>
+        <div className="rbar"><button className="btn" type="button" onClick={() => { setView('calc'); scrollTo(0, 0); }}>Back to application</button></div>
         {view === 'library' ? <Library /> : view === 'forum' ? <Forum /> : view === 'chat' ? <CommunityChat /> : <Support onLibrary={() => { setView('library'); scrollTo(0, 0); }} />}
       </main> :
       <main className="wrap" id="calc" onChangeCapture={() => touch(activeStep)}>
@@ -234,7 +232,7 @@ export default function App() {
           <div className="workflow-pro" role="group" aria-label="Pro tools">
             <span className="pro-badge">Pro</span>
             <div className="workflow-stepper">
-              {steps.slice(CORE).map((step, i) => PRO.unlocked ? stepButton(step.title, CORE + i, PRO_ICONS[i]) : proUnavailable(step.title, LOCK, 'Locked · coming soon'))}
+              {steps.slice(CORE).map((step, i) => PRO.unlocked ? stepButton(step.title, CORE + i, PRO_ICONS[i]) : proUnavailable(step.title, PRO_ICONS[i], 'Coming soon'))}
               {proSoon.map((title, i) => proUnavailable(title, PRO_ICONS[steps.length - CORE + i], 'Coming soon'))}
             </div>
           </div>
@@ -254,7 +252,7 @@ export default function App() {
           </>}
           {activeStep === 2 && <EnvelopeSection store={store} d={d} marks={marks} limits={limits} />}
           {activeStep === 3 && <RoomsSection store={store} d={d} />}
-          {activeStep === 4 && <ScheduleSection d={d} checks={checks} store={store} />}
+          {activeStep === 4 && <ScheduleSection d={d} checks={checks} store={store} marks={marks} needs={steps.slice(0, CORE - 1).filter((_, i) => !valid[i]).map(s => s.title)} />}
           {activeStep === 5 && <HourlySection d={d} store={store} />}
           {activeStep === 6 && <Suspense fallback={<p className="hint">Loading the indoor air quality tools…</p>}><IaqSection d={d} store={store} /></Suspense>}
           {activeStep === DUCT && <DuctSection d={d} store={store} onLoad={loadKeeping} />}
@@ -263,9 +261,16 @@ export default function App() {
           {activeStep > 0
             ? <button className="btn" type="button" onClick={() => navigateStep(activeStep - 1)}>Previous</button>
             : <span />}
-          {activeStep < last
-            ? <button className="btn primary" type="button" onClick={() => navigateStep(activeStep + 1)}>Continue</button>
-            : <span />}
+          {/* the heat load summary ends with the results report, ready to print or save as PDF */}
+          {activeStep === CORE - 1
+            ? <div className="workflow-end">
+              <button className="btn" type="button" onClick={() => save(false)}>Save project</button>
+              <button className="btn primary" type="button" onClick={() => showReport(true)}>Generate report</button>
+              {activeStep < last && <button className="btn" type="button" onClick={() => navigateStep(activeStep + 1)}>Continue</button>}
+            </div>
+            : activeStep < last
+              ? <button className="btn primary" type="button" onClick={() => navigateStep(activeStep + 1)}>Continue</button>
+              : <span />}
         </div>
       </main>}
   </ComplianceProvider>;
@@ -317,23 +322,20 @@ function ProjectsMenu({ store, file, save, replace, savedId, setSavedId }: {
     } catch { toast('Browser storage is full. Delete saved projects you no longer need, or save the project as a file.'); }
   };
   return <div className="menu" ref={ref}>
-    <button className="btn" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>Projects ▾</button>
+    <button className="btn" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>Open / Save ▾</button>
     {open && <div className="menu-pop" id="projects-menu">
       <h4>Project file</h4>
       {file && <div className="empty-note" title={file.name}>Saving to {file.name}</div>}
+      {/* both sections read open first, then save, as the menu label does */}
       <div className="btns">
-        <button className="btn sm primary" type="button" title="Save (Ctrl+S)" onClick={() => { setOpen(false); save(false); }}>{canSaveInPlace() ? 'Save' : 'Save file'}</button>
-        {canSaveInPlace() && <button className="btn sm" type="button" title="Save as (Ctrl+Shift+S)" onClick={() => { setOpen(false); save(true); }}>Save as…</button>}
         <button className="btn sm" type="button" onClick={async () => {
           let r; try { r = await openProjectFile(); } catch { toast('Could not open the file'); return; }
           if (!r) return;
           try { replace(migrate(projectFromFile(r.text)), r.handle); setOpen(false); toast('Project opened'); }
           catch { toast('That file is not a NOVAC project'); }
         }}>Open file…</button>
-      </div>
-      <div className="btns">
-        <button className="btn sm" type="button" onClick={() => saveBrowser(current)}>{current ? 'Save in browser (update)' : 'Save in browser'}</button>
-        {current && <button className="btn sm" type="button" onClick={() => saveBrowser(undefined)}>Save as new copy in browser</button>}
+        <button className="btn sm primary" type="button" title="Save (Ctrl+S)" onClick={() => { setOpen(false); save(false); }}>{canSaveInPlace() ? 'Save' : 'Save file'}</button>
+        {canSaveInPlace() && <button className="btn sm" type="button" title="Save as (Ctrl+Shift+S)" onClick={() => { setOpen(false); save(true); }}>Save as…</button>}
       </div>
       <h4>Saved in this browser{list.length ? ` (${list.length})` : ''}</h4>
       {list.length ? <div className="saved-list">{list.map(it => <div className={'row' + (it.id === savedId ? ' cur' : '')} key={it.id}>
@@ -344,6 +346,10 @@ function ProjectsMenu({ store, file, save, replace, savedId, setSavedId }: {
         <button className="btn sm" type="button" onClick={() => { try { replace(migrate(it.data), null, it.id); setOpen(false); toast('Opened ' + it.name); } catch { toast('Could not open ' + it.name); } }}>Open</button>
         <ArmButton className="btn sm danger" label="×" armedLabel="Delete?" onConfirm={() => { deleteSaved(it.id); setList(listSaved()); if (savedId === it.id) setSavedId(undefined); }} />
       </div>)}</div> : <div className="empty-note">No saved projects yet. Your current work is also kept automatically.</div>}
+      <div className="btns">
+        <button className="btn sm" type="button" onClick={() => saveBrowser(current)}>{current ? 'Save in browser (update)' : 'Save in browser'}</button>
+        {current && <button className="btn sm" type="button" onClick={() => saveBrowser(undefined)}>Save as new copy in browser</button>}
+      </div>
     </div>}
   </div>;
 }

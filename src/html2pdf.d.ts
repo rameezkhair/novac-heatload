@@ -4,6 +4,7 @@ declare module 'html2pdf.js' {
     set(options: Record<string, unknown>): Html2PdfWorker;
     from(element: HTMLElement): Html2PdfWorker;
     save(): Promise<void>;
+    outputPdf(type: 'blob'): Promise<Blob>;
   }
   export default function html2pdf(): Html2PdfWorker;
 }

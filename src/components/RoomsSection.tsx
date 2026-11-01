@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, type DragEvent, type ReactNode } from 'react';
 import type { Draft } from 'immer';
 import { ABOVE, ACT, ADJ, ADJ_EDIT, BELOW, ORIENTS, PXDEF, SCHEDULES, TYPES, typeOf } from '../engine/data';
 import { adjTemp, dcvNeeded, type Computed, type RoomLoad } from '../engine/calc';
@@ -9,7 +8,7 @@ import { ROOMOPTS, RMETA, SHOWV, changeType, ezOf, newId, newRoom, partU, pxU, r
 import type { Adjacent, AppState, Floor, Mark, Num, Orient, PartType, Project, Room } from '../engine/types';
 import { blank, evalArea, fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
-import { ArmButton, Badge, ExprInput, Field, NumInput, PickField, SecHead, useToast } from './ui';
+import { ArmButton, Badge, ExprInput, Field, Modal, NumInput, PickField, SecHead, useToast } from './ui';
 import { LoadPicture } from './LoadPlan';
 
 type RoomFn = (r: Draft<Room>, s: Draft<AppState>) => void;
@@ -449,23 +448,6 @@ function AreaCalc({ what, dims, qty = 'Quantity', less, onApply }: { what: strin
   </>;
 }
 
-/* a centred dialog over the page; Escape or the backdrop closes it */
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const back = document.activeElement as HTMLElement | null;
-    box.current?.querySelector('input')?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    addEventListener('keydown', onKey);
-    return () => { removeEventListener('keydown', onKey); back?.focus?.(); };
-  }, [onClose]);
-  return createPortal(<div className="modal-back" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div className="modal" role="dialog" aria-modal="true" aria-label={title} ref={box}>
-      <div className="modal-head"><h3>{title}</h3><button className="btn sm" type="button" aria-label="Close" onClick={onClose}>×</button></div>
-      {children}
-    </div>
-  </div>, document.body);
-}
 
 function adjOptions() {
   const o = ([k, l, , f]: (typeof ADJ)[number]) => <option key={k} value={k}>{l}{['project', 'custom', 'cond', 'cond2'].includes(k) ? '' : ` (${f})`}</option>;

@@ -6,16 +6,38 @@ export function downloadFile(filename: string, data: string, type: string) {
 }
 
 /* render an element to a Letter-size PDF and download it; the library is loaded only when first used */
-export async function downloadPdf(filename: string, el: HTMLElement, avoid = ['.room', 'table', '.chart', '.kpis']) {
+/* the html2pdf worker is itself a promise, so it is finished inside the callback rather than returned */
+async function makePdf<T>(filename: string, el: HTMLElement, avoid: string[], finish: (w: Html2PdfWorker) => Promise<T>): Promise<T> {
   const { default: html2pdf } = await import('html2pdf.js');
-  await html2pdf().set({
+  return finish(html2pdf().set({
     filename,
     margin: [0.3, 0, 0.3, 0],
     image: { type: 'jpeg', quality: 0.95 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: '#FFFFFF', windowWidth: 816 },
     jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
     pagebreak: { mode: ['css', 'legacy'], avoid },
-  }).from(el).save();
+  }).from(el));
+}
+type Html2PdfWorker = ReturnType<typeof import('html2pdf.js').default>;
+const PDF_AVOID = ['.room', 'table', '.chart', '.kpis'];
+export function downloadPdf(filename: string, el: HTMLElement, avoid = PDF_AVOID) {
+  return makePdf(filename, el, avoid, w => w.save());
+}
+
+/* email a PDF: where the browser can share files (Windows, macOS, phones) the system share sheet offers the
+   mail app with the PDF attached; elsewhere the PDF is downloaded and a new email opens to attach it to */
+export async function emailPdf(filename: string, el: HTMLElement, subject: string, body: string): Promise<'shared' | 'mailto' | 'cancelled'> {
+  const blob = await makePdf(filename, el, PDF_AVOID, w => w.outputPdf('blob'));
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: subject, text: body }); return 'shared'; }
+    catch (e) { if ((e as Error).name === 'AbortError') return 'cancelled'; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + `\n\nAttached: ${filename}`)}`;
+  return 'mailto';
 }
 
 export function pickFile(accept: string): Promise<string | null> {
@@ -64,18 +86,4 @@ export async function openProjectFile(): Promise<{ text: string; handle: FileHan
     const [h] = await p.showOpenFilePicker({ types: OPEN_TYPES });
     return { text: await (await h.getFile()).text(), handle: h };
   } catch (e) { if (cancelled(e)) return null; throw e; }
-}
-
-/* resolves to a message for the toast */
-export async function copyText(text: string, html?: string): Promise<string> {
-  try {
-    if (html && window.ClipboardItem && navigator.clipboard?.write) {
-      await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })]);
-      return 'Copied';
-    }
-    await navigator.clipboard.writeText(text);
-    return html ? 'Copied as plain text' : 'Copied';
-  } catch {
-    return 'Copy failed: the browser blocked clipboard access';
-  }
 }

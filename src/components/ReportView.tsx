@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { AppState } from '../engine/types';
-import { fileBase, reportBody, reportDoc, scheduleCSV } from '../engine/report';
-import { copyText, downloadFile, downloadPdf } from '../files';
-import { useCompliance, useToast } from './ui';
+import { fileBase, reportBody, reportDoc } from '../engine/report';
+import { downloadFile, emailPdf } from '../files';
+import { CONSENT_TEXT, subscribe, validEmail } from '../newsletter';
+import { Modal, useCompliance, useToast } from './ui';
 import cssText from '../styles.css?raw';
 
 /* report styles only, for the standalone file */
@@ -14,23 +15,49 @@ export function ReportView({ state, onBack }: { state: AppState; onBack: () => v
   /* report HTML is built by the engine, which escapes every user-entered string */
   const html = useMemo(() => reportBody(state, showC), [state, showC]);
   const base = fileBase(state.project.name);
+  const [ask, setAsk] = useState(false), closeAsk = useCallback(() => setAsk(false), []);
+  const send = async (email: string, news: boolean) => {
+    setAsk(false);
+    if (!paper.current) return;
+    /* the sign-up runs alongside the PDF; it never holds up or blocks the email */
+    if (news) void subscribe(email, 'email-report');
+    setBusy(true);
+    const name = state.project.name || 'Project';
+    try {
+      const r = await emailPdf(base + '_report.pdf', paper.current, `Heat load report: ${name}`, `Please find attached the heat load calculation report for ${name}.`);
+      if (r === 'mailto') toast('PDF downloaded. Attach it to the email that opened.');
+    }
+    catch { toast('Could not create the PDF. Use Print report (PDF), choose "Save as PDF" and attach it to an email.'); }
+    finally { setBusy(false); }
+  };
   return <section className="wrap" aria-label="Calculation report">
     <div className="rbar">
-      <button className="btn" type="button" onClick={onBack}>Back to calculator</button>
-      <button className="btn primary" type="button" disabled={busy} onClick={async () => {
-        if (!paper.current) return;
-        setBusy(true);
-        try { await downloadPdf(base + '_report.pdf', paper.current); toast('PDF downloaded'); }
-        catch { toast('Could not create the PDF. Use Print and choose "Save as PDF".'); }
-        finally { setBusy(false); }
-      }}>{busy ? 'Creating PDF…' : 'Download PDF'}</button>
-      <button className="btn" type="button" onClick={() => window.print()}>Print</button>
-      <button className="btn" type="button" onClick={() => { downloadFile(base + '_report.html', reportDoc(state, reportCss(), showC), 'text/html'); toast('Report downloaded'); }}>Download report (.html)</button>
-      <button className="btn" type="button" onClick={() => { downloadFile(base + '_schedule.csv', scheduleCSV(state), 'text/csv'); toast('Schedule downloaded'); }}>Download schedule (.csv)</button>
-      <button className="btn" type="button" onClick={() => copyText(paper.current?.innerText || '', reportDoc(state, reportCss(), showC)).then(m => toast(m))}>Copy report</button>
-      <span className="muted">Download PDF saves a US Letter PDF directly. For selectable text, use Print and choose "Save as PDF". Copy report pastes the formatted report into Word or Outlook.</span>
+      <button className="btn" type="button" onClick={onBack}>Back to application</button>
+      <button className="btn primary" type="button" onClick={() => window.print()}>Print report (PDF)</button>
+      <button className="btn" type="button" disabled={busy} onClick={() => setAsk(true)}>{busy ? 'Preparing email…' : 'Email report (PDF)'}</button>
+      <button className="btn" type="button" onClick={() => { downloadFile(base + '_report.html', reportDoc(state, reportCss(), showC), 'text/html'); toast('Report downloaded'); }}>Download report (HTML)</button>
     </div>
     <div className="paper"><div className="rpt" ref={paper} dangerouslySetInnerHTML={{ __html: html }} /></div>
     <div style={{ height: 48 }} />
+    {ask && <EmailAsk onClose={closeAsk} onSend={send} />}
   </section>;
+}
+
+/* asks for the sender's email before the report is emailed; it is kept for newsletters only when the box is ticked */
+function EmailAsk({ onClose, onSend }: { onClose: () => void; onSend: (email: string, news: boolean) => void }) {
+  const [email, setEmail] = useState(''), [news, setNews] = useState(false), [tried, setTried] = useState(false);
+  const ok = validEmail(email.trim());
+  return <Modal title="Email report" onClose={onClose}>
+    <form className="email-ask" noValidate onSubmit={e => { e.preventDefault(); setTried(true); if (ok) onSend(email.trim(), news); }}>
+      <label className="fld" htmlFor="ea-email"><span className="fl">Your email</span>
+        <input id="ea-email" type="email" autoComplete="email" required value={email} aria-invalid={tried && !ok} aria-describedby={tried && !ok ? 'ea-err' : undefined} onChange={e => setEmail(e.target.value)} /></label>
+      {tried && !ok && <p className="ea-err" id="ea-err">Enter a valid email address.</p>}
+      <label className="ea-news"><input type="checkbox" checked={news} onChange={e => setNews(e.target.checked)} /> {CONSENT_TEXT}</label>
+      <p className="muted ea-note">The report opens in your mail app as a PDF attachment. Your email is only stored if you tick the box above.</p>
+      <div className="modal-actions">
+        <button className="btn" type="button" onClick={onClose}>Cancel</button>
+        <button className="btn primary" type="submit">Continue</button>
+      </div>
+    </form>
+  </Modal>;
 }
