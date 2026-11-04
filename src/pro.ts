@@ -1,3 +1,3 @@
-/* Pro tools (hourly analysis, indoor air quality) show as coming soon until Pro access is available; the tests unlock them.
-   ducts is the duct sizing add-on: built, but shown as coming soon for now; the tests unlock it. */
+/* Build switches. Off on the live site: the built Pro tools and duct sizing are drafts until the admin activates them
+   (admin.html); the logged-in admin sees them as previews. The tests and local development can turn them on. */
 export const PRO = { unlocked: false, ducts: false };

@@ -14,7 +14,8 @@ import { ReportView } from './components/ReportView';
 import { RoomsSection } from './components/RoomsSection';
 import { ScheduleSection } from './components/ScheduleSection';
 import { ArmButton, ComplianceProvider, useToast } from './components/ui';
-import { PRO } from './pro';
+import { FEATURES, featureByLabel, loadAdminSession, loadSiteConfig, shownOf, statusOf, type Shown } from './siteConfig';
+import { useAdminPreview, useSiteConfig } from './useSiteConfig';
 import { DuctSection } from './components/DuctSection';
 import { Library } from './components/Library';
 import { CommunityChat, Forum, Support } from './components/Community';
@@ -23,15 +24,16 @@ import { CommunityChat, Forum, Support } from './components/Community';
 const VIEWS = [['library', 'Library'], ['forum', 'Forum'], ['chat', 'Community chat'], ['support', 'Support']] as const;
 type View = 'calc' | typeof VIEWS[number][0];
 /* the indoor air quality step and its engines load when the step is first opened */
-const IaqSection = lazy(() => import('./components/IaqSection').then(m => ({ default: m.IaqSection })));
+const EnergyModellingSection = lazy(() => import('./components/EnergyModellingSection').then(m => ({ default: m.EnergyModellingSection })));
+const IaqLinked = lazy(() => import('./components/IaqLinked').then(m => ({ default: m.IaqLinked })));
 
-/* step-bar markers for the Pro tools: hourly analysis, indoor air quality, energy audit, energy modelling */
+/* step-bar markers for the Pro tools: hourly analysis, energy modelling, indoor air quality, energy audit */
 const icon = (d: string) => <svg viewBox="0 0 24 24" focusable="false"><path d={d} /></svg>;
 const PRO_ICONS = [
   icon('M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2'),
+  icon('M4 21V9l8-6 8 6v12M4 13h16M4 17h16'),
   icon('M3 8h12a3 3 0 10-3-3M3 12h16a3 3 0 11-3 3M3 16h8'),
   icon('M6 3h9l4 4v14H6zM9 12l2 2 4-4M9 17h7'),
-  icon('M4 21V9l8-6 8 6v12M4 13h16M4 17h16'),
 ];
 /* Pro add-ons, not built yet */
 const ADDONS: [string, ReactNode][] = [
@@ -71,14 +73,28 @@ export default function App() {
     { title: 'Spaces', description: 'Enter space areas, loads and surface details.' },
     { title: 'Heat load summary', description: 'Review the load schedule and generate a report.' },
     { title: 'Hourly analysis', description: 'See the heat balance loads hour by hour and month by month.', pro: true },
+    { title: 'Energy modelling', description: 'Model the yearly power demand and supply it from solar with battery, the grid and a genset: size them and see the energy, cost and CO₂.', pro: true },
     { title: 'Indoor air quality', description: 'Design ventilation to ASHRAE 62.1, check indoor contaminants and select filters.', pro: true },
   ];
   /* Pro tools sit in their own row after the core steps; the ones without a step are not built yet */
   const CORE = steps.filter(s => !s.pro).length;
-  const proSoon = ['Energy audit', 'Energy modelling'];
-  const last = PRO.unlocked ? steps.length - 1 : CORE - 1;
+  const proSoon = ['Energy audit'];
+  /* what the admin set live, locked, coming soon or hidden (built-in defaults until the site configuration loads) */
+  const site = useSiteConfig(), admin = useAdminPreview();
+  useEffect(() => { void loadSiteConfig(); void loadAdminSession(); }, []);
+  const featOf = (title: string) => featureByLabel(title)?.id ?? '';
+  /* what this visitor sees: a draft is hidden, or a preview for the logged-in admin */
+  const shown = (id: string): Shown => shownOf(site, id, admin);
+  const status = (title: string): Shown => shown(featOf(title));
+  const opens = (s: Shown) => s === 'live' || s === 'preview';
+  const drafts = FEATURES.filter(f => statusOf(site, f.id) === 'draft');
+  /* a step opens when it is a core step, or a Pro tool or add-on set live (or previewed by the admin) */
+  const canOpen = (i: number) => i >= 0 && (i < CORE || (i === DUCT ? opens(status(addonStep.title)) : i < steps.length && opens(status(steps[i].title))));
+  /* the next step Continue goes to: the next one that can be opened */
+  const nextOpen = (i: number) => { for (let j = i + 1; j < steps.length; j++) if (canOpen(j)) return j; return -1; };
+  const prevOpen = (i: number) => { for (let j = i - 1; j >= 0; j--) if (canOpen(j)) return j; return 0; };
   /* built add-ons open from the add-ons row: duct sizing is the step after the Pro tools */
-  const DUCT = steps.length;
+  const DUCT = steps.length, IAQ = steps.findIndex(x => x.title === 'Indoor air quality'), ENERGY = steps.findIndex(x => x.title === 'Energy modelling');
   const addonStep = { title: 'Duct sizing', description: 'Size supply ducts from the room airflows by equal friction or velocity, with fittings, the worst branch and fan pressure.' };
   const stepInfo = (i: number) => i === DUCT ? addonStep : steps[i];
 
@@ -90,9 +106,9 @@ export default function App() {
   /* the project name is mandatory: leaving step 1 without one keeps the user there */
   const [nameErr, setNameErr] = useState(false);
   const navigateStep = (step: number) => {
-    if (step === DUCT ? !PRO.ducts : step > last) return;
-    /* the duct sizer can be used on its own, so it does not need a project name */
-    if (step !== 0 && step !== DUCT && !state.project.name.trim()) {
+    if (!canOpen(step)) return;
+    /* the duct sizer, indoor air quality and energy modelling can be used on their own, so they do not need a project name */
+    if (step !== 0 && step !== DUCT && step !== IAQ && step !== ENERGY && !state.project.name.trim()) {
       setNameErr(true); setActiveStep(0); scrollTo(0, 0);
       setTimeout(() => document.getElementById('p-name')?.focus());
       return;
@@ -123,7 +139,7 @@ export default function App() {
   };
   const openFromHash = () => {
     /* #ducts opens the duct sizer directly */
-    if (location.hash === '#ducts') { history.replaceState(null, '', location.pathname + location.search); if (PRO.ducts) { setView('calc'); setActiveStep(DUCT); } return; }
+    if (location.hash === '#ducts') { history.replaceState(null, '', location.pathname + location.search); if (opens(shown('ducts'))) { setView('calc'); setActiveStep(DUCT); } return; }
     const enc = projectInHash(location.hash);
     if (!enc) return;
     history.replaceState(null, '', location.pathname + location.search);
@@ -158,15 +174,17 @@ export default function App() {
     addEventListener('keydown', onKey); return () => removeEventListener('keydown', onKey);
   }, [undo, redo, report]);
 
-  const stepButton = (title: string, index: number, marker: ReactNode) => {
+  const stepButton = (title: string, index: number, marker: ReactNode, preview = false) => {
     /* the heat load summary is the result of the steps before it, so it shows no progress or tick */
     const final = index === CORE - 1;
     const isComplete = !final && completed[index];
-    const status = final ? '' : index === DUCT ? (index === activeStep ? 'Open' : 'Available')
+    const status0 = final ? '' : index === DUCT ? (index === activeStep ? 'Open' : 'Available')
       : isComplete ? 'Complete' : index === activeStep ? 'In progress' : valid[index] ? 'Not started' : 'Needs input';
+    /* a draft the admin is previewing: only they see it until it is activated */
+    const status = preview ? `Preview · ${status0}` : status0;
     return <button
       key={title}
-      className={'workflow-step' + (isComplete ? ' is-complete' : '')}
+      className={'workflow-step' + (isComplete ? ' is-complete' : '') + (preview ? ' is-preview' : '')}
       type="button"
       data-step={index}
       aria-current={index === activeStep ? 'step' : undefined}
@@ -193,7 +211,19 @@ export default function App() {
       </span>
     </button>;
 
+  /* a Pro tool or add-on as its status says: a step button when live, locked or coming soon, nothing when hidden */
+  const featureButton = (title: string, index: number, marker: ReactNode) => {
+    const st = status(title);
+    if (st === 'hidden') return null;
+    if (st === 'preview' && index >= 0) return stepButton(title, index, marker, true);
+    if (st === 'live' && index >= 0) return stepButton(title, index, marker);
+    return proUnavailable(title, marker, st === 'locked' ? 'Locked · Pro' : 'Coming soon');
+  };
+  const bannerOn = !!(site?.texts.bannerOn && site.texts.bannerText);
+
   return <ComplianceProvider value={showC}>
+    {bannerOn && <div className={`site-banner ${site!.texts.bannerTone ?? 'info'}`} role="note">{site!.texts.bannerText}</div>}
+    {admin && drafts.length > 0 && <div className="admin-preview" role="note"><b>Admin preview</b> · {drafts.length} update{drafts.length > 1 ? 's' : ''} not live yet ({drafts.map(f => f.label).join(', ')}): only you see {drafts.length > 1 ? 'them' : 'it'}. <a href="/admin.html">Activate in the admin panel</a></div>}
     <header className="top app-top">
       <div className="wrap">
         <div className="app-identity">
@@ -202,8 +232,8 @@ export default function App() {
             <span>NOVAC</span>
           </a>
           <div className="app-heading">
-            <h1>Simplified Heat Load Calculator</h1>
-            <p className="tag">Room-by-room cooling demand · Made in UAE</p>
+            <h1>{site?.texts.appTitle || 'Simplified Heat Load Calculator'}</h1>
+            <p className="tag">{site?.texts.appTag || 'Room-by-room cooling demand · Made in UAE'}</p>
           </div>
         </div>
         <div className="app-side">
@@ -213,8 +243,11 @@ export default function App() {
             <button className="btn" type="button" onClick={() => { replace(exampleState()); toast('Example loaded'); }}>Load example</button>
           </div>
           <div className="app-links">
-            {VIEWS.map(([id, label]) => <button key={id} type="button" aria-pressed={view === id && !report}
-              onClick={() => { setView(id); if (report) showReport(false); else scrollTo(0, 0); }}>{label}</button>)}
+            {VIEWS.map(([id, label]) => { const st = shown(id);
+              if (st === 'hidden') return null;
+              if (st !== 'live' && st !== 'preview') return <button key={id} type="button" disabled title={st === 'locked' ? 'Pro' : 'Coming soon'}>{label} <span className="muted">· {st === 'locked' ? 'Pro' : 'soon'}</span></button>;
+              return <button key={id} type="button" aria-pressed={view === id && !report}
+                onClick={() => { setView(id); if (report) showReport(false); else scrollTo(0, 0); }}>{label}</button>; })}
           </div>
         </div>
       </div>
@@ -232,14 +265,21 @@ export default function App() {
           <div className="workflow-pro" role="group" aria-label="Pro tools">
             <span className="pro-badge">Pro</span>
             <div className="workflow-stepper">
-              {steps.slice(CORE).map((step, i) => PRO.unlocked ? stepButton(step.title, CORE + i, PRO_ICONS[i]) : proUnavailable(step.title, PRO_ICONS[i], 'Coming soon'))}
-              {proSoon.map((title, i) => proUnavailable(title, PRO_ICONS[steps.length - CORE + i], 'Coming soon'))}
+              {(() => {
+                /* while energy modelling is coming soon for this visitor, the Pro row keeps its earlier order
+                   (hourly analysis, indoor air quality, energy audit, energy modelling) */
+                const row = [...steps.slice(CORE).map((step, i) => ({ title: step.title, index: CORE + i, icon: PRO_ICONS[i] })),
+                  ...proSoon.map((title, i) => ({ title, index: -1, icon: PRO_ICONS[steps.length - CORE + i] }))];
+                const em = row.findIndex(x => x.title === 'Energy modelling');
+                if (em >= 0 && !opens(status('Energy modelling'))) row.push(...row.splice(em, 1));
+                return row.map(x => featureButton(x.title, x.index, x.icon));
+              })()}
             </div>
           </div>
           <div className="workflow-pro" role="group" aria-label="Pro add-ons">
             <span className="pro-badge">Add-ons</span>
             <div className="workflow-stepper">
-              {ADDONS.map(([title, marker]) => title === addonStep.title && PRO.ducts ? stepButton(title, DUCT, marker) : proUnavailable(title, marker, 'Coming soon'))}
+              {ADDONS.map(([title, marker]) => featureButton(title, title === addonStep.title ? DUCT : -1, marker))}
             </div>
           </div>
           <p className="workflow-caption"><b>{activeStep < CORE ? `Step ${activeStep + 1} of ${CORE}` : `${activeStep === DUCT ? 'Add-on' : 'Pro'} · ${stepInfo(activeStep).title}`}</b><span aria-hidden="true">·</span>{stepInfo(activeStep).description}</p>
@@ -254,22 +294,23 @@ export default function App() {
           {activeStep === 3 && <RoomsSection store={store} d={d} />}
           {activeStep === 4 && <ScheduleSection d={d} checks={checks} store={store} marks={marks} needs={steps.slice(0, CORE - 1).filter((_, i) => !valid[i]).map(s => s.title)} />}
           {activeStep === 5 && <HourlySection d={d} store={store} />}
-          {activeStep === 6 && <Suspense fallback={<p className="hint">Loading the indoor air quality tools…</p>}><IaqSection d={d} store={store} /></Suspense>}
+          {activeStep === IAQ && <Suspense fallback={<p className="hint">Loading the indoor air quality tools…</p>}><IaqLinked d={d} store={store} /></Suspense>}
+          {activeStep === ENERGY && <Suspense fallback={<p className="hint">Loading the energy modelling tools…</p>}><EnergyModellingSection d={d} store={store} /></Suspense>}
           {activeStep === DUCT && <DuctSection d={d} store={store} onLoad={loadKeeping} />}
         </div>
         <div className="workflow-controls" aria-label="Step navigation">
           {activeStep > 0
-            ? <button className="btn" type="button" onClick={() => navigateStep(activeStep - 1)}>Previous</button>
+            ? <button className="btn" type="button" onClick={() => navigateStep(activeStep === DUCT ? CORE - 1 : prevOpen(activeStep))}>Previous</button>
             : <span />}
           {/* the heat load summary ends with the results report, ready to print or save as PDF */}
           {activeStep === CORE - 1
             ? <div className="workflow-end">
               <button className="btn" type="button" onClick={() => save(false)}>Save project</button>
               <button className="btn primary" type="button" onClick={() => showReport(true)}>Generate report</button>
-              {activeStep < last && <button className="btn" type="button" onClick={() => navigateStep(activeStep + 1)}>Continue</button>}
+              {nextOpen(activeStep) > 0 && <button className="btn" type="button" onClick={() => navigateStep(nextOpen(activeStep))}>Continue</button>}
             </div>
-            : activeStep < last
-              ? <button className="btn primary" type="button" onClick={() => navigateStep(activeStep + 1)}>Continue</button>
+            : activeStep !== DUCT && nextOpen(activeStep) > 0
+              ? <button className="btn primary" type="button" onClick={() => navigateStep(nextOpen(activeStep))}>Continue</button>
               : <span />}
         </div>
       </main>}
@@ -296,7 +337,9 @@ function workflowCompletion(state: Store['state']): boolean[] {
     && positive(room.qty) && positive(room.area) && positive(room.height)
     && [room.people, room.light, room.equip, room.oa, room.ach, room.ps, room.pl].every(value => hasNumber(value) && Number(value) >= 0));
   const all = details && climate && envelope && rooms;
-  return [details, climate, envelope, rooms, all, all, all];
+  /* energy modelling also works on its own from a custom power input */
+  /* in step order: the core steps, hourly analysis, energy modelling (also on its own from custom values or a linked project), indoor air quality */
+  return [details, climate, envelope, rooms, all, all, all || (p.power?.basis ?? 'design') === 'custom' || p.power?.basis === 'project', all || (p.iaqLink?.mode ?? 'this') !== 'this'];
 }
 
 /* save and open projects: in this browser, or as .json files to share */

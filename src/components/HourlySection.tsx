@@ -3,6 +3,8 @@ import type { Computed } from '../engine/calc';
 import { MONTHS } from '../engine/climate';
 import { BTU_W, SYSTEMS, capRatio, copAt, copToKwTr, requirements, recommended, type SysId } from '../engine/equipment';
 import { LABELS, electrical, hours, type Hour } from '../engine/hourly';
+import { PKG_OA_MAX, pkgOaOn } from '../engine/calc';
+import { useFeature } from '../useSiteConfig';
 import type { Num } from '../engine/types';
 import { fmt, num } from '../engine/util';
 import type { Store } from '../state/store';
@@ -168,7 +170,9 @@ export function ElectricalKpis({ d, basis: b }: { d: Computed; basis: LoadBasis 
 /* recommended efficiency, authority requirements and the electrical input of the cooling plant */
 function ElectricalCard({ d, store, el, month, room, hover, setHover, loads, idPrefix }: { d: Computed; store: Store; el: ReturnType<typeof electrical>; month: number; room: boolean; hover: number | null; setHover: (hour: number | null) => void; loads: ReturnType<typeof hours>; idPrefix: string }) {
   const p = d.p, sys = (p.sys || 'ducted') as SysId, kW = el.peakKW, reqs = requirements(sys, kW, p.location), rec = recommended(sys, kW, p.location);
-  const set = (k: 'sys' | 'effOpt' | 'effCop' | 'aux' | 'fahu', v: unknown) => store.update(s => { (s.project as Record<string, unknown>)[k] = v; }, 'p.' + k);
+  /* packaged unit fresh air % is an update the admin activates (siteConfig) */
+  const pkgFeat = useFeature('pkgoa');
+  const set = (k: 'sys' | 'effOpt' | 'effCop' | 'aux' | 'fahu' | 'pkgOA' | 'pkgOAPct', v: unknown) => store.update(s => { (s.project as Record<string, unknown>)[k] = v; }, 'p.' + k);
   const q = el.q, max = Math.max(...el.kWe, 0.001), W = 760, Ht = 150, ml = 44, mt = 14, mb = 22, ph = Ht - mt - mb, bw = (W - ml - 8) / 24;
   const step = (() => { const raw = max / 3, pw = 10 ** Math.floor(Math.log10(raw || 1)), f = raw / pw; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pw; })();
   const yMax = Math.ceil(max / step) * step, y = (v: number) => mt + (yMax - v) / yMax * ph;
@@ -179,15 +183,20 @@ function ElectricalCard({ d, store, el, month, room, hover, setHover, loads, idP
     <div className="hr-filters">
       <label className="fld" htmlFor={`${idPrefix}-el-sys`}><span className="fl">Cooling system</span><span className="in-u"><select id={`${idPrefix}-el-sys`} value={sys} onChange={e => { set('sys', e.target.value); set('effOpt', ''); }}>
         {SYSTEMS.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select></span></label>
-      <label className="fld" htmlFor={`${idPrefix}-el-fahu`}><span className="fl">Fresh air handling</span><span className="in-u"><select id={`${idPrefix}-el-fahu`} value={p.fahu ? 'fahu' : 'room'} onChange={e => set('fahu', e.target.value === 'fahu')}>
+      {sys === 'ducted' && pkgFeat && <label className="fld" htmlFor={`${idPrefix}-el-pkg`}><span className="fl">Packaged unit fresh air</span><span className="in-u"><select id={`${idPrefix}-el-pkg`} value={p.pkgOA ? 'pct' : 'room'} onChange={e => { const on = e.target.value === 'pct'; set('pkgOA', on); if (on && (p.pkgOAPct == null || p.pkgOAPct === '')) set('pkgOAPct', 10); }}>
+        <option value="room">Rooms’ own fresh air (L/s)</option>
+        <option value="pct">Through the unit, as % of supply air (0–{PKG_OA_MAX}%)</option></select></span></label>}
+      {sys === 'ducted' && pkgFeat && p.pkgOA && <label className="fld" htmlFor={`${idPrefix}-el-pkgpct`} style={{ flex: '0 1 170px', minWidth: 150 }}><span className="fl">Fresh air, % of supply</span><span className="in-u"><NumInput id={`${idPrefix}-el-pkgpct`} label="Packaged unit fresh air, % of supply air" min={0} step={1} value={(p.pkgOAPct ?? 10) as Num} onChange={v => set('pkgOAPct', v === '' ? v : Math.max(0, Math.min(PKG_OA_MAX, Number(v))))} /><span className="u">%</span></span></label>}
+      {!(sys === 'ducted' && pkgFeat && p.pkgOA) && <label className="fld" htmlFor={`${idPrefix}-el-fahu`}><span className="fl">Fresh air handling</span><span className="in-u"><select id={`${idPrefix}-el-fahu`} value={p.fahu ? 'fahu' : 'room'} onChange={e => set('fahu', e.target.value === 'fahu')}>
         <option value="fahu">Treated by a FAHU (separate load)</option>
-        <option value="room">Handled by room units</option></select></span></label>
+        <option value="room">Handled by room units</option></select></span></label>}
       <label className="fld" htmlFor={`${idPrefix}-el-eff`}><span className="fl">Efficiency used for the estimate</span><span className="in-u"><select id={`${idPrefix}-el-eff`} value={p.effOpt === 'custom' ? 'custom' : q.id} onChange={e => set('effOpt', e.target.value === rec.id ? '' : e.target.value)}>
         {reqs.map(r => <option key={r.id} value={r.id}>{r.label}: {r.metric} {r.value}{r.id === rec.id ? ' (recommended)' : ''}</option>)}
         <option value="custom">Custom: manufacturer's full-load COP at 35 °C</option></select></span></label>
       {p.effOpt === 'custom' && <label className="fld" htmlFor={`${idPrefix}-el-cop`} style={{ flex: '0 1 160px', minWidth: 140 }}><span className="fl">COP at 35 °C</span><span className="in-u"><NumInput id={`${idPrefix}-el-cop`} label="Custom COP" min={0} step={0.1} value={(p.effCop ?? '') as Num} onChange={v => set('effCop', v)} /><span className="u">W/W</span></span></label>}
       <label className="fld" htmlFor={`${idPrefix}-el-aux`} style={{ flex: '0 1 200px', minWidth: 160 }}><span className="fl">Fans, pumps, towers allowance</span><span className="in-u"><NumInput id={`${idPrefix}-el-aux`} label="Auxiliary allowance" min={0} step={0.05} value={(p.aux ?? 0) as Num} onChange={v => set('aux', v)} /><span className="u">kW/TR</span></span></label>
     </div>
+    {pkgOaOn(p) && <p className="hint">Packaged units: each room takes {fmt(Math.max(0, Math.min(PKG_OA_MAX, num(p.pkgOAPct))), 0)}% of its supply air as fresh air ({fmt(d.T.oaq, 0)} L/s in all), mixed and cooled in the unit, so there is no separate FAHU load. Rooms below their minimum fresh air are flagged in Spaces.</p>}
     <h4 className="hr-sub">Electrical input by hour, {MONTHS[month]} 21 <span className="muted">· kW</span></h4>
     <p className="hint">{hover != null ? <><b>{hh(hover + 1)}:</b> {fmt(el.kWe[hover], 2)} kW electrical input for {fmt(loads[hover].total / 1000, 2)} kW cooling at {fmt(loads[hover].To, 1)} °C outdoor.</> : <>Peak at {hh(pk + 1)}: <b>{fmt(el.kWe[pk], 2)} kW</b>. Hover a bar to inspect the hour.</>}</p>
     <svg className="hr-el" onMouseLeave={() => setHover(null)} viewBox={`0 0 ${W} ${Ht}`} role="img" aria-label={`Electrical input by hour, peak ${fmt(el.kWe[pk], 1)} kW at ${hh(pk + 1)}. Values in the table below.`}>

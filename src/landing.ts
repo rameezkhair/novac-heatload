@@ -39,3 +39,17 @@ links.forEach((_, id) => { const s = document.getElementById(id); if (s) spy.obs
 const nav = document.querySelector('.nav');
 const lift = () => nav?.classList.toggle('lifted', scrollY > 8);
 addEventListener('scroll', lift, { passive: true }); lift();
+
+/* site texts set in the admin panel (admin.html): headline, subheading, support email and the announcement banner.
+   The page keeps its built-in text when nothing is set or the configuration cannot be loaded. */
+import('./siteConfig').then(async ({ loadSiteConfig, emphasis }) => {
+  const c = await loadSiteConfig(); if (!c) return;
+  const t = c.texts;
+  const h = document.querySelector<HTMLElement>('.hero-h'); if (h && t.heroTitle) h.innerHTML = emphasis(t.heroTitle);
+  const lead = document.querySelector<HTMLElement>('.hero .lead, .lead'); if (lead && t.heroLead) lead.textContent = t.heroLead;
+  if (t.supportEmail) document.querySelectorAll<HTMLAnchorElement>('a[href^="mailto:"]').forEach(a => { a.href = `mailto:${t.supportEmail}`; if (a.textContent?.includes('@')) a.textContent = t.supportEmail!; });
+  if (t.bannerOn && t.bannerText) {
+    const b = document.createElement('div'); b.className = `site-banner ${t.bannerTone ?? 'info'}`; b.setAttribute('role', 'note'); b.textContent = t.bannerText;
+    document.body.prepend(b);
+  }
+});

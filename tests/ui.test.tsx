@@ -40,16 +40,28 @@ beforeEach(async () => {
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
 
 describe('app', () => {
-  it('keeps the Pro tools locked until Pro is unlocked', async () => {
+  it('shows visitors the site as before: drafts look coming soon and the new in-step options are not shown', async () => {
     PRO.unlocked = false; PRO.ducts = false;
     await act(async () => root.render(<ToastProvider><App key="locked" /></ToastProvider>));
-    /* only the five core steps open: the Pro tools and the duct sizing add-on are not open yet */
+    /* only the five core steps open; every Pro tool and add-on shows as coming soon, as before these updates */
     expect($$('.workflow-step')).toHaveLength(5);
     const pro = $$('.workflow-pro .workflow-soon');
     expect(pro).toHaveLength(16);
-    expect(pro.slice(0, 4).map(e => e.querySelector('.workflow-status')!.textContent)).toEqual(['Coming soon', 'Coming soon', 'Coming soon', 'Coming soon']);
-    expect(pro.find(e => e.textContent?.includes('Duct sizing'))!.querySelector('.workflow-status')!.textContent).toBe('Coming soon');
+    expect(pro.every(e => e.querySelector('.workflow-status')!.textContent === 'Coming soon')).toBe(true);
     expect(pro.every(e => (e as HTMLButtonElement).disabled)).toBe(true);
+    expect($('.admin-preview')).toBeNull();
+    /* the Pro row in its earlier order */
+    expect(pro.slice(0, 4).map(e => e.querySelector('.workflow-title')!.textContent)).toEqual(['Hourly analysis', 'Indoor air quality', 'Energy audit', 'Energy modelling']);
+    /* the fresh air switches and packaged unit fresh air are drafts: not in Spaces or the summary */
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    expect($('#r-faLoad')).toBeNull();
+    await act(async () => $<HTMLButtonElement>('.rtotal').click());
+    expect($('#pb-faOff')).toBeNull();
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    expect($('#p-faOff')).toBeNull();
+    await act(async () => setValue($('#summary-el-sys'), 'ducted'));
+    expect($('#summary-el-pkg')).toBeNull();
+    expect($('#summary-el-fahu')).toBeTruthy();
     await act(async () => $('.workflow-step[data-step="4"]').click());
     expect($('.tot.key')).not.toBeNull();
     expect(byText('button', 'Continue')).toBeUndefined();
@@ -65,10 +77,10 @@ describe('app', () => {
   });
 
   it('navigates through the calculator steps and ticks a step once it has been filled in', async () => {
-    expect($$('.workflow-step')).toHaveLength(8);
+    expect($$('.workflow-step')).toHaveLength(9);
     expect($('.workflow-step[data-step="0"]').getAttribute('aria-current')).toBe('step');
     expect($$('.workflow-step.is-complete')).toHaveLength(0);
-    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['In progress', 'Not started', 'Not started', 'Not started', 'Not started', 'Not started', 'Available']);
+    expect($$('.workflow-step .workflow-status').map(e => e.textContent)).toEqual(['In progress', 'Not started', 'Not started', 'Not started', 'Not started', 'Not started', 'Not started', 'Available']);
     /* the heat load summary is the final, results step: no progress status and no tick */
     expect($('.workflow-step[data-step="4"] .workflow-status')).toBeNull();
     expect($('#p-name')).not.toBeNull();
@@ -613,7 +625,7 @@ describe('indoor air quality', () => {
   it('calculates ventilation, writes it to the rooms and the loads follow', async () => {
     await act(async () => $('.workflow-step[data-step="4"]').click());
     const before = num(plantTR());
-    await act(async () => $('.workflow-step[data-step="6"]').click());
+    await act(async () => $('.workflow-step[data-step="7"]').click());
     for (let i = 0; i < 50 && !$('.iaq-zones'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
     expect($$('.iaq-zones tbody tr')).toHaveLength(5);
     expect($('.iaq-kpis').textContent).toContain('System outdoor air intake, Vot');
@@ -626,7 +638,7 @@ describe('indoor air quality', () => {
     await act(async () => $('.workflow-step[data-step="4"]').click());
     expect(num(plantTR())).toBeGreaterThan(before);
     /* contaminants and filtration on the same rooms */
-    await act(async () => $('.workflow-step[data-step="6"]').click());
+    await act(async () => $('.workflow-step[data-step="7"]').click());
     await act(async () => byText('.iaq-tabs button', 'Contaminants').click());
     expect($$('.iaq-cont tbody tr')).toHaveLength(9);
     expect($('.iaq-cont').textContent).toContain('Ventilation indicator');
@@ -873,5 +885,578 @@ describe('duct sizing with or without a heat load', () => {
     expect($$('.duct-comp tbody tr').length).toBe(saved.rooms.length);
     /* the work open before was kept in the browser */
     expect(listSaved().length).toBe(2);
+  });
+});
+
+describe('energy modelling', () => {
+  it('splits the hourly demand between solar, battery, grid and genset and costs it', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    /* energy modelling runs in steps like the heat load calculation: step 1 is the project link */
+    expect($$('.em-step')).toHaveLength(7);
+    expect($('.em-step[aria-current="step"] .em-title').textContent).toBe('Project link');
+    expect($('.plink')).toBeTruthy();
+    expect($('.pw-sched')).toBeNull();
+    await act(async () => byText('.em-nav button', 'Continue: Operating schedule').click());
+    expect($('.em-step[aria-current="step"] .em-title').textContent).toBe('Operating schedule');
+    expect($('.pw-sched')).toBeTruthy();
+    expect($('.plink')).toBeNull();
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="6"]').click());
+    expect($('.pw-load')).toBeTruthy();
+    await act(async () => byText('.em-nav button', 'Previous').click());
+    expect($('.em-step[aria-current="step"] .em-title').textContent).toBe('Costs');
+    expect($('.em-summary').textContent).toMatch(/Demand [\d,]+ kWh a year/);
+    /* the rest of this test reviews every step on one page */
+    await act(async () => byText('.em-all', 'Show all steps on one page').click());
+    expect($('.power').textContent).toContain('Annual demand');
+    /* 200 panels of 550 Wp: 110 kWp, inverter suggested at DC/AC 1.15 */
+    /* on-grid starts with the TCL; the supply inputs follow it */
+    await act(async () => setValue($('#pw-tcl'), '150'));
+    await act(async () => setValue($('#pw-panels'), '200'));
+    expect($('.power').textContent).toContain('110.00 kWp');
+    expect($('.power').textContent).toContain('suggested 100 kW');
+    await act(async () => $$('.pw-chk').find(e => e.textContent?.includes('Add battery storage'))!.querySelector('input')!.click());
+    expect($('.power').textContent).toMatch(/blank = suggested \d+ kWh/);
+    /* fewer panels and no grid leave the rest to the genset */
+    await act(async () => setValue($('#pw-panels'), '10'));
+    await act(async () => setValue($('#pw-gridKW'), '0'));
+    expect($(".power").textContent).toMatch(/Genset \d+ kVA × [\d.]+ = \d+ kW/);
+    expect($('.power').textContent).toContain('Solar and battery payback');
+    /* fixed shares in kW of TCL: 100 kW TCL, grid 60 kW, solar 25 kW, genset the remaining 15 kW */
+    await act(async () => ($$('.power .seg button').find(e => e.textContent?.startsWith('Fixed shares')) as HTMLButtonElement).click());
+    await act(async () => ($$('.power .seg button').find(e => e.textContent?.startsWith('kW of TCL')) as HTMLButtonElement).click());
+    await act(async () => setValue($('#pw-tcl'), '100'));
+    await act(async () => setValue($('#pw-gridKWs'), '60'));
+    await act(async () => setValue($('#pw-solarKWs'), '25'));
+    expect($<HTMLInputElement>('input[aria-label="Genset share"]').value).toBe('15.0');
+    expect($('.pw-shares').textContent).toContain('60.0%');
+    await act(async () => ($$('.power .seg button').find(e => e.textContent?.startsWith('% of demand')) as HTMLButtonElement).click());
+    expect($('.pw-shares').textContent).toContain('TCL');
+    await act(async () => ($$('.power .seg button').find(e => e.textContent?.startsWith('Hour by hour')) as HTMLButtonElement).click());
+    await act(async () => setValue($('#pw-tcl'), ''));
+    /* the DEWA check: an entered TCL of 150 kW allows 100 + 50 × 75% = 137.5 kW AC */
+    await act(async () => setValue($('#pw-tcl'), '150'));
+    expect($('.pw-dewa').textContent).toContain('Within DEWA limit');
+    expect($('.pw-dewa').textContent).toContain('137.5 kW AC');
+    /* work independently: the user's own power demand, without the hourly analysis */
+    await act(async () => ($$('.power .plink .seg button').find(e => e.textContent?.startsWith('Work independently')) as HTMLButtonElement).click());
+    await act(async () => setValue($('#pw-cKW'), '80'));
+    expect($('.power').textContent).toContain('Custom profile');
+    /* additional power demand: off and hidden until switched on */
+    expect($('#pw-addKW')).toBeNull();
+    await act(async () => $<HTMLInputElement>('#pw-extraOn').click());
+    await act(async () => setValue($('#pw-addKW'), '10'));
+    expect($('.pw-extra').textContent).toContain('+ 10.0 kW');
+    await act(async () => $<HTMLInputElement>('#pw-extraOn').click());
+    expect($('#pw-addKW')).toBeNull();
+    /* the power demand shows in its own card as soon as it is entered */
+    expect($('.pw-demand').textContent).toContain('Annual power demand');
+    expect($('.pw-demand').textContent).toContain('80.00kW');
+    /* operating schedule: Monday to Friday, 08:00 to 18:00 is 261 × 10 = 2,610 hours in 2025; adding Saturday adds 52 × 10 */
+    expect($('.pw-sched').textContent).toContain('2,610 operating hours a year');
+    await act(async () => byText('.pw-days button', 'Sat').click());
+    expect($('.pw-sched').textContent).toContain('3,130 operating hours a year');
+    await act(async () => setValue($('#pw-op-h-main'), 'retail'));
+    expect($('.pw-sched').textContent).toContain('6 days × 12 h = 72 h a week');
+    /* split the week: weekdays 08:00–12:00 (4 h) and the weekend 08:00–20:00 (12 h); a day cannot be in both */
+    await act(async () => byText('.pw-splits button', 'Weekdays + weekend').click());
+    expect($$('.pw-op')).toHaveLength(2);
+    expect($$('.pw-op')[0].textContent).toContain('5 days × 4 h = 20 h a week');
+    expect($$('.pw-op')[1].textContent).toContain('2 days × 12 h = 24 h a week');
+    expect(($$('.pw-op')[0].querySelectorAll('.pw-days button')[5] as HTMLButtonElement).disabled).toBe(true);
+    expect($('.pw-sched').textContent).toContain('Every day of the week is covered');
+    /* 261 weekdays × 4 h + 104 weekend days × 12 h */
+    expect($('.pw-sched').textContent).toContain(`${(261 * 4 + 104 * 12).toLocaleString('en-US')} operating hours a year`);
+    /* the power profile follows the schedules: 80 kW for 4 h on 261 weekdays and 12 h on 104 weekend days */
+    const rows = $$('.pw-stbl tbody tr');
+    expect(rows[0].textContent).toContain('Weekdays');
+    expect(rows[0].textContent).toContain((261 * 4 * 80).toLocaleString('en-US'));
+    expect(rows[1].textContent).toContain('Weekend');
+    expect(rows[1].textContent).toContain((104 * 12 * 80).toLocaleString('en-US'));
+    expect($('.pw-demand').textContent).toContain('Daily, weekly and monthly requirements');
+    /* the requirement cards follow the day selected in the chart: total kWh and average kW of the day, its week and its month */
+    await act(async () => setValue($('.pw-demand .pw-nav input[type="date"]'), '2025-01-04'));
+    const req = $$('.pw-req .tot');
+    expect(req[0].textContent).toContain('Day · 4 Jan');
+    /* Saturday 4 January, weekend schedule: 12 h × 80 kW + 12 h × 5 kW base = 1,020 kWh, 42.50 kW average */
+    expect(req[0].textContent).toContain('1,020kWh total');
+    expect(req[0].textContent).toContain('average 42.50 kW');
+    expect(req[1].textContent).toContain('Week · 1 Jan to 5 Jan');
+    expect(req[2].textContent).toContain('Month · Jan 2025');
+    expect(req[3].textContent).toContain('Year · 2025');
+    await act(async () => setValue($('.pw-demand .pw-nav input[type="date"]'), '2025-01-06'));
+    /* Monday: 4 h × 80 + 20 h × 5 = 420 kWh */
+    expect($$('.pw-req .tot')[0].textContent).toContain('420kWh total');
+    /* a third schedule takes a day freed from the weekend */
+    await act(async () => ($$('.pw-op')[1].querySelectorAll('.pw-days button')[6] as HTMLButtonElement).click());
+    expect($('.pw-sched').textContent).toContain('Sun not in any schedule');
+    await act(async () => byText('.pw-sched .btns button', '+ Add schedule (for Sun)').click());
+    expect($$('.pw-op')).toHaveLength(3);
+    expect($('.pw-sched').textContent).toContain('Every day of the week is covered');
+    /* the chart switches between a day, a week and the year; the month table lists 12 months and the year in kWh */
+    await act(async () => byText('.pw-view button', 'Year').click());
+    expect($$('.pw-dchart .pw-bar-r')).toHaveLength(365);
+    await act(async () => byText('.pw-view button', 'Week').click());
+    expect($$('.pw-dchart .pw-bar-r')).toHaveLength(168);
+    expect($$('.pw-mtbl tbody tr')).toHaveLength(13);
+    expect($('.pw-mtbl thead').textContent).toContain('Energy, kWh');
+    /* the sample example is the application's example office */
+    await act(async () => byText('.pw-sample button', 'Load sample example').click());
+    /* load on grid, PV and genset by day, week, month and year */
+    expect($('.pw-load').textContent).toContain('Load on each source');
+    expect($('.pw-src').textContent).toContain('Grid');
+    for (const v of ['Week', 'Month', 'Year', 'Day']) {
+      await act(async () => byText('.pw-load .pw-view button', v).click());
+      expect($('.pw-load .pw-read').textContent).toMatch(/kWh/);
+    }
+    expect($$('.pw-srcm thead th')).toHaveLength(14);
+    /* the test app has the example open, so the sample runs on this project, with panels on its 254 m² roof */
+    expect($('.pw-sample').textContent).toContain('254 m² roof');
+    expect($('.pw-demand').textContent).toMatch(/Annual power demand[\d,]+kWh/);
+    expect($('.power').textContent).toContain('Worked example');
+    expect($('.pw-dewa').textContent).toContain('Within DEWA limit');
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('indoor air quality on its own', () => {
+  it('works independently on its own rooms without a project name', async () => {
+    await act(async () => $('.workflow-step[data-step="0"]').click());
+    await act(async () => setValue($('#p-name'), ''));
+    await act(async () => $('.workflow-step[data-step="7"]').click());
+    for (let i = 0; i < 50 && !$('.plink'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    expect($('.workflow-step[aria-current="step"] .workflow-title').textContent).toBe('Indoor air quality');
+    await act(async () => ($$('.plink .seg button').find(e => e.textContent?.startsWith('Work independently')) as HTMLButtonElement).click());
+    for (let i = 0; i < 50 && !$('.iaq-zones'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    /* the independent study has its own single room, not the open project's five */
+    expect($$('.iaq-zones tbody tr')).toHaveLength(1);
+    expect($('.plink-inputs').textContent).toContain('Inputs for this study');
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('energy modelling real weather', () => {
+  it('loads a weather year inside energy modelling and runs the demand and solar on it', async () => {
+    NET.spacing = 0; NET.backoff = 1;
+    const f = vi.fn(async (_url: string) => new Response(JSON.stringify(fakeOpenMeteo(2025)), { status: 200 }));
+    vi.stubGlobal('fetch', f);
+    try {
+      await act(async () => $('.workflow-step[data-step="6"]').click());
+      for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+      await act(async () => byText('.em-all', 'Show all steps on one page').click());
+      await act(async () => setValue($('#pw-wx-year'), '2025'));
+      await act(async () => ($('.pw-wx .wx-btns .btn.primary') as HTMLButtonElement).click());
+      for (let i = 0; i < 40 && !($('.pw-wx').textContent || '').includes('8,760 hours'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+      expect(f.mock.calls.some(c => String(c[0]).includes('archive-api.open-meteo.com'))).toBe(true);
+      expect($('.pw-wx').textContent).toContain('energy modelling’s own');
+      /* loading real weather switches this project's demand to the real weather year */
+      for (let i = 0; i < 40 && !($('.pw-demand')?.textContent || '').includes('Real weather'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+      expect($('.pw-demand').textContent).toContain('Real weather');
+      /* an independent study takes its solar and calendar from the same weather year */
+      await act(async () => ($$('.power .plink .seg button').find(e => e.textContent?.startsWith('Work independently')) as HTMLButtonElement).click());
+      expect($('.pw-demand').textContent).toContain('real weather');
+      expect(host.textContent).not.toMatch(/NaN|undefined/);
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('energy modelling off-grid', () => {
+  it('sizes the battery and solar from the consumption and drops the grid and DEWA', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="4"]').click());
+    await act(async () => ($$('.power .seg button').find(e => e.textContent?.startsWith('Off-grid')) as HTMLButtonElement).click());
+    expect($('.pw-off').textContent).toContain('Battery, nominal');
+    expect($('.pw-dewa')).toBeNull();
+    expect($('#pw-gridKW')).toBeNull();
+    const use = $$('.pw-off button').find(e => e.textContent?.startsWith('Use ')) as HTMLButtonElement;
+    await act(async () => use.click());
+    /* the off-grid scenario has its own panels; the on-grid scenario keeps its own */
+    const offPanels = $<HTMLInputElement>('#pw-panels').value;
+    await act(async () => ($$('.power .seg button').find(e => e.textContent?.startsWith('On-grid')) as HTMLButtonElement).click());
+    /* on-grid starts with the TCL; the supply inputs follow it */
+    await act(async () => setValue($('#pw-tcl'), '150'));
+    await act(async () => setValue($('#pw-panels'), '7'));
+    await act(async () => ($$('.power .seg button').find(e => e.textContent?.startsWith('Off-grid')) as HTMLButtonElement).click());
+    expect($<HTMLInputElement>('#pw-panels').value).toBe(offPanels);
+    /* results compare both and the toggle switches between them */
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="6"]').click());
+    expect($('.pw-cmptbl').textContent).toContain('On-grid');
+    expect($('.pw-cmptbl').textContent).toContain('Off-grid');
+    expect($('.pw-cmp').textContent).toContain('results below are for the off-grid scenario');
+    await act(async () => byText('.pw-cmp .seg button', 'On-grid results ' + ($$('.pw-cmp .seg button')[0].querySelector('span')!.textContent)).click());
+    expect($('.pw-cmp').textContent).toContain('results below are for the on-grid scenario');
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="4"]').click());
+    expect($<HTMLInputElement>('#pw-panels').value).toBe('7');
+    await act(async () => ($$('.power .seg button').find(e => e.textContent?.startsWith('Off-grid')) as HTMLButtonElement).click());
+    expect($('.pw-off .wx-status')).toBeTruthy();
+    expect($('.em-step[data-em="4"]').textContent).toContain('Off-grid');
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('fresh air load options', () => {
+  it('turns a space\'s fresh air load off and on, and offers % of supply air only for packaged units', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    const before = num(plantTR());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    const fa = $<HTMLInputElement>('#r-faLoad');
+    expect(fa.checked).toBe(true);
+    await act(async () => fa.click());
+    expect($<HTMLInputElement>('#r-faLoad').checked).toBe(false);
+    expect($('.oa-box').textContent).toContain('Excluded from the calculation');
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    expect(num(plantTR())).toBeLessThan(before);
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $<HTMLInputElement>('#r-faLoad').click());
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    expect(num(plantTR())).toBeCloseTo(before, 2);
+    /* packaged units: fresh air as 0–12% of supply air */
+    await act(async () => setValue($('#summary-el-sys'), 'ducted'));
+    await act(async () => setValue($('#summary-el-pkg'), 'pct'));
+    expect($<HTMLInputElement>('#summary-el-pkgpct').value).toBe('10');
+    expect($('#summary-el-fahu')).toBeNull();
+    expect($('.hr-card').textContent).toContain('Packaged units: each room takes 10% of its supply air');
+    await act(async () => setValue($('#summary-el-pkgpct'), '20'));
+    expect($<HTMLInputElement>('#summary-el-pkgpct').value).toBe('12');
+    await act(async () => setValue($('#summary-el-sys'), 'vrf'));
+    expect($('#summary-el-pkg')).toBeNull();
+    expect($('#summary-el-fahu')).toBeTruthy();
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('fresh air system load switch', () => {
+  it('turns the whole fresh air load off from the plant load card and back on', async () => {
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    const before = num(plantTR());
+    expect($<HTMLInputElement>('#p-faOff').checked).toBe(true);
+    await act(async () => $<HTMLInputElement>('#p-faOff').click());
+    expect($('.fa-sys').textContent).toContain('Fresh air system load off');
+    expect($$('.totals .tot.pick')[1].textContent).toContain('turned off');
+    expect(num(plantTR())).toBeLessThan(before);
+    await act(async () => $<HTMLInputElement>('#p-faOff').click());
+    expect(num(plantTR())).toBeCloseTo(before, 2);
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('fresh air system load switch in Spaces', () => {
+  it('turns the fresh air load off from the building total summary, shared with the heat load summary', async () => {
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $<HTMLButtonElement>('.rtotal').click());
+    const big = () => $('.plant-band .pb-head .big-num').textContent!;
+    const before = num(big());
+    expect($<HTMLInputElement>('#pb-faOff').checked).toBe(true);
+    await act(async () => $<HTMLInputElement>('#pb-faOff').click());
+    expect($('.plant-band .oa-box').textContent).toContain('Turned off');
+    expect(num(big())).toBeLessThan(before);
+    /* the same setting in the heat load summary */
+    await act(async () => $('.workflow-step[data-step="4"]').click());
+    expect($<HTMLInputElement>('#p-faOff').checked).toBe(false);
+    await act(async () => $<HTMLInputElement>('#p-faOff').click());
+    await act(async () => $('.workflow-step[data-step="3"]').click());
+    await act(async () => $<HTMLButtonElement>('.rtotal').click());
+    expect(num(big())).toBeCloseTo(before, 2);
+  });
+});
+
+describe('Pro step order', () => {
+  it('puts energy modelling right after the hourly analysis', async () => {
+    const titles = $$('.workflow-pro .workflow-title').map(e => e.textContent);
+    expect(titles.slice(0, 3)).toEqual(['Hourly analysis', 'Energy modelling', 'Indoor air quality']);
+    await act(async () => $('.workflow-step[data-step="5"]').click());
+    await act(async () => byText('.btn', 'Continue').click());
+    expect($('.workflow-step[aria-current="step"] .workflow-title').textContent).toBe('Energy modelling');
+  });
+});
+
+describe('on-grid and off-grid calculation switches', () => {
+  it('turns each scenario\'s calculation on and off', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    const on = () => $<HTMLInputElement>('#pw-calc-on'), off = () => $<HTMLInputElement>('#pw-calc-off');
+    /* on-grid is calculated, off-grid is not, until switched on */
+    expect(on().checked).toBe(true);
+    expect(off().checked).toBe(false);
+    expect($('.em-toggle')).toBeNull();
+    await act(async () => off().click());
+    expect(off().checked).toBe(true);
+    expect($('.em-conn').textContent).toMatch(/Off-grid calculation · AED [\d,]+ a year/);
+    /* both on: Show picks the scenario, Results compares them */
+    expect($$('.em-toggle button')).toHaveLength(2);
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="6"]').click());
+    expect($('.pw-cmp')).toBeTruthy();
+    /* on-grid off: only off-grid is calculated and shown, no comparison */
+    await act(async () => on().click());
+    expect($('.pw-cmp')).toBeNull();
+    expect($('.em-conn').textContent).toContain('Only the off-grid scenario is calculated');
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="4"]').click());
+    expect($('.pw-off')).toBeTruthy();
+    /* both off: no supply calculation */
+    await act(async () => off().click());
+    expect($('.power').textContent).toContain('calculations are both off');
+    await act(async () => on().click());
+    expect($('.pw-off')).toBeNull();
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('remaining power requirement', () => {
+  it('shows what solar and the battery leave and shares it between grid and genset', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="4"]').click());
+    /* on-grid starts with the TCL; the supply inputs follow it */
+    await act(async () => setValue($('#pw-tcl'), '150'));
+    await act(async () => setValue($('#pw-panels'), '10'));
+    expect($('.pw-rem').textContent).toContain('Remaining load');
+    /* power supplied in order: solar system, grid, genset, adding up to the demand */
+    const ord = $$('.pw-order .tot');
+    expect(ord).toHaveLength(4);
+    expect(ord[0].textContent).toContain('1 · Solar system');
+    expect(ord[1].textContent).toContain('2 · On-grid');
+    expect(ord[2].textContent).toContain('3 · Genset');
+    const v = (i: number) => num(ord[i].querySelector('.v')!.textContent!);
+    expect(Math.abs(v(0) + v(1) + v(2) - v(3))).toBeLessThanOrEqual(2);
+    await act(async () => byText('.pw-remq button', '50 / 50').click());
+    const grid = num($$('.pw-rem .hr-kpis:not(.pw-order) .tot')[2].querySelector('.v')!.textContent!), gen = num($$('.pw-rem .hr-kpis:not(.pw-order) .tot')[3].querySelector('.v')!.textContent!);
+    expect(grid).toBeGreaterThan(0);
+    expect(Math.abs(grid - gen)).toBeLessThanOrEqual(1);
+    await act(async () => byText('.pw-remq button', 'All genset').click());
+    expect(num($$('.pw-rem .hr-kpis:not(.pw-order) .tot')[2].querySelector('.v')!.textContent!)).toBe(0);
+    /* inverter selection from standard sizes */
+    await act(async () => setValue($('#pw-invsel'), '10'));
+    expect($<HTMLInputElement>('#pw-invKW').value).toBe('10');
+    await act(async () => setValue($('#pw-invsel'), 'auto'));
+    expect($<HTMLInputElement>('#pw-invKW').value).toBe('');
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('battery selection', () => {
+  it('picks a standard battery capacity, the suggested one or none', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="4"]').click());
+    /* on-grid starts with the TCL; the supply inputs follow it */
+    await act(async () => setValue($('#pw-tcl'), '150'));
+    await act(async () => setValue($('#pw-panels'), '40'));
+    expect($<HTMLSelectElement>('#pw-batsel').value).toBe('none');
+    await act(async () => setValue($('#pw-batsel'), '50'));
+    expect($<HTMLInputElement>('#pw-batKWh').value).toBe('50');
+    expect($('.power').textContent).toContain('Battery 50 kWh (45.0 kWh usable');
+    await act(async () => setValue($('#pw-batsel'), 'auto'));
+    expect($<HTMLInputElement>('#pw-batKWh').value).toBe('');
+    await act(async () => setValue($('#pw-batsel'), 'none'));
+    expect($('#pw-batKWh')).toBeNull();
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('on-grid with DEWA', () => {
+  it('starts with the TCL, sizes from it or takes my own system, and shows the DEWA bill and saving', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="4"]').click());
+    expect($('.pw-ongrid')).toBeTruthy();
+    await act(async () => setValue($('#pw-tcl'), '150'));
+    expect($('.pw-allow').textContent).toContain('137.5kW AC');
+    /* A: size from the TCL */
+    await act(async () => byText('.pw-ongrid .seg button', 'A · Size from the TCL panels and inverter at the DEWA maximum').click());
+    const maxPanels = num($$('.pw-allow .tot')[3].querySelector('.v')!.textContent!);
+    expect(num($<HTMLInputElement>('#pw-panels').value)).toBe(maxPanels);
+    expect($<HTMLInputElement>('#pw-panels').readOnly).toBe(true);
+    /* B: my own system keeps those values to edit */
+    await act(async () => byText('.pw-ongrid .seg button', 'B · My own system enter panel quantity, Wp and the inverter below').click());
+    await act(async () => setValue($('#pw-panels'), '40'));
+    expect($('.pw-ongrid').textContent).toMatch(/DEWA bill AED [\d,]+ → AED [\d,]+ a year, saving AED [\d,]+/);
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="6"]').click());
+    expect($('.pw-dbill').textContent).toContain('DEWA saving');
+    expect($$('.pw-dbtbl tbody tr')).toHaveLength(13);
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('on-grid starts with the TCL', () => {
+  it('asks for the TCL before the rest of the on-grid supply', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="4"]').click());
+    /* first thing after choosing on-grid: the TCL; the rest waits for it */
+    expect($('.pw-ongrid h4').textContent).toContain('Step 1 · Total Connected Load (TCL)');
+    expect($('#pw-tcl')).toBeTruthy();
+    expect($('#pw-panels')).toBeNull();
+    expect($('.pw-tclgate').textContent).toContain('Enter the plot’s TCL above first');
+    expect($('.em-step[data-em="4"]').textContent).toContain('enter the TCL');
+    await act(async () => setValue($('#pw-tcl'), '80'));
+    expect($('#pw-panels')).toBeTruthy();
+    expect($('.pw-tclgate')).toBeNull();
+    /* not on DEWA: continue without the limit */
+    await act(async () => setValue($('#pw-tcl'), ''));
+    expect($('#pw-panels')).toBeNull();
+    await act(async () => byText('.pw-tclgate button', 'Not on DEWA: continue without the limit').click());
+    expect($('#pw-panels')).toBeTruthy();
+    expect($('.pw-tclgate')).toBeNull();
+  });
+  it('takes you to the TCL when the on-grid calculation is switched on', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    await act(async () => $<HTMLInputElement>('#pw-calc-on').click());
+    await act(async () => $<HTMLInputElement>('#pw-calc-on').click());
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect($('.em-step[aria-current="step"] .em-title').textContent).toBe('Power supply');
+    expect(document.activeElement?.id).toBe('pw-tcl');
+  });
+});
+
+describe('recommended genset size', () => {
+  it('shows the recommended kVA from the peak load day with the safety margin', async () => {
+    await act(async () => $('.workflow-step[data-step="6"]').click());
+    for (let i = 0; i < 50 && !$('.power'); i++) await act(async () => { await new Promise(r => setTimeout(r, 20)); });
+    await act(async () => $<HTMLButtonElement>('.em-step[data-em="4"]').click());
+    await act(async () => setValue($('#pw-tcl'), '150'));
+    await act(async () => byText('.pw-remq button', 'All genset').click());
+    expect($('.pw-genrec').textContent).toContain('peak load on the peak load day');
+    expect($('.pw-genrec').textContent).toContain('× (1 + 20% safety margin)');
+    const kva = (t: string) => num(t.match(/Recommended genset ([\d,]+) kVA/)![1].replace(/,/g, ''));
+    const at20 = kva($('.pw-genrec').textContent!);
+    await act(async () => setValue($('#pw-genMargin'), '50'));
+    expect(kva($('.pw-genrec').textContent!)).toBeGreaterThanOrEqual(at20);
+    expect(host.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe('site configuration from the admin', () => {
+  it('shows each feature live, locked, coming soon or hidden, with the banner and titles', async () => {
+    const { setSiteConfig } = await import('../src/siteConfig');
+    try {
+      await act(async () => setSiteConfig({ version: 1, features: { hourly: 'hidden', energy: 'locked', iaq: 'soon', ducts: 'live', forum: 'hidden', chat: 'soon' },
+        texts: { bannerOn: true, bannerText: 'Maintenance tonight', bannerTone: 'warn', appTitle: 'NOVAC Pro', appTag: 'Testing tag' } }));
+      const pro = $$('.workflow-pro .workflow-title').map(e => e.textContent);
+      expect(pro).not.toContain('Hourly analysis');
+      const energy = $$('.workflow-pro .workflow-soon').find(e => e.textContent?.includes('Energy modelling'))!;
+      expect(energy.textContent).toContain('Locked · Pro');
+      expect(($$('.workflow-pro .workflow-soon').find(e => e.textContent?.includes('Indoor air quality'))!).textContent).toContain('Coming soon');
+      /* duct sizing set live opens */
+      expect($$('.workflow-pro .workflow-step').some(e => e.textContent?.includes('Duct sizing'))).toBe(true);
+      /* pages: forum hidden, chat coming soon */
+      expect($$('.app-links button').map(b => b.textContent)).not.toContain('Forum');
+      expect(($$('.app-links button').find(b => b.textContent?.startsWith('Community chat')) as HTMLButtonElement).disabled).toBe(true);
+      expect($('.site-banner.warn').textContent).toBe('Maintenance tonight');
+      expect($('.app-heading h1').textContent).toBe('NOVAC Pro');
+      /* Continue from the heat load summary skips the steps that cannot be opened */
+      await act(async () => $('.workflow-step[data-step="4"]').click());
+      expect($$('.workflow-end button').some(b => b.textContent === 'Continue')).toBe(false);
+    } finally { await act(async () => setSiteConfig(null)); }
+  });
+});
+
+describe('admin page', () => {
+  it('logs in, changes a status and saves', async () => {
+    (globalThis as { __NOVAC_TEST__?: boolean }).__NOVAC_TEST__ = true;
+    const { Admin } = await import('../src/admin');
+    let saved: unknown = null, logged = false;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const j = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
+      if (url === '/api/admin/session') return logged ? j({ ok: true, email: 'admin@novac.ae', storage: true }) : j({ error: 'Not logged in' }, 401);
+      if (url === '/api/admin/login') { const b = JSON.parse(String(init!.body)); if (b.password === 'right password') { logged = true; return j({ ok: true, email: b.email }); } return j({ error: 'Wrong email or password' }, 401); }
+      if (url === '/api/config') return j({ config: saved });
+      if (url === '/api/admin/config') { saved = { ...JSON.parse(String(init!.body)).config, updated: '2026-11-04T10:00:00Z', by: 'admin@novac.ae' }; return j({ ok: true, config: saved }); }
+      return j({}, 404);
+    }));
+    try {
+      act(() => root.unmount());
+      root = createRoot(host);
+      await act(async () => root.render(<Admin />));
+      for (let i = 0; i < 20 && !$('#ad-email'); i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      await act(async () => setValue($('#ad-email'), 'admin@novac.ae'));
+      await act(async () => setValue($('#ad-pass'), 'wrong'));
+      await act(async () => ($('.admin-login button[type="submit"]') as HTMLButtonElement).click());
+      for (let i = 0; i < 20 && !$('.admin-login .wx-status'); i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      expect($('.admin-login .wx-status').textContent).toContain('Wrong email or password');
+      await act(async () => setValue($('#ad-pass'), 'right password'));
+      await act(async () => ($('.admin-login button[type="submit"]') as HTMLButtonElement).click());
+      for (let i = 0; i < 20 && !$('.admin-tbl'); i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      expect($$('.admin-tbl')).toHaveLength(4);
+      /* a feature that is not built cannot be set live */
+      const audit = $<HTMLSelectElement>('select[aria-label="Energy audit status"]');
+      expect((audit.querySelector('option[value="live"]') as HTMLOptionElement).disabled).toBe(true);
+      await act(async () => setValue($('select[aria-label="Hourly analysis status"]'), 'hidden'));
+      await act(async () => $<HTMLInputElement>('.admin .pw-chk input').click());
+      await act(async () => setValue($('#ad-bannerText'), 'Hello'));
+      await act(async () => byText('.admin-bar button', 'Save and publish').click());
+      for (let i = 0; i < 20 && !$('.wx-status.ready'); i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      expect((saved as { features: Record<string, string> }).features.hourly).toBe('hidden');
+      expect((saved as { texts: { bannerText: string } }).texts.bannerText).toBe('Hello');
+      expect($('.admin-bar').textContent).toContain('by admin@novac.ae');
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('drafts and the admin preview', () => {
+  it('shows drafts to the logged-in admin as previews, and activating makes them live for everyone', async () => {
+    const { setAdminPreview, setSiteConfig } = await import('../src/siteConfig');
+    PRO.unlocked = false; PRO.ducts = false;
+    try {
+      await act(async () => root.render(<ToastProvider><App key="drafts" /></ToastProvider>));
+      await act(async () => setAdminPreview(true));
+      expect($('.admin-preview').textContent).toContain('6 updates not live yet');
+      const prev = $$('.workflow-step.is-preview');
+      expect(prev.map(e => e.querySelector('.workflow-title')!.textContent)).toEqual(['Hourly analysis', 'Energy modelling', 'Indoor air quality', 'Duct sizing']);
+      expect(prev[0].querySelector('.workflow-status')!.textContent).toMatch(/^Preview · /);
+      /* the admin can open a preview */
+      await act(async () => prev[1].click());
+      expect($('.workflow-step[aria-current="step"] .workflow-title').textContent).toBe('Energy modelling');
+      /* activated: live for visitors too */
+      await act(async () => { setAdminPreview(false); setSiteConfig({ version: 1, features: { energy: 'live' }, texts: {} }); });
+      const titles = $$('.workflow-pro .workflow-step .workflow-title').map(e => e.textContent);
+      expect(titles).toContain('Energy modelling');
+      expect(titles).not.toContain('Hourly analysis');
+      expect($$('.workflow-step.is-preview')).toHaveLength(0);
+    } finally { await act(async () => { setAdminPreview(false); setSiteConfig(null); }); }
+  });
+  it('lists the updates waiting in the admin panel and activates them at once', async () => {
+    (globalThis as { __NOVAC_TEST__?: boolean }).__NOVAC_TEST__ = true;
+    PRO.unlocked = false; PRO.ducts = false;
+    const { Admin } = await import('../src/admin');
+    let saved: unknown = null;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const j = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
+      if (url === '/api/admin/session') return j({ ok: true, email: 'admin@novac.ae', storage: true });
+      if (url === '/api/config') return j({ config: saved });
+      if (url === '/api/admin/config') { saved = { ...JSON.parse(String(init!.body)).config, updated: '2026-11-04T10:00:00Z', by: 'admin@novac.ae' }; return j({ ok: true, config: saved }); }
+      return j({}, 404);
+    }));
+    try {
+      act(() => root.unmount());
+      root = createRoot(host);
+      await act(async () => root.render(<Admin />));
+      for (let i = 0; i < 20 && !$('.admin-waiting li'); i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      expect($$('.admin-waiting li').map(li => li.querySelector('b')!.textContent)).toEqual(['Hourly analysis', 'Energy modelling', 'Indoor air quality', 'Duct sizing', 'Fresh air load switches (per space and whole system)', 'Packaged unit fresh air, % of supply air']);
+      const energy = $$('.admin-waiting li').find(li => li.textContent?.includes('Energy modelling'))!;
+      await act(async () => (energy.querySelector('button') as HTMLButtonElement).click());
+      for (let i = 0; i < 20 && !$('.wx-status.ready'); i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      expect((saved as { features: Record<string, string> }).features.energy).toBe('live');
+      expect($('.wx-status.ready').textContent).toContain('Energy modelling is live');
+      expect($$('.admin-waiting li')).toHaveLength(5);
+      await act(async () => byText('.admin-waiting button', 'Activate all 5').click());
+      for (let i = 0; i < 20 && $$('.admin-waiting li').length; i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      expect((saved as { features: Record<string, string> }).features).toEqual({ hourly: 'live', energy: 'live', iaq: 'live', ducts: 'live', freshair: 'live', pkgoa: 'live' });
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('calculator updates as admin previews', () => {
+  it('shows the fresh air switches to the admin before they are activated', async () => {
+    const { setAdminPreview } = await import('../src/siteConfig');
+    PRO.unlocked = false; PRO.ducts = false;
+    try {
+      await act(async () => root.render(<ToastProvider><App key="upd" /></ToastProvider>));
+      await act(async () => $('.workflow-step[data-step="3"]').click());
+      expect($('#r-faLoad')).toBeNull();
+      await act(async () => setAdminPreview(true));
+      expect($('#r-faLoad')).toBeTruthy();
+    } finally { await act(async () => setAdminPreview(false)); }
   });
 });

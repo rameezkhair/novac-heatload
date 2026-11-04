@@ -9,6 +9,7 @@ import { fmt, num } from '../engine/util';
 import { SecHead, useCompliance } from './ui';
 import { useState } from 'react';
 import { ElectricalKpis, ElectricalSummary, type LoadBasis } from './HourlySection';
+import { useFeature } from '../useSiteConfig';
 import type { Store } from '../state/store';
 
 export function ScheduleSection({ d, checks, store, marks, needs }: { d: Computed; checks: Check[]; store: Store; marks: Record<string, Mark>; needs: string[] }) {
@@ -18,14 +19,22 @@ export function ScheduleSection({ d, checks, store, marks, needs }: { d: Compute
   const fa = p.fahu ? T.fahuW : T.oa;
   /* which load the efficiency and power cards below refer to */
   const [basis, setBasis] = useState<LoadBasis>('total');
+  /* the fresh air system switch is an update the admin activates (siteConfig) */
+  const faFeat = useFeature('freshair');
   return <section>
     <SecHead n={5} title={showC ? 'Heat load summary & compliance' : 'Heat load summary'} sub={(p.name ? p.name + ' · ' : '') + (LOC[p.location]?.label || '')} />
     <RoomLoadSchedule d={d} />
     <div className="totals">
       <button type="button" className="tot pick" aria-pressed={basis === 'room'} onClick={() => setBasis('room')}><div className="k">Room load (excl. fresh air)</div><div className="v">{fmt((T.s + T.l) / 3517, 1)}<small>TR</small></div><div className="s">{fmt((T.s + T.l) / 1000, 1)} kW{p.fahu ? '' : ' · room units ' + fmt(T.u / 3517, 1) + ' TR incl. fresh air'}</div></button>
-      <button type="button" className="tot pick" aria-pressed={basis === 'fa'} onClick={() => setBasis('fa')}><div className="k">Fresh air cooling load{p.fahu && T.rec ? ' (net of recovery)' : ''}</div><div className="v">{fmt(fa / 3517, 1)}<small>TR</small></div><div className="s">{fmt(fa / 1000, 1)} kW · {fmt(T.oaq, 0)} L/s · {p.fahu ? 'FAHU' : 'in room units'}{T.rec ? ' · ' + fmt(T.rec / 1000, 1) + ' kW recovered' : ''}</div></button>
-      <button type="button" className="tot pick key" aria-pressed={basis === 'total'} onClick={() => setBasis('total')}><div className="k">Plant load{num(p.diversity) !== 100 ? ' at ' + fmt(num(p.diversity), 0) + '% diversity' : ''}</div><div className="v">{fmt(T.plant / 3517, 1)}<small>TR</small></div><div className="s">{fmt(T.plant / 1000, 1)} kW · room + fresh air</div></button>
+      <button type="button" className={'tot pick' + (p.faOff ? ' off' : '')} aria-pressed={basis === 'fa'} onClick={() => setBasis('fa')}><div className="k">Fresh air cooling load{p.faOff ? ' · turned off' : p.fahu && T.rec ? ' (net of recovery)' : ''}</div><div className="v">{fmt(fa / 3517, 1)}<small>TR</small></div><div className="s">{p.faOff ? `excluded from the calculation · ${fmt(T.oaq, 0)} L/s still supplied` : <>{fmt(fa / 1000, 1)} kW · {fmt(T.oaq, 0)} L/s · {p.fahu ? 'FAHU' : 'in room units'}{T.rec ? ' · ' + fmt(T.rec / 1000, 1) + ' kW recovered' : ''}</>}</div></button>
+      <button type="button" className="tot pick key" aria-pressed={basis === 'total'} onClick={() => setBasis('total')}><div className="k">Plant load{num(p.diversity) !== 100 ? ' at ' + fmt(num(p.diversity), 0) + '% diversity' : ''}</div><div className="v">{fmt(T.plant / 3517, 1)}<small>TR</small></div><div className="s">{fmt(T.plant / 1000, 1)} kW · {p.faOff ? 'room load only, fresh air off' : 'room + fresh air'}</div></button>
       <div className="tot"><div className="k">Overall density</div><div className="v">{T.a && T.plant ? fmt(T.a / (T.plant / 3517), 1) : '–'}<small>m²/TR</small></div><div className="s">{fmt(T.a ? T.plant / T.a : 0, 0)} W/m² over {fmt(T.a, 0)} m²</div></div>
+      {faFeat && (basis === 'total' || basis === 'fa' || p.faOff) && <label className={'fa-sys' + (p.faOff ? ' off' : '')}>
+      <input id="p-faOff" type="checkbox" checked={!p.faOff} onChange={e => { const on = e.target.checked; store.update(s => { if (on) delete s.project.faOff; else s.project.faOff = true; }, 'p.faOff'); }} />
+      <span><b>Fresh air system load {p.faOff ? 'off' : 'on'}</b> · {p.faOff
+        ? `left out of the plant, FAHU and room unit loads, the hourly analysis and energy modelling (${fmt(T.oaq, 0)} L/s still counts for ventilation)`
+        : `included in the plant load: ${fmt(fa / 3517, 2)} TR. Untick to leave the whole fresh air load out of the calculation.`}</span>
+    </label>}
     </div>
     <ElectricalKpis d={d} basis={basis} />
     <fieldset className="power-summary-box"><legend>Cooling efficiency and power requirement</legend>

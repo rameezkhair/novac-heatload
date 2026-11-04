@@ -186,7 +186,7 @@ export function reportBody(s: AppState, compliance = false, today = new Date()) 
       ['Heat gain per person', `${num(r.ps)} W sens. / ${num(r.pl)} W lat.`, esc(r.src.act === 'custom' ? 'Custom value' : 'ASHRAE Fundamentals: ' + (ACT_BY[r.src.act]?.label || '')), ck(null)],
       ['Lighting', `${num(r.light)} W/m²`, esc(roomSrcText(r, 'light', ez)), ck(ch.light)],
       ['Equipment', `${num(r.equip)} W/m²`, esc(roomSrcText(r, 'equip', ez)), ck(null)],
-      ['Fresh air', `${fmt(c.oaQ, 1)} L/s`, esc(roomSrcText(r, 'oa', ez)) + (ez !== 1 ? `, Ez ${ez}` : ''), ck(ch.oa)],
+      ['Fresh air', `${fmt(c.oaQ, 1)} L/s`, esc(roomSrcText(r, 'oa', ez)) + (ez !== 1 ? `, Ez ${ez}` : '') + (c.faOn ? '' : p.faOff ? '; fresh air system load turned off for the project' : '; fresh air load excluded from the calculation'), ck(ch.oa)],
       ['Infiltration', `${num(r.ach)} ACH (${fmt(c.infQ, 1)} L/s)`, esc(roomSrcText(r, 'ach', ez)), ck(null)],
       ['Above / below', `${(ABOVE.find(x => x[0] === r.above) || [])[1]} · ${(BELOW.find(x => x[0] === r.below) || [])[1]}`, 'Project value', ck(null)],
       ...(c.pkM != null ? [['Operating hours', esc(schedLabel(r.sched)), 'Project choice', ck(null)], ['Design hour (room peak)', `${MONTHS[c.pkM]} 21, ${hr(c.pkH!)}`, 'Heat balance, highest hour of the year', ck(null)]] : [])]);

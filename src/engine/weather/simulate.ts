@@ -1,7 +1,7 @@
 /* Weather-year heat balance: the same room model as the design days, driven by every day of a real weather year.
    Each day is solved as a steady-periodic day (as the design days are), so heat stored in heavy constructions does
    not carry over from one day to the next. Loads are actual: no safety margins and no diversity factor. */
-import type { Computed } from '../calc';
+import { pkgOaOn, type Computed } from '../calc';
 import { stationOf } from '../climate';
 import { SCHEDULES } from '../data';
 import { SYSTEMS, capRatio, electric, type SysId } from '../equipment';
@@ -70,7 +70,8 @@ export function simulateYear(d: Computed, wx: WeatherYear): YearLoads {
         SERIES.forEach(([, f], s) => { R.v[s][i] = f(ml.c, h); });
         R.v[7][i] = ml.lat[h] + kl * infQ * dW;
         /* fresh air runs while the room is occupied */
-        const on = sch.people[h] > 0 ? 1 : 0, s = ks * c.oaQ * (db[i] - Ti) * on, l = kl * c.oaQ * dW * on;
+        /* fresh air runs while the room is occupied; its load counts only when the room's fresh air load is ticked */
+        const on = sch.people[h] > 0 && c.faOn ? 1 : 0, s = ks * c.oaQ * (db[i] - Ti) * on, l = kl * c.oaQ * dW * on;
         R.oa[i] = s + l; oaS[i] += s * q; oaL[i] += l * q;
         for (let s2 = 0; s2 < 8; s2++) Y.v[s2][i] += R.v[s2][i] * q;
       }
@@ -85,7 +86,7 @@ export function simulateYear(d: Computed, wx: WeatherYear): YearLoads {
   for (let i = 0; i < n; i++) {
     let room = 0; for (let s = 0; s < 8; s++) room += Y.v[s][i];
     const fa = oaS[i] + oaL[i]; Y.oa[i] = fa;
-    if (p.fahu) { Y.unit[i] = Math.max(0, room); Y.fahu[i] = Math.max(0, fa - (rS * Math.max(0, oaS[i]) + rL * Math.max(0, oaL[i])) * share); }
+    if (p.fahu && !pkgOaOn(p)) { Y.unit[i] = Math.max(0, room); Y.fahu[i] = Math.max(0, fa - (rS * Math.max(0, oaS[i]) + rL * Math.max(0, oaL[i])) * share); }
     else Y.unit[i] = Math.max(0, room + fa);
     Y.plant[i] = Y.unit[i] + Y.fahu[i];
     Y.cap[i] = cap35 * (air ? capRatio(db[i]) : 1);

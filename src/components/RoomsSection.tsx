@@ -1,3 +1,5 @@
+import { PKG_OA_MAX, pkgOaOn } from '../engine/calc';
+import { useFeature } from '../useSiteConfig';
 import { useState, type DragEvent, type ReactNode } from 'react';
 import type { Draft } from 'immer';
 import { ABOVE, ACT, ADJ, ADJ_EDIT, BELOW, ORIENTS, PXDEF, SCHEDULES, TYPES, typeOf } from '../engine/data';
@@ -112,7 +114,7 @@ export function RoomsSection({ store, d }: { store: Store; d: Computed }) {
         <button type="button" className="add" onClick={() => addFloor()}>+ Add floor</button>
       </nav>
       {shown === 'total' ? <><div className="editor"><LoadPicture d={d} onOpen={open} /></div>
-        <aside className="result" aria-live="polite"><PlantResult d={d} /></aside></>
+        <aside className="result" aria-live="polite"><PlantResult d={d} store={store} /></aside></>
         : shown === 'floor' && floor ? <><div className="editor"><FloorEditor key={floor.id} store={store} d={d} id={floor.id} onOpen={open} onGone={() => setView({ k: 'room' })} /></div>
           <aside className="result" aria-live="polite"><FloorResult d={d} id={floor.id} /></aside></> : <>
       <div className="editor">
@@ -218,7 +220,8 @@ function buildingDetail(d: Computed) {
   return { items, oa: mark(fails('oa'), 'Minimum fresh air'), people: mark(fails('people'), 'Minimum occupancy'), light: lightAll ? mark(fails('light'), 'Lighting allowance') : null, lpd, prof };
 }
 
-function PlantResult({ d }: { d: Computed }) {
+function PlantResult({ d, store }: { d: Computed; store: Store }) {
+  const faFeat = useFeature('freshair');
   const { p, e, T } = d, fa = p.fahu ? T.fahuW : T.oa, rm = T.s + T.l, div = num(p.diversity), b = buildingDetail(d);
   const max = Math.max(...b.items.map(i => i[1]), 1);
   /* full-width summary: the plant total across the top, then one tile per figure, wrapping so every value shows in full */
@@ -251,7 +254,11 @@ function PlantResult({ d }: { d: Computed }) {
     <div className="pb-lower">
       <div>
         <div className="oa-box" style={{ marginTop: 0 }}>
-          <div className="oa-h"><span>Fresh air cooling load</span><span className={'pill ' + (p.fahu ? 'ok' : 'warn')}>{p.fahu ? 'Treated in FAHU' : 'Handled by room units'}</span></div>
+          <div className="oa-h"><span>Fresh air cooling load</span>{p.faOff ? <span className="pill req">Turned off</span> : <span className={'pill ' + (p.fahu ? 'ok' : 'warn')}>{p.fahu ? 'Treated in FAHU' : 'Handled by room units'}</span>}</div>
+{faFeat &&           <label className={'fa-sys' + (p.faOff ? ' off' : '')} style={{ margin: '6px 0 8px' }}>
+            <input id="pb-faOff" type="checkbox" checked={!p.faOff} onChange={e => { const on = e.target.checked; store.update(s => { if (on) delete s.project.faOff; else s.project.faOff = true; }, 'p.faOff'); }} />
+            <span><b>Fresh air system load {p.faOff ? 'off' : 'on'}</b> · {p.faOff ? 'left out of the plant total, the hourly analysis and energy modelling; the airflow still counts for ventilation' : 'included in the plant total. Untick to leave it out of the calculation.'}</span>
+          </label>}
           <div className="big"><span className="big-num">{fmt(fa / 3517, 2)}</span><span className="big-unit">TR · {fmt(fa / 1000, 2)} kW{p.fahu && T.rec ? ' net of energy recovery' : ''}</span></div>
           <dl className="kv">
             <dt>Fresh air</dt><dd>{fmt(T.oaq, 0)} L/s · {fmt(T.oaq * 2.119, 0)} CFM</dd>
@@ -274,6 +281,8 @@ function PlantResult({ d }: { d: Computed }) {
 }
 
 function RoomEditor({ r, d, edit, onAddFloor, onDup, onDel }: { r: Room; d: Computed; edit: (fn: RoomFn, group?: string) => void; onAddFloor: () => void; onDup: () => void; onDel: () => void }) {
+  /* the fresh air load switches are an update the admin activates (siteConfig) */
+  const faFeat = useFeature('freshair');
   const t = typeOf(r.type), ez = ezOf(d.p), ch = roomChecks(r, d.res[r.id], ez);
   const marks: Partial<Record<RoomPick, Mark>> = { people: ch.people, oa: ch.oa, light: ch.light };
   const pick = (k: RoomPick) => <PickField id={'r-' + k} label={RMETA[k][0]} unit={RMETA[k][1]} step={RMETA[k][2]} opts={ROOMOPTS[k](r, t, ez)} showV={SHOWV[k]} src={r.src[k]} value={r[k]} mark={marks[k]}
@@ -310,7 +319,11 @@ function RoomEditor({ r, d, edit, onAddFloor, onDup, onDel }: { r: Room; d: Comp
             {SCHEDULES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></span></label>
       </div>
     </div>
-    <div className="ed-sec"><h4>Air</h4><div className="fgrid">{pick('oa')}{pick('ach')}</div></div>
+    <div className="ed-sec"><h4>Air</h4><div className="fgrid">{pick('oa')}{pick('ach')}</div>
+      {pkgOaOn(d.p) && faFeat && <p className="hint"><span className="pill warn">Packaged unit</span> Fresh air is {fmt(Math.max(0, Math.min(PKG_OA_MAX, num(d.p.pkgOAPct))), 0)}% of this space’s supply air: <b>{fmt(d.res[r.id]?.oaQ ?? 0, 0)} L/s</b> ({fmt(d.res[r.id]?.sa ?? 0, 0)} L/s supply), in place of the fresh air above. Change it in Heat load summary, Cooling system.</p>}
+{faFeat && <>      <label className="fa-chk"><input id="r-faLoad" type="checkbox" checked={r.faLoad !== false} onChange={e => { const on = e.target.checked; edit(x => { if (on) delete x.faLoad; else x.faLoad = false; }); }} />
+        {' '}Include the fresh air cooling load in the calculation</label>
+      <p className="hint">{r.faLoad === false ? 'Off: this space’s fresh air load is left out of the room, FAHU and plant loads, the hourly analysis and energy modelling. The airflow still counts for ventilation and indoor air quality.' : 'On: the fresh air load counts in the room unit or FAHU, the plant total, the hourly analysis and energy modelling. Untick it when the fresh air is treated by another system or not cooled.'}</p></>}</div>
     <div className="ed-sec"><h4>External walls and glazing</h4>
       <div className="tbl-wrap"><table className="exp wtbl"><colgroup><col style={{ width: 52 }} /><col style={{ width: 96 }} /><col style={{ width: 96 }} /><col /><col style={{ width: 64 }} /></colgroup>
         <thead><tr><th>Facing</th><th>Gross (m²)</th><th>Glass (m²)</th><th>Wall type</th><th></th></tr></thead>
@@ -520,7 +533,7 @@ function RoomResult({ r, d }: { r: Room; d: Computed }) {
       {dcvNeeded(c) && <><dt>Demand controlled ventilation</dt><dd><span className="pill req">Required, H.4.8.3</span></dd></>}
     </dl>
     <div className="oa-box">
-      <div className="oa-h"><span>Fresh air cooling load</span><span className={'pill ' + (p.fahu ? 'ok' : 'warn')}>{p.fahu ? 'Treated in FAHU' : 'Handled by room unit'}</span></div>
+      <div className="oa-h"><span>Fresh air cooling load</span>{c.faOn ? <span className={'pill ' + (p.fahu ? 'ok' : 'warn')}>{p.fahu ? 'Treated in FAHU' : 'Handled by room unit'}</span> : <span className="pill req">Excluded from the calculation</span>}</div>
       <div className="oa-v"><b>{fmt(c.oa / 3517, 2)}</b> TR · {fmt(c.oa / 1000, 2)} kW</div>
       <dl className="kv">
         <dt>Fresh air</dt><dd>{fmt(c.oaQ, 0)} L/s · {fmt(c.oaQ * 2.119, 0)} CFM</dd>

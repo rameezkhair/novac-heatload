@@ -1,5 +1,6 @@
 import type { Layer } from './materials';
 import type { WeatherRef } from './weather/types';
+import type { PowerSettings } from './power';
 import type { DuctSystem } from './duct/duct';
 
 /* A numeric input may be blank while the user is typing; the engine reads blanks as 0 via num(). */
@@ -36,6 +37,8 @@ export interface Room {
   exh?: Num;
   /* the floor the room is on (Project.floors id); none = not on a floor */
   level?: string;
+  /* include the fresh air cooling load in the calculation (false: the airflow is kept for ventilation, its load is not counted) */
+  faLoad?: boolean;
 }
 /* a building floor: a group of rooms, repeated n times for typical floors */
 export interface Floor { id: string; name: string; n: Num }
@@ -66,6 +69,10 @@ export interface Project {
   /* electrical estimate: cooling system type, efficiency option (requirement id, 'custom', or empty for the recommended one),
      custom full-load COP at 35 °C, and an allowance for fans, pumps and cooling towers in kW per TR */
   sys?: string; effOpt?: string; effCop?: Num; aux?: Num;
+  /* packaged units (sys 'ducted'): fresh air taken through the unit as a share of each room's supply air, 0–12% */
+  pkgOA?: boolean; pkgOAPct?: Num;
+  /* the whole fresh air system load is left out of the calculation (each room's airflow still counts for ventilation) */
+  faOff?: boolean;
   /* roof layers from the U-value calculator */
   roofLayers?: Layer[];
   /* the weather year used by the hourly analysis (real weather mode); the hourly data itself is cached in the browser */
@@ -73,6 +80,10 @@ export interface Project {
   /* indoor air quality settings; rooms, outdoor air and the cooling system come from the rest of the project */
   iaq?: IaqSettings;
   floors?: Floor[];
+  /* energy modelling: demand basis, solar, battery, grid and genset split, and costs */
+  power?: PowerSettings;
+  /* indoor air quality linked to this project, to a copy of another NOVAC project, or worked independently on its own inputs */
+  iaqLink?: { mode: LinkMode; proj?: ProjectSnap | null; solo?: AppState };
   /* duct sizing add-on: supply duct systems, each a tree of sections from the unit to the room terminals */
   ducts?: DuctSystem[];
   src: ProjectSrc;
@@ -91,4 +102,8 @@ export interface IaqSettings {
   cont?: Record<string, Partial<Record<'genP' | 'genA' | 'dep' | 'pen' | 'out' | 'limit', Num>>>;
   filt?: Record<string, Partial<Record<'e1' | 'e2' | 'e3' | 'dp0' | 'dpF' | 'v', Num>>>;
 }
+/* a Pro feature works on this project, on a copy of another NOVAC project, or independently on its own inputs */
+export type LinkMode = 'this' | 'project' | 'independent';
+/* a copy of a NOVAC project's state, with where it came from */
+export interface ProjectSnap { name: string; from: string; state: AppState }
 export interface AppState { version: 2; project: Project; rooms: Room[]; sel: string | undefined; example: boolean }

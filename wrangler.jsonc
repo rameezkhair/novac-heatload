@@ -1,6 +1,16 @@
 // Cloudflare Workers deployment: the Worker serves the Vite build in dist/ (index.html is the landing page,
 // app.html the calculator) and takes newsletter sign-ups at POST /api/subscribe (worker/index.ts).
 // Cloudflare runs `npm run build`, then `npx wrangler deploy`.
+// Brevo: sign-ups are also added to a Brevo contact list when these are set (worker/brevo.ts):
+//   npx wrangler secret put BREVO_API_KEY          (paste the key from Brevo → SMTP & API → API keys)
+//   add to this file:  "vars": { "BREVO_LIST_ID": "<the list id from Brevo → Contacts → Lists>" }
+//   optional double opt-in: also BREVO_DOI_TEMPLATE_ID (a Brevo double opt-in template) and BREVO_DOI_REDIRECT_URL
+// Admin panel (/admin.html, worker/admin.ts): what each Pro tool, add-on and page shows, and the site texts.
+//   npm run admin:hash                              (makes ADMIN_PASSWORD_HASH and SESSION_SECRET)
+//   npx wrangler secret put ADMIN_EMAIL, then ADMIN_PASSWORD_HASH, then SESSION_SECRET
+//   npx wrangler kv namespace create SITE
+//   add to this file:  "kv_namespaces": [{ "binding": "SITE", "id": "<id it printed>" }]
+//   local testing: the same three values in .dev.vars (not committed); settings are kept in .novac-site.json
 // Sign-ups are off until a D1 database is bound as DB. To turn them on:
 //   npx wrangler d1 create novac-subscribers
 //   add to this file:  "d1_databases": [{ "binding": "DB", "database_name": "novac-subscribers", "database_id": "<id it printed>" }]

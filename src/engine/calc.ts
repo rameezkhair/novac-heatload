@@ -36,7 +36,9 @@ interface Parts {
   pS: number; pL: number; light: number; equip: number; infQ: number; infS: number; infL: number; wallG: number; glassA: number; sky: number;
 }
 export interface RoomLoad extends Parts {
-  oaQ: number; part: number; oaS: number; oaL: number; mS: number; mL: number; roomS: number; roomL: number;
+  oaQ: number; part: number; oaS: number; oaL: number;
+  /* the fresh air load is counted (the room's tick); when off, oaS, oaL and oa are zero but oaQ keeps the airflow */
+  faOn: boolean; mS: number; mL: number; roomS: number; roomL: number;
   unitS: number; unitL: number; unit: number; oa: number; sa: number; A: number; roofA: number; qty: number;
   /* heat balance: design month (0–11) and hour (1–24) of the room peak, and room sensible / latent load
      (with margins, one unit) for every hour of every month, index month × 24 + hour − 1 */
@@ -48,18 +50,27 @@ export interface RoomLoad extends Parts {
 /* a room on a typical floor counts once per repeat of that floor */
 export const floorRepeat = (p: Project, r: Room) => { const f = r.level ? p.floors?.find(x => x.id === r.level) : undefined; return f ? Math.max(1, Math.round(num(f.n)) || 1) : 1; };
 
+/* packaged units take their fresh air through the unit as 0–12% of the supply air */
+export const PKG_OA_MAX = 12;
+export const pkgOaOn = (p: Project) => (p.sys || 'ducted') === 'ducted' && !!p.pkgOA;
+export const pkgOaShare = (p: Project) => Math.max(0, Math.min(PKG_OA_MAX, num(p.pkgOAPct))) / 100;
+
 /* fresh air, margins, unit totals and supply air from the room components */
 function finish(p: Project, r: Room, e: Env, x: Parts, extra: Pick<RoomLoad, 'pkM' | 'pkH' | 'profS' | 'profL' | 'hb'>): RoomLoad {
   const A = num(r.area), Ti = num(p.tiDB), ks = 1.23 * e.k, kl = 3010 * e.k;
   const part = x.partW + x.partC + x.partF;
-  const oaQ = num(r.oa), oaS = ks * oaQ * (e.Tv - Ti), oaL = kl * oaQ * Math.max(0, e.Wv - e.Wi);
   const s0 = x.walls + x.roof + x.gSol + x.gCond + part + x.pS + x.light + x.equip + x.infS, l0 = x.pL + x.infL;
   const mS = s0 * num(p.sfS) / 100, mL = l0 * num(p.sfL) / 100;
-  const roomS = s0 + mS, roomL = l0 + mL, toUnit = !p.fahu;
-  const unitS = roomS + (toUnit ? oaS : 0), unitL = roomL + (toUnit ? oaL : 0), unit = unitS + unitL;
+  const roomS = s0 + mS, roomL = l0 + mL;
   const sa = roomS / (ks * Math.max(1, Ti - num(p.tSupply)));
+  /* fresh air: the room's L/s, or with packaged units the set share of its supply air, mixed in the unit */
+  /* the fresh air load counts unless the whole fresh air system load is off, or this room's is */
+  const pkg = pkgOaOn(p), faOn = r.faLoad !== false && !p.faOff, oaQ = pkg ? pkgOaShare(p) * sa : num(r.oa);
+  const oaS = faOn ? ks * oaQ * (e.Tv - Ti) : 0, oaL = faOn ? kl * oaQ * Math.max(0, e.Wv - e.Wi) : 0;
+  const toUnit = !p.fahu || pkg;
+  const unitS = roomS + (toUnit ? oaS : 0), unitL = roomL + (toUnit ? oaL : 0), unit = unitS + unitL;
   return {
-    ...x, oaQ, part, oaS, oaL, mS, mL, roomS, roomL, unitS, unitL, unit, oa: oaS + oaL, sa, A,
+    ...x, oaQ, faOn, part, oaS, oaL, mS, mL, roomS, roomL, unitS, unitL, unit, oa: oaS + oaL, sa, A,
     roofA: r.above === 'roof' ? num(r.roof) : 0, qty: (Math.max(1, Math.round(num(r.qty)) || 1)) * floorRepeat(p, r), ...extra,
   };
 }
@@ -121,8 +132,9 @@ export function computeAll(p: Project, rooms: Room[]): Computed {
     T.wallG += c.wallG * m; T.glass += c.glassA * m; T.roof += c.roofA * m; T.sky += c.sky * m;
     if (dcvNeeded(c)) T.dcv.push(r.name || 'Untitled');
   });
-  T.rec = p.fahu && p.erv ? (num(p.ervS) / 100 * T.oaS + num(p.ervL) / 100 * T.oaL) * num(p.ervShare) / 100 : 0;
-  T.fahuW = p.fahu ? Math.max(0, T.oa - T.rec) : 0;
+  const viaFahu = p.fahu && !pkgOaOn(p);
+  T.rec = viaFahu && p.erv ? (num(p.ervS) / 100 * T.oaS + num(p.ervL) / 100 * T.oaL) * num(p.ervShare) / 100 : 0;
+  T.fahuW = viaFahu ? Math.max(0, T.oa - T.rec) : 0;
   T.plant = (T.u + T.fahuW) * num(p.diversity) / 100;
   T.wwr = T.wallG ? T.glass / T.wallG * 100 : 0; T.skyPct = T.roof ? T.sky / T.roof * 100 : 0;
   if (rooms.length && rooms.every(r => res[r.id].profS)) {
