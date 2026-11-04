@@ -1,19 +1,18 @@
-// Cloudflare Workers deployment: the Worker serves the Vite build in dist/ (index.html is the landing page,
-// app.html the calculator) and takes newsletter sign-ups at POST /api/subscribe (worker/index.ts).
-// Cloudflare runs `npm run build`, then `npx wrangler deploy`.
-// Brevo: sign-ups are also added to a Brevo contact list when these are set (worker/brevo.ts):
-//   npx wrangler secret put BREVO_API_KEY          (paste the key from Brevo → SMTP & API → API keys)
-//   add to this file:  "vars": { "BREVO_LIST_ID": "<the list id from Brevo → Contacts → Lists>" }
-//   optional double opt-in: also BREVO_DOI_TEMPLATE_ID (a Brevo double opt-in template) and BREVO_DOI_REDIRECT_URL
-// Admin panel (https://novac.ae/admin, built from admin.html; worker/admin.ts): what each Pro tool, add-on and page shows, and the site texts.
-//   npm run admin:hash                              (makes ADMIN_PASSWORD_HASH and SESSION_SECRET)
-//   npx wrangler secret put ADMIN_EMAIL, then ADMIN_PASSWORD_HASH, then SESSION_SECRET
-//   npx wrangler kv namespace create SITE
-//   add to this file:  "kv_namespaces": [{ "binding": "SITE", "id": "<id it printed>" }]
-//   local testing: the same three values in .dev.vars (not committed); settings are kept in .novac-site.json
-// Sign-ups are off until a D1 database is bound as DB. To turn them on:
+// Cloudflare Workers deployment: the Worker serves the Vite build in dist/ on novac.ae (index.html is the landing page,
+// app.html the calculator, admin.html the admin panel at /admin) and the API in worker/index.ts:
+//   /api/admin/* and /api/config (admin login and site settings), /api/diesel (live UAE diesel price), /api/subscribe (newsletter).
+// It is deployed by .github/workflows/deploy-cloudflare.yml on every push to main, which needs these GitHub repository secrets:
+//   CLOUDFLARE_API_TOKEN     a Cloudflare API token from the "Edit Cloudflare Workers" template, with the novac.ae zone
+//   CLOUDFLARE_ACCOUNT_ID    Cloudflare dashboard → Workers & Pages → Account ID
+//   ADMIN_EMAIL, ADMIN_PASSWORD_HASH, SESSION_SECRET   the admin login: run `npm run admin:hash` for the last two
+//   Brevo (optional): set once with `npx wrangler secret put BREVO_API_KEY`, and BREVO_LIST_ID under "vars"
+// The admin settings are kept in the KV namespace "novac-site"; the workflow creates it on the first deploy and puts its id
+// in place of __SITE_KV_ID__ (scripts/ensure-kv.mjs).
+// Local testing: `npm run dev` serves the same API; the admin login comes from .dev.vars (not committed) and the settings
+// are kept in .novac-site.json.
+// Newsletter sign-ups can also be kept in a D1 database bound as DB:
 //   npx wrangler d1 create novac-subscribers
-//   add to this file:  "d1_databases": [{ "binding": "DB", "database_name": "novac-subscribers", "database_id": "<id it printed>" }]
+//   add:  "d1_databases": [{ "binding": "DB", "database_name": "novac-subscribers", "database_id": "<id it printed>" }]
 //   npx wrangler d1 migrations apply novac-subscribers --remote
 {
   "name": "novac-heatloadcalculator",
@@ -22,5 +21,9 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
-  }
+  },
+  /* the Worker answers everything on novac.ae; www.novac.ae keeps redirecting to it */
+  "routes": [{ "pattern": "novac.ae/*", "zone_name": "novac.ae" }],
+  "kv_namespaces": [{ "binding": "SITE", "id": "__SITE_KV_ID__" }],
+  "observability": { "enabled": true }
 }

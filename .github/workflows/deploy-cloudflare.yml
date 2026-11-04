@@ -1,0 +1,57 @@
+name: Deploy to Cloudflare
+
+# Builds the site and deploys the Worker (site, admin panel and API) to novac.ae. See wrangler.jsonc for the secrets.
+# The Brevo key, if used, is set once by hand: npx wrangler secret put BREVO_API_KEY
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Check the Cloudflare secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+        run: |
+          missing=""
+          for v in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID ADMIN_EMAIL ADMIN_PASSWORD_HASH SESSION_SECRET; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then echo "::error::Add these GitHub repository secrets first:$missing (see wrangler.jsonc)"; exit 1; fi
+      - name: Deploy the Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.157.0"
+          preCommands: node scripts/ensure-kv.mjs
+          command: deploy
+          secrets: |
+            ADMIN_EMAIL
+            ADMIN_PASSWORD_HASH
+            SESSION_SECRET
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
