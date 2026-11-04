@@ -1,4 +1,4 @@
-/* Site configuration set by the admin (admin.html): the status of every Pro tool, add-on and app page, and the site texts.
+/* Site configuration set by the admin (/admin): the status of every Pro tool, add-on and app page, and the site texts.
    The Worker keeps it (GET /api/config, PUT /api/admin/config); the calculator and the landing page read it on load.
    Anything the admin has not set falls back to the built-in default, so the site works with no configuration at all. */
 import { PRO } from './pro';

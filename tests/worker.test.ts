@@ -84,3 +84,19 @@ describe('Brevo sign-ups', () => {
     expect(both.runs).toHaveLength(1);
   });
 });
+
+describe('admin page address', () => {
+  it('serves the admin page at /admin, uncached and not indexed, and redirects the old address', async () => {
+    const { env } = fakeEnv();
+    const seen: string[] = [];
+    env.ASSETS = { fetch: async (r: Request) => { seen.push(new URL(r.url).pathname); return new Response('<html>admin</html>', { headers: { 'content-type': 'text/html' } }); } };
+    const r = await worker.fetch(new Request('https://novac.ae/admin'), env);
+    expect(r.status).toBe(200);
+    expect(seen).toEqual(['/admin']);
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    expect(r.headers.get('x-robots-tag')).toContain('noindex');
+    const old = await worker.fetch(new Request('https://novac.ae/admin.html'), env);
+    expect(old.status).toBe(301);
+    expect(old.headers.get('location')).toBe('https://novac.ae/admin');
+  });
+});

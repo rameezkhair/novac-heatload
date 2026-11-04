@@ -223,7 +223,7 @@ export default function App() {
 
   return <ComplianceProvider value={showC}>
     {bannerOn && <div className={`site-banner ${site!.texts.bannerTone ?? 'info'}`} role="note">{site!.texts.bannerText}</div>}
-    {admin && drafts.length > 0 && <div className="admin-preview" role="note"><b>Admin preview</b> · {drafts.length} update{drafts.length > 1 ? 's' : ''} not live yet ({drafts.map(f => f.label).join(', ')}): only you see {drafts.length > 1 ? 'them' : 'it'}. <a href="/admin.html">Activate in the admin panel</a></div>}
+    {admin && drafts.length > 0 && <div className="admin-preview" role="note"><b>Admin preview</b> · {drafts.length} update{drafts.length > 1 ? 's' : ''} not live yet ({drafts.map(f => f.label).join(', ')}): only you see {drafts.length > 1 ? 'them' : 'it'}. <a href="/admin">Activate in the admin panel</a></div>}
     <header className="top app-top">
       <div className="wrap">
         <div className="app-identity">

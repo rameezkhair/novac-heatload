@@ -62,6 +62,13 @@ export default {
     const { pathname } = new URL(req.url);
     if (pathname === '/api/subscribe') return req.method === 'POST' ? subscribe(req, env) : json({ error: 'Method not allowed' }, 405);
     if (pathname === '/api/diesel') return req.method === 'GET' ? diesel() : json({ error: 'Method not allowed' }, 405);
+    /* the admin page lives at /admin; the static assets serve admin.html there, never cached by browsers or the edge */
+    if (pathname === '/admin' || pathname === '/admin/' || pathname === '/admin.html') {
+      if (pathname !== '/admin') return Response.redirect(new URL('/admin', req.url).toString(), 301);
+      const r = await env.ASSETS.fetch(req), h = new Headers(r.headers);
+      h.set('cache-control', 'no-store'); h.set('x-robots-tag', 'noindex, nofollow'); h.set('x-frame-options', 'DENY');
+      return new Response(r.body, { status: r.status, headers: h });
+    }
     /* the admin login and the site configuration */
     const a = await adminApi(req, env);
     if (a) return a;

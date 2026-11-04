@@ -5,7 +5,7 @@
 //   npx wrangler secret put BREVO_API_KEY          (paste the key from Brevo → SMTP & API → API keys)
 //   add to this file:  "vars": { "BREVO_LIST_ID": "<the list id from Brevo → Contacts → Lists>" }
 //   optional double opt-in: also BREVO_DOI_TEMPLATE_ID (a Brevo double opt-in template) and BREVO_DOI_REDIRECT_URL
-// Admin panel (/admin.html, worker/admin.ts): what each Pro tool, add-on and page shows, and the site texts.
+// Admin panel (https://novac.ae/admin, built from admin.html; worker/admin.ts): what each Pro tool, add-on and page shows, and the site texts.
 //   npm run admin:hash                              (makes ADMIN_PASSWORD_HASH and SESSION_SECRET)
 //   npx wrangler secret put ADMIN_EMAIL, then ADMIN_PASSWORD_HASH, then SESSION_SECRET
 //   npx wrangler kv namespace create SITE

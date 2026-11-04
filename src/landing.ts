@@ -40,7 +40,7 @@ const nav = document.querySelector('.nav');
 const lift = () => nav?.classList.toggle('lifted', scrollY > 8);
 addEventListener('scroll', lift, { passive: true }); lift();
 
-/* site texts set in the admin panel (admin.html): headline, subheading, support email and the announcement banner.
+/* site texts set in the admin panel (/admin): headline, subheading, support email and the announcement banner.
    The page keeps its built-in text when nothing is set or the configuration cannot be loaded. */
 import('./siteConfig').then(async ({ loadSiteConfig, emphasis }) => {
   const c = await loadSiteConfig(); if (!c) return;

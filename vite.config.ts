@@ -37,6 +37,8 @@ const workerApi = (): Plugin => ({
         res.statusCode = 502; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ error: (e as Error).message }));
       }
     });
+    /* /admin is the admin page, as on the live site */
+    server.middlewares.use((req, _res, next) => { if (req.url === '/admin' || req.url === '/admin/' || req.url?.startsWith('/admin?')) req.url = '/admin.html' + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''); next(); });
     server.middlewares.use(async (req, res, next) => {
       if (!req.url || !(req.url.startsWith('/api/config') || req.url.startsWith('/api/admin/'))) return next();
       try {
