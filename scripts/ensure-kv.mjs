@@ -21,4 +21,4 @@ if (!id) {
 
 const f = 'wrangler.jsonc', s = readFileSync(f, 'utf8');
 if (!s.includes('__SITE_KV_ID__')) { console.log('wrangler.jsonc already has a KV id'); process.exit(0); }
-writeFileSync(f, s.replace('__SITE_KV_ID__', id));
+writeFileSync(f, s.replaceAll('__SITE_KV_ID__', id));
