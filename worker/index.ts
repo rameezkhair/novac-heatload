@@ -1,17 +1,18 @@
 /* Cloudflare Worker: serves the static build from dist/, takes newsletter sign-ups at POST /api/subscribe and gives the
    live UAE diesel price at GET /api/diesel. Sign-ups are kept in the D1 database bound as DB (table created by
    migrations/0001_subscribers.sql) and added to the Brevo contact list when BREVO_API_KEY and BREVO_LIST_ID are set
-   (worker/brevo.ts). The admin login and the site configuration are at /api/admin/* and /api/config (worker/admin.ts). */
+   (worker/brevo.ts). The admin login and the site configuration are at /api/admin/* and /api/config (worker/admin.ts);
+   user accounts for the Pro tools (emailed login codes) at /api/user/* and the admin's user list at /api/admin/users
+   (worker/users.ts). */
 import { fetchDiesel, type DieselPrice } from './diesel';
 import { brevoOn, brevoSubscribe, type BrevoEnv } from './brevo';
-import { adminApi, type AdminEnv } from './admin';
+import { adminApi } from './admin';
+import { userApi, type UsersEnv } from './users';
 
-/* the parts of the Workers runtime used here, so the file needs no extra type package */
-interface D1Statement { bind(...v: unknown[]): { run(): Promise<unknown> } }
-export interface Env extends BrevoEnv, AdminEnv {
+/* the parts of the Workers runtime used here, so the file needs no extra type package. DB, the D1 database (type in
+   worker/users.ts), is absent until it is bound in wrangler.jsonc; without it and without Brevo, sign-ups are refused */
+export interface Env extends BrevoEnv, UsersEnv {
   ASSETS: { fetch(req: Request): Promise<Response> };
-  /* absent until the D1 database is created and bound in wrangler.jsonc; without it and without Brevo, sign-ups are refused */
-  DB?: { prepare(sql: string): D1Statement };
 }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -69,7 +70,9 @@ export default {
       h.set('cache-control', 'no-store'); h.set('x-robots-tag', 'noindex, nofollow'); h.set('x-frame-options', 'DENY');
       return new Response(r.body, { status: r.status, headers: h });
     }
-    /* the admin login and the site configuration */
+    /* user accounts, then the admin login and the site configuration */
+    const u = await userApi(req, env);
+    if (u) return u;
     const a = await adminApi(req, env);
     if (a) return a;
     return env.ASSETS.fetch(req);

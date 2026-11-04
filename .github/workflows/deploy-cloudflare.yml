@@ -45,7 +45,9 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.157.0"
-          preCommands: node scripts/ensure-kv.mjs
+          preCommands: |
+            node scripts/ensure-kv.mjs
+            npx wrangler d1 migrations apply novac --remote
           command: deploy
           secrets: |
             ADMIN_EMAIL

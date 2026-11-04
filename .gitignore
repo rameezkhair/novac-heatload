@@ -5,3 +5,4 @@ dist
 
 .dev.vars
 .novac-site.json
+.novac-dev.sqlite

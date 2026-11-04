@@ -6,7 +6,7 @@ function fakeEnv() {
   const runs: { sql: string; args: unknown[] }[] = [];
   const env: Env = {
     ASSETS: { fetch: async () => new Response('page') },
-    DB: { prepare: sql => ({ bind: (...args) => ({ run: async () => { runs.push({ sql, args }); return {}; } }) }) },
+    DB: { prepare: sql => ({ bind: (...args) => ({ run: async () => { runs.push({ sql, args }); return {}; }, first: async () => null, all: async () => ({ results: [] }) }) }) },
   };
   return { env, runs };
 }

@@ -109,6 +109,8 @@ function Editor({ who, storage }: { who: string; storage: boolean }) {
       </> : <p className="hint">Nothing waiting: every built feature has a status you chose.</p>}
     </div>
 
+    <Users />
+
     {GROUPS.map(([g, title, sub]) => <div key={g} className="hr-card">
       <h3>{title} <span className="muted">· {sub}</span></h3>
       <div className="tbl-wrap"><table className="hr-tbl admin-tbl">
@@ -147,6 +149,73 @@ function Editor({ who, storage }: { who: string; storage: boolean }) {
     </div>
     <p className="hint">Logged in as {who}. The session lasts 12 hours.</p>
   </>;
+}
+
+/* the user accounts (worker/users.ts): every address here was verified with an emailed code. Pro opens the locked tools. */
+interface AdminUser { email: string; created_at: string; last_login_at: string; logins: number; pro: boolean; pro_since: string | null; blocked: boolean }
+type UserFilter = 'all' | 'pending' | 'pro' | 'blocked';
+const when = (s: string | null) => s ? new Date(s).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+const csvCell = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+export function usersCsv(users: AdminUser[]) {
+  const head = ['Email', 'Signed up', 'Last login', 'Logins', 'Pro', 'Pro since', 'Blocked'];
+  return [head, ...users.map(u => [u.email, u.created_at, u.last_login_at, u.logins, u.pro ? 'yes' : 'no', u.pro_since ?? '', u.blocked ? 'yes' : 'no'])]
+    .map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}
+
+function Users() {
+  const [users, setUsers] = useState<AdminUser[] | null>(null), [err, setErr] = useState(''), [q, setQ] = useState(''), [filter, setFilter] = useState<UserFilter>('all'), [busy, setBusy] = useState('');
+  const load = async () => { const r = await api('/api/admin/users'); if (r.ok) { setUsers(r.users as AdminUser[]); setErr(''); } else setErr(String(r.error || 'Could not load the users')); };
+  useEffect(() => { void load(); }, []);
+  const change = async (email: string, patch: Partial<Pick<AdminUser, 'pro' | 'blocked'>>) => {
+    setBusy(email);
+    const r = await api('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ email, ...patch }) });
+    setBusy('');
+    if (!r.ok) { setErr(String(r.error || 'Could not save')); return; }
+    setUsers(us => us && us.map(u => u.email === email ? r.user as AdminUser : u));
+  };
+  const remove = async (email: string) => {
+    if (!confirm(`Delete the account ${email}? They can sign up again with a new code.`)) return;
+    setBusy(email);
+    const r = await api('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ email }) });
+    setBusy('');
+    if (!r.ok) { setErr(String(r.error || 'Could not delete')); return; }
+    setUsers(us => us && us.filter(u => u.email !== email));
+  };
+  const all = users ?? [], count = { all: all.length, pending: all.filter(u => !u.pro && !u.blocked).length, pro: all.filter(u => u.pro && !u.blocked).length, blocked: all.filter(u => u.blocked).length };
+  const shown = all.filter(u => (filter === 'all' || (filter === 'blocked' ? u.blocked : !u.blocked && (filter === 'pro') === u.pro)) && u.email.includes(q.trim().toLowerCase()));
+  const download = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([usersCsv(shown)], { type: 'text/csv;charset=utf-8' }));
+    a.download = `novac-users-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  };
+  const LABEL: Record<UserFilter, string> = { all: 'All', pending: 'Waiting for Pro', pro: 'Pro', blocked: 'Blocked' };
+  return <div className="hr-card admin-users">
+    <h3>Users <span className="muted">· accounts with a verified email; give Pro to open the tools set to Locked (Pro)</span></h3>
+    {err && <p className="wx-status error" role="status">{err}</p>}
+    {users === null ? !err && <p className="hint">Loading users…</p> : <>
+      <div className="admin-bar">
+        <div className="btns" role="group" aria-label="Show users">
+          {(Object.keys(LABEL) as UserFilter[]).map(f => <button key={f} className={'btn sm' + (filter === f ? ' primary' : '')} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>{LABEL[f]} ({count[f]})</button>)}
+        </div>
+        <div className="btns">
+          <input className="admin-search" type="search" aria-label="Search by email" placeholder="Search email" value={q} onChange={e => setQ(e.target.value)} />
+          <button className="btn sm" type="button" onClick={() => void load()}>Refresh</button>
+          <button className="btn sm" type="button" disabled={!shown.length} onClick={download}>Export CSV</button>
+        </div>
+      </div>
+      {shown.length ? <div className="tbl-wrap"><table className="hr-tbl admin-tbl">
+        <thead><tr><th>Email</th><th>Signed up</th><th>Last login</th><th>Logins</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>{shown.map(u => <tr key={u.email}>
+          <td><b>{u.email}</b></td><td>{when(u.created_at)}</td><td>{when(u.last_login_at)}</td><td>{u.logins}</td>
+          <td>{u.blocked ? <span className="pill bad">Blocked</span> : u.pro ? <span className="pill ok" title={u.pro_since ? `Since ${when(u.pro_since)}` : undefined}>Pro</span> : <span className="pill warn">Waiting for Pro</span>}</td>
+          <td><span className="btns">
+            <button className={'btn sm' + (u.pro ? '' : ' primary')} type="button" disabled={busy === u.email || u.blocked} onClick={() => void change(u.email, { pro: !u.pro })}>{u.pro ? 'Remove Pro' : 'Give Pro'}</button>
+            <button className="btn sm" type="button" disabled={busy === u.email} onClick={() => void change(u.email, { blocked: !u.blocked })}>{u.blocked ? 'Unblock' : 'Block'}</button>
+            <button className="btn sm danger" type="button" disabled={busy === u.email} onClick={() => void remove(u.email)}>Delete</button>
+          </span></td></tr>)}</tbody>
+      </table></div> : <p className="hint">{all.length ? 'No users match.' : 'No one has signed up yet. Visitors sign up from Log in in the calculator header, or by clicking a locked Pro tool.'}</p>}
+    </>}
+  </div>;
 }
 
 if (typeof document !== 'undefined' && document.getElementById('root') && !(globalThis as { __NOVAC_TEST__?: boolean }).__NOVAC_TEST__) {

@@ -29,3 +29,16 @@ export async function brevoSubscribe(env: BrevoEnv, email: string, fetcher: type
   /* 201 created, 204 updated or confirmation sent; a contact that already exists is not an error */
   return { ok: res.ok || res.status === 400 && /duplicate/i.test(await res.text().catch(() => '')), status: res.status, doi };
 }
+
+/* one transactional email through Brevo (POST /v3/smtp/email), used for the login codes. The sender address must be
+   on a domain authenticated in Brevo (novac.ae) or a verified Brevo sender; MAIL_FROM overrides no-reply@novac.ae. */
+export interface MailEnv { BREVO_API_KEY?: string; MAIL_FROM?: string }
+export const mailOn = (env: MailEnv) => !!env.BREVO_API_KEY;
+export async function brevoSend(env: MailEnv, m: { to: string; subject: string; text: string; html: string }, fetcher: typeof fetch = fetch) {
+  const res = await fetcher(`${API}/smtp/email`, {
+    method: 'POST',
+    headers: { 'api-key': env.BREVO_API_KEY!, 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ sender: { name: 'NOVAC', email: env.MAIL_FROM || 'no-reply@novac.ae' }, to: [{ email: m.to }], subject: m.subject, textContent: m.text, htmlContent: m.html }),
+  });
+  return { ok: res.ok, status: res.status, detail: res.ok ? '' : (await res.text().catch(() => '')).slice(0, 300) };
+}

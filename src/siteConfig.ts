@@ -57,12 +57,16 @@ export function defaultStatus(f: Feature): FeatureStatus {
   return PRO.unlocked ? 'live' : 'draft';
 }
 /* what a visitor gets: for the admin a draft is a preview that opens like a live feature; for everyone else a draft
-   looks as it did before it was built: a Pro tool or add-on shows as coming soon, an update inside a step is not shown */
+   looks as it did before it was built: a Pro tool or add-on shows as coming soon, an update inside a step is not shown.
+   unlock: the visitor may open locked features (a user the admin has given Pro, or the admin) */
 export type Shown = Exclude<FeatureStatus, 'draft'> | 'preview';
-export const shownStatus = (s: FeatureStatus, admin: boolean, group?: FeatureGroup): Shown =>
-  s === 'draft' ? (admin ? 'preview' : group === 'update' ? 'hidden' : 'soon') : s;
-/* what a visitor gets for one feature */
-export const shownOf = (cfg: SiteConfig | null, id: string, admin: boolean): Shown => shownStatus(statusOf(cfg, id), admin, FEATURES.find(f => f.id === id)?.group);
+export const shownStatus = (s: FeatureStatus, admin: boolean, group?: FeatureGroup, unlock = false): Shown =>
+  s === 'draft' ? (admin ? 'preview' : group === 'update' ? 'hidden' : 'soon') : s === 'locked' && unlock ? 'live' : s;
+/* what a visitor gets for one feature; pro: the logged-in user has Pro. Only a built feature can be unlocked. */
+export function shownOf(cfg: SiteConfig | null, id: string, admin: boolean, pro = false): Shown {
+  const f = FEATURES.find(x => x.id === id);
+  return shownStatus(statusOf(cfg, id), admin, f?.group, (pro || admin) && !!f?.built);
+}
 /* the status in force: the admin's choice, else the default; a feature that is not built is never live */
 export function statusOf(cfg: SiteConfig | null, id: string): FeatureStatus {
   const f = FEATURES.find(x => x.id === id); if (!f) return 'hidden';
@@ -115,4 +119,17 @@ export async function loadSiteConfig(): Promise<SiteConfig | null> {
     const c = cleanConfig((await r.json()).config);
     setSiteConfig(c); return c;
   } catch { return null; }
+}
+
+/* the logged-in user in this browser (worker/users.ts), null when logged out; pro opens the features set to locked */
+export interface SiteUser { email: string; pro: boolean }
+let user: SiteUser | null = null;
+export const currentUser = () => user;
+export function setUser(u: SiteUser | null) { user = u; listeners.forEach(l => l()); }
+export async function loadUserSession() {
+  try {
+    const r = await fetch('/api/user/session', { credentials: 'same-origin', headers: { accept: 'application/json' } });
+    const j = r.ok ? await r.json() : null;
+    setUser(j?.email ? { email: String(j.email), pro: j.pro === true } : null);
+  } catch { setUser(null); }
 }

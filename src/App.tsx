@@ -14,8 +14,9 @@ import { ReportView } from './components/ReportView';
 import { RoomsSection } from './components/RoomsSection';
 import { ScheduleSection } from './components/ScheduleSection';
 import { ArmButton, ComplianceProvider, useToast } from './components/ui';
-import { FEATURES, featureByLabel, loadAdminSession, loadSiteConfig, shownOf, statusOf, type Shown } from './siteConfig';
-import { useAdminPreview, useSiteConfig } from './useSiteConfig';
+import { FEATURES, featureByLabel, loadAdminSession, loadSiteConfig, loadUserSession, shownOf, statusOf, type Shown } from './siteConfig';
+import { useAdminPreview, useSiteConfig, useUser } from './useSiteConfig';
+import { AccountButton, AccountDialog } from './components/Account';
 import { DuctSection } from './components/DuctSection';
 import { Library } from './components/Library';
 import { CommunityChat, Forum, Support } from './components/Community';
@@ -80,11 +81,16 @@ export default function App() {
   const CORE = steps.filter(s => !s.pro).length;
   const proSoon = ['Energy audit'];
   /* what the admin set live, locked, coming soon or hidden (built-in defaults until the site configuration loads) */
-  const site = useSiteConfig(), admin = useAdminPreview();
-  useEffect(() => { void loadSiteConfig(); void loadAdminSession(); }, []);
+  const site = useSiteConfig(), admin = useAdminPreview(), user = useUser();
+  useEffect(() => { void loadSiteConfig(); void loadAdminSession(); void loadUserSession(); }, []);
+  /* the account dialog: null when closed, else why it opened ('' from the header button) */
+  const [account, setAccount] = useState<string | null>(null);
+  const askPro = (title: string) => setAccount(user
+    ? `${title} is a Pro tool. Your account is waiting for Pro approval.`
+    : `${title} is a Pro tool. Log in or sign up with your email to use it; Pro access is approved by NOVAC.`);
   const featOf = (title: string) => featureByLabel(title)?.id ?? '';
   /* what this visitor sees: a draft is hidden, or a preview for the logged-in admin */
-  const shown = (id: string): Shown => shownOf(site, id, admin);
+  const shown = (id: string): Shown => shownOf(site, id, admin, !!user?.pro);
   const status = (title: string): Shown => shown(featOf(title));
   const opens = (s: Shown) => s === 'live' || s === 'preview';
   const drafts = FEATURES.filter(f => statusOf(site, f.id) === 'draft');
@@ -211,17 +217,30 @@ export default function App() {
       </span>
     </button>;
 
+  /* a locked Pro tool or add-on: opens the account dialog, where the visitor logs in or sees their Pro status */
+  const proLocked = (title: string, marker: ReactNode) =>
+    <button key={title} className="workflow-soon workflow-locked" type="button" onClick={() => askPro(title)} aria-label={`${title}. Locked, Pro`}>
+      <span className="workflow-marker" aria-hidden="true">{marker}</span>
+      <span className="workflow-label">
+        <span className="workflow-title">{title}</span>
+        <span className="workflow-status">{user ? 'Locked · Pro pending' : 'Locked · Log in for Pro'}</span>
+      </span>
+    </button>;
+
   /* a Pro tool or add-on as its status says: a step button when live, locked or coming soon, nothing when hidden */
   const featureButton = (title: string, index: number, marker: ReactNode) => {
     const st = status(title);
     if (st === 'hidden') return null;
     if (st === 'preview' && index >= 0) return stepButton(title, index, marker, true);
     if (st === 'live' && index >= 0) return stepButton(title, index, marker);
-    return proUnavailable(title, marker, st === 'locked' ? 'Locked · Pro' : 'Coming soon');
+    /* locked but not built yet: a Pro user sees it as coming soon */
+    if (st === 'locked' && !user?.pro) return proLocked(title, marker);
+    return proUnavailable(title, marker, 'Coming soon');
   };
   const bannerOn = !!(site?.texts.bannerOn && site.texts.bannerText);
 
   return <ComplianceProvider value={showC}>
+    {account !== null && <AccountDialog reason={account || undefined} onClose={() => setAccount(null)} />}
     {bannerOn && <div className={`site-banner ${site!.texts.bannerTone ?? 'info'}`} role="note">{site!.texts.bannerText}</div>}
     {admin && drafts.length > 0 && <div className="admin-preview" role="note"><b>Admin preview</b> · {drafts.length} update{drafts.length > 1 ? 's' : ''} not live yet ({drafts.map(f => f.label).join(', ')}): only you see {drafts.length > 1 ? 'them' : 'it'}. <a href="/admin">Activate in the admin panel</a></div>}
     <header className="top app-top">
@@ -241,11 +260,13 @@ export default function App() {
             <ArmButton className="btn danger" label="New project" armedLabel="Click again to clear all" onConfirm={() => { replace(newProjectState()); toast('New project started'); }} />
             <ProjectsMenu store={store} file={file} save={save} replace={replace} savedId={savedId} setSavedId={setSavedId} />
             <button className="btn" type="button" onClick={() => { replace(exampleState()); toast('Example loaded'); }}>Load example</button>
+            <AccountButton onOpen={() => setAccount('')} />
           </div>
           <div className="app-links">
             {VIEWS.map(([id, label]) => { const st = shown(id);
               if (st === 'hidden') return null;
-              if (st !== 'live' && st !== 'preview') return <button key={id} type="button" disabled title={st === 'locked' ? 'Pro' : 'Coming soon'}>{label} <span className="muted">· {st === 'locked' ? 'Pro' : 'soon'}</span></button>;
+              if (st === 'locked') return <button key={id} type="button" title="Pro" onClick={() => askPro(label)}>{label} <span className="muted">· Pro</span></button>;
+              if (st !== 'live' && st !== 'preview') return <button key={id} type="button" disabled title="Coming soon">{label} <span className="muted">· soon</span></button>;
               return <button key={id} type="button" aria-pressed={view === id && !report}
                 onClick={() => { setView(id); if (report) showReport(false); else scrollTo(0, 0); }}>{label}</button>; })}
           </div>

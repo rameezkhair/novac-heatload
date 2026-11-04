@@ -1336,7 +1336,7 @@ describe('site configuration from the admin', () => {
       const pro = $$('.workflow-pro .workflow-title').map(e => e.textContent);
       expect(pro).not.toContain('Hourly analysis');
       const energy = $$('.workflow-pro .workflow-soon').find(e => e.textContent?.includes('Energy modelling'))!;
-      expect(energy.textContent).toContain('Locked · Pro');
+      expect(energy.textContent).toContain('Locked · Log in for Pro');
       expect(($$('.workflow-pro .workflow-soon').find(e => e.textContent?.includes('Indoor air quality'))!).textContent).toContain('Coming soon');
       /* duct sizing set live opens */
       expect($$('.workflow-pro .workflow-step').some(e => e.textContent?.includes('Duct sizing'))).toBe(true);
@@ -1349,6 +1349,29 @@ describe('site configuration from the admin', () => {
       await act(async () => $('.workflow-step[data-step="4"]').click());
       expect($$('.workflow-end button').some(b => b.textContent === 'Continue')).toBe(false);
     } finally { await act(async () => setSiteConfig(null)); }
+  });
+
+  it('a locked Pro tool asks to log in, and opens for a user with Pro', async () => {
+    const { setSiteConfig, setUser } = await import('../src/siteConfig');
+    try {
+      await act(async () => setSiteConfig({ version: 1, features: { energy: 'locked' }, texts: {} }));
+      expect($('.account-btn').textContent).toBe('Log in');
+      const locked = () => $$('.workflow-pro .workflow-locked').find(e => e.textContent?.includes('Energy modelling'));
+      await act(async () => locked()!.click());
+      expect(document.querySelector('.modal')!.textContent).toContain('Energy modelling is a Pro tool. Log in or sign up');
+      expect(document.querySelector('#acc-email')).not.toBeNull();
+      await act(async () => (document.querySelector('.modal-head button') as HTMLButtonElement).click());
+      expect(document.querySelector('.modal')).toBeNull();
+      /* logged in, waiting for approval: still locked */
+      await act(async () => setUser({ email: 'eng@example.com', pro: false }));
+      expect($('.account-btn').textContent).toContain('Pending');
+      expect(locked()!.textContent).toContain('Pro pending');
+      /* given Pro: the tool is a step that opens */
+      await act(async () => setUser({ email: 'eng@example.com', pro: true }));
+      expect(locked()).toBeUndefined();
+      expect($$('.workflow-pro .workflow-step').some(e => e.textContent?.includes('Energy modelling'))).toBe(true);
+      expect($('.account-btn').textContent).toContain('Pro');
+    } finally { await act(async () => { setSiteConfig(null); setUser(null); }); }
   });
 });
 
@@ -1391,6 +1414,43 @@ describe('admin page', () => {
       expect((saved as { texts: { bannerText: string } }).texts.bannerText).toBe('Hello');
       expect($('.admin-bar').textContent).toContain('by admin@novac.ae');
     } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('lists the users, gives Pro, filters and exports them as CSV', async () => {
+    (globalThis as { __NOVAC_TEST__?: boolean }).__NOVAC_TEST__ = true;
+    const { Admin, usersCsv } = await import('../src/admin');
+    const u = (email: string, pro = false, blocked = false) => ({ email, created_at: '2026-11-01T09:00:00Z', last_login_at: '2026-11-03T09:00:00Z', logins: 2, pro, pro_since: pro ? '2026-11-02T09:00:00Z' : null, blocked });
+    let users = [u('a@x.com'), u('b@x.com', true), u('c@x.com', false, true)];
+    const patches: unknown[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const j = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
+      if (url === '/api/admin/session') return j({ ok: true, email: 'admin@novac.ae', storage: true });
+      if (url === '/api/config') return j({ config: null });
+      if (url === '/api/admin/users' && init?.method === 'PATCH') {
+        const b = JSON.parse(String(init.body)); patches.push(b);
+        users = users.map(x => x.email === b.email ? { ...x, ...b, pro_since: '2026-11-04T09:00:00Z' } : x);
+        return j({ ok: true, user: users.find(x => x.email === b.email) });
+      }
+      if (url === '/api/admin/users') return j({ ok: true, users });
+      return j({}, 404);
+    }));
+    try {
+      act(() => root.unmount());
+      root = createRoot(host);
+      await act(async () => root.render(<Admin />));
+      for (let i = 0; i < 30 && !$('.admin-users tbody'); i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      const rows = () => $$('.admin-users tbody tr').map(r => r.textContent);
+      expect(rows()).toHaveLength(3);
+      expect($('.admin-users').textContent).toContain('Waiting for Pro (1)');
+      await act(async () => byText('.admin-users .btns button', 'Waiting for Pro (1)').click());
+      expect(rows()).toEqual([expect.stringContaining('a@x.com')]);
+      await act(async () => byText('.admin-users tbody button', 'Give Pro').click());
+      for (let i = 0; i < 20 && !patches.length; i++) await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+      expect(patches).toEqual([{ email: 'a@x.com', pro: true }]);
+      expect(rows()).toHaveLength(0);
+      expect($('.admin-users').textContent).toContain('Pro (2)');
+    } finally { vi.unstubAllGlobals(); }
+    expect(usersCsv([u('q"x@y.com', true)])).toBe('Email,Signed up,Last login,Logins,Pro,Pro since,Blocked\r\n"q""x@y.com",2026-11-01T09:00:00Z,2026-11-03T09:00:00Z,2,yes,2026-11-02T09:00:00Z,no\r\n');
   });
 });
 

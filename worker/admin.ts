@@ -13,11 +13,11 @@ const b64 = (b: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uin
 const unb64 = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const b64url = (s: string) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const unb64url = (s: string) => atob(s.replace(/-/g, '+').replace(/_/g, '/'));
-const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+export const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...headers } });
 
 /* constant-time comparison of two strings */
-function same(a: string, b: string) { let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; }
+export function same(a: string, b: string) { let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; }
 
 /* Workers allow PBKDF2 up to 100,000 iterations */
 export const PBKDF2_ITERATIONS = 100000;
@@ -33,24 +33,31 @@ export async function verifyPassword(password: string, stored: string) {
   return same(again.split('$')[3], hash);
 }
 
-async function hmac(secret: string, data: string) {
+export async function hmac(secret: string, data: string) {
   const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return b64(await crypto.subtle.sign('HMAC', key, enc.encode(data))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 export const SESSION_HOURS = 12;
-export async function makeSession(env: AdminEnv, email: string, now = Date.now()) {
-  const body = b64url(JSON.stringify({ e: email, x: now + SESSION_HOURS * 3600e3 }));
-  return `${body}.${await hmac(env.SESSION_SECRET!, body)}`;
+/* signed session tokens: the admin's (kind "a", cookie novac_admin) and the users' (kind "u", cookie novac_user, worker/users.ts);
+   the kind is signed with the rest, so a user's token never passes as the admin's */
+export type SessionKind = 'a' | 'u';
+const COOKIE: Record<SessionKind, string> = { a: 'novac_admin', u: 'novac_user' };
+export async function signSession(secret: string, kind: SessionKind, email: string, hours: number, now = Date.now()) {
+  const body = b64url(JSON.stringify({ k: kind, e: email, x: now + hours * 3600e3 }));
+  return `${body}.${await hmac(secret, body)}`;
 }
-export async function readSession(env: AdminEnv, req: Request, now = Date.now()): Promise<string | null> {
-  if (!env.SESSION_SECRET) return null;
-  const c = (req.headers.get('cookie') || '').split(/;\s*/).find(x => x.startsWith('novac_admin='));
+export async function readSigned(secret: string | undefined, kind: SessionKind, req: Request, now = Date.now()): Promise<string | null> {
+  if (!secret) return null;
+  const name = COOKIE[kind] + '=', c = (req.headers.get('cookie') || '').split(/;\s*/).find(x => x.startsWith(name));
   if (!c) return null;
-  const [body, sig] = c.slice('novac_admin='.length).split('.');
-  if (!body || !sig || !same(sig, await hmac(env.SESSION_SECRET, body))) return null;
-  try { const p = JSON.parse(unb64url(body)); return typeof p.e === 'string' && typeof p.x === 'number' && p.x > now ? p.e : null; } catch { return null; }
+  const [body, sig] = c.slice(name.length).split('.');
+  if (!body || !sig || !same(sig, await hmac(secret, body))) return null;
+  try { const p = JSON.parse(unb64url(body)); return p.k === kind && typeof p.e === 'string' && typeof p.x === 'number' && p.x > now ? p.e : null; } catch { return null; }
 }
-const cookie = (v: string, maxAge: number) => `novac_admin=${v}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+export const sessionCookie = (kind: SessionKind, v: string, maxAge: number) => `${COOKIE[kind]}=${v}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+export const makeSession = (env: AdminEnv, email: string, now = Date.now()) => signSession(env.SESSION_SECRET!, 'a', email, SESSION_HOURS, now);
+export const readSession = (env: AdminEnv, req: Request, now = Date.now()) => readSigned(env.SESSION_SECRET, 'a', req, now);
+const cookie = (v: string, maxAge: number) => sessionCookie('a', v, maxAge);
 
 /* login attempts per address, per isolate: 5 tries in 10 minutes */
 const tries = new Map<string, { n: number; t: number }>();
@@ -62,7 +69,7 @@ function throttled(ip: string, now = Date.now()) {
 export const resetThrottle = () => tries.clear();
 
 const configured = (env: AdminEnv) => !!(env.ADMIN_EMAIL && env.ADMIN_PASSWORD_HASH && env.SESSION_SECRET);
-const sameOrigin = (req: Request) => { const o = req.headers.get('origin'); return !o || o === new URL(req.url).origin; };
+export const sameOrigin = (req: Request) => { const o = req.headers.get('origin'); return !o || o === new URL(req.url).origin; };
 
 /* the admin and configuration routes; null when the path is not one of them */
 export async function adminApi(req: Request, env: AdminEnv): Promise<Response | null> {
