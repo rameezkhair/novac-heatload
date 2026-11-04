@@ -5,7 +5,8 @@
 //   CLOUDFLARE_API_TOKEN     a Cloudflare API token from the "Edit Cloudflare Workers" template, with the novac.ae zone
 //   CLOUDFLARE_ACCOUNT_ID    Cloudflare dashboard → Workers & Pages → Account ID
 //   ADMIN_EMAIL, ADMIN_PASSWORD_HASH, SESSION_SECRET   the admin login: run `npm run admin:hash` for the last two
-//   Brevo (optional): set once with `npx wrangler secret put BREVO_API_KEY`, and BREVO_LIST_ID under "vars"
+//   Brevo: the API key is set once as a Worker secret (`npx wrangler secret put BREVO_API_KEY`, or the dashboard);
+//   the contact list is BREVO_LIST_ID under "vars" below
 // The admin settings are kept in the KV namespace "novac-site"; the workflow creates it on the first deploy and puts its id
 // in place of __SITE_KV_ID__ (scripts/ensure-kv.mjs).
 // Local testing: `npm run dev` serves the same API; the admin login comes from .dev.vars (not committed) and the settings
@@ -25,5 +26,7 @@
   /* the Worker answers everything on novac.ae; www.novac.ae keeps redirecting to it */
   "routes": [{ "pattern": "novac.ae/*", "zone_name": "novac.ae" }],
   "kv_namespaces": [{ "binding": "SITE", "id": "__SITE_KV_ID__" }],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  /* Brevo: newsletter sign-ups go to this contact list; the API key is the Worker secret BREVO_API_KEY */
+  "vars": { "BREVO_LIST_ID": "3" }
 }
